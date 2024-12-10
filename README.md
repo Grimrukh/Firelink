@@ -1,0 +1,1 @@
+C++ (Windows) library for FromSoftware game memory hooks.
