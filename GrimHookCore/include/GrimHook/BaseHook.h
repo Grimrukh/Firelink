@@ -1,5 +1,7 @@
 ﻿#pragma once
 
+#include <memory>
+
 #include "Export.h"
 #include "Pointer.h"
 #include "Process.h"
@@ -18,8 +20,11 @@ namespace GrimHook
         /// @brief Default destructor (virtual class).
         virtual ~BaseHook();
 
-        /// @brief Get the managed process associated with this hook, e.g. for direct `Read()` and `Write()` calls.
-        [[nodiscard]] ManagedProcess* GetProcess() const { return m_process.get(); }
+        /** @brief Get a shared pointer to the managed process associated with this hook.
+         *
+         * Useful for direct `Read()` and `Write()` calls that don't use `BasePointer` instances.
+         */
+        [[nodiscard]] std::shared_ptr<ManagedProcess> GetProcess() const { return m_process; }
 
         /// @brief Convenient name access to pointers.
         [[nodiscard]] const BasePointer* operator [](const std::string& name) const

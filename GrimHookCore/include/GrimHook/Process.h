@@ -30,7 +30,7 @@ namespace GrimHook {
     class GRIMHOOK_API ManagedProcess
     {
     public:
-        explicit ManagedProcess(HANDLE processHandle);
+        explicit ManagedProcess(void* processHandle);
 
         /// @brief Get a (non-owning) reference to the process handle.
         [[nodiscard]] void* GetHandle() const { return m_processHandle.get(); }
@@ -234,15 +234,48 @@ namespace GrimHook {
         **/
         [[nodiscard]] const void* FindPattern(const std::string& patternString, bool pageExecuteOnly = true) const;
 
-        /// @brief Static function to find and open a process by name.
-        /// Returns `true` if the process search was valid, even if no `outProcess` was found. To determine if the
-        /// process was found, check if `outProcess` is `nullptr`.
+        /** @brief Static function to find and open a process by name.
+         *
+         * Ownership is left up to the caller.
+         *
+         * Returns `true` if the process search was valid, even if no `outProcess` was found. To determine if the
+         * process was found, check if `outProcess` is `nullptr`.
+         *
+         * @param processName The name of the process to search for.
+         * @param outProcess A pointer to a `ManagedProcess` pointer to assign the found process to.
+         */
         static bool FindProcessByName(const std::wstring& processName, ManagedProcess*& outProcess);
 
-        /// @brief Static function to find and open a process by window title.
-        /// Returns `true` if the process search was valid, even if no `outProcess` was found. To determine if the
-        /// process was found, check if `outProcess` is `nullptr`.
+        /** @brief Static function to find and open a process by window title.
+         *
+         * Ownership is left up to the caller.
+         *
+         * Returns `true` if the process search was valid, even if no `outProcess` was found. To determine if the
+         * process was found, check if `outProcess` is `nullptr`.
+         *
+         * @param windowTitle The title of the window to search for.
+         * @param outProcess A pointer to a `ManagedProcess` pointer to assign the found process to.
+         */
         static bool FindProcessByWindowTitle(const std::wstring& windowTitle, ManagedProcess*& outProcess);
+
+        /** @brief Blocks until the given process name is found and returned, `timeout` ms passes (returns nullptr),
+         *  or the `stopFlag` is set to `true` (returns nullptr).
+         *
+         *  Ownership is left up to the caller.
+         *
+         *  Assigns the found process to `outProcess` if found within the timeout. If not found, `outProcess` is
+         *  `nullptr`.
+         *
+         *  @param processName The name of the process to search for.
+         *  @param timeoutMs The maximum time to wait for the process to be found (ms).
+         *  @param refreshIntervalMs The time to wait between process searches (ms).
+         *  @param stopFlag An atomic boolean flag to stop the search early.
+         */
+        static std::unique_ptr<ManagedProcess> WaitForProcess(
+            const std::wstring& processName,
+            int timeoutMs,
+            int refreshIntervalMs,
+            const std::atomic<bool>& stopFlag);
 
     private:
 

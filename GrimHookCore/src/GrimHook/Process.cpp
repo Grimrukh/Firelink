@@ -1,7 +1,10 @@
 ﻿#include "../pch.h"
 
+#include <atomic>
+#include <chrono>
 #include <format>
 #include <ranges>
+#include <thread>
 
 #include <psapi.h>  // For `EnumProcessModules`
 #include <tlhelp32.h>  // For `CreateToolhelp32Snapshot`, `PROCESSENTRY32`
@@ -431,7 +434,7 @@ const void* ManagedProcess::FindPattern(const string& patternString, const bool 
 
 bool ManagedProcess::FindProcessByName(const wstring& processName, ManagedProcess*& outProcess)
 {
-    outProcess = nullptr;  // Initialize the out parameter to nullptr
+    outProcess = nullptr;
 
     // Take a snapshot of all running processes
     void* snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
@@ -525,6 +528,51 @@ bool ManagedProcess::FindProcessByWindowTitle(const wstring& windowTitle, Manage
     outProcess = new ManagedProcess(processHandle);
     return true;  // Success
 }
+
+unique_ptr<ManagedProcess> ManagedProcess::WaitForProcess(
+    const wstring& processName,
+    const int timeoutMs,
+    const int refreshIntervalMs,
+    const atomic<bool>& stopFlag)
+{
+    Info(format(L"Waiting to find for process with name '{}'.", processName));
+
+    ManagedProcess* process;
+    chrono::milliseconds timeout(timeoutMs);
+
+    while (true)
+    {
+        if (stopFlag.load())
+            return nullptr;
+
+        if (timeout <= chrono::milliseconds(0))
+        {
+            Warning("Timeout reached. Process not found.");
+            break;
+        }
+
+        if (FindProcessByName(processName, process))
+        {
+            // Search was valid, but process may not have been found.
+            if (process)
+            {
+                Info("Process found!");
+                return unique_ptr<ManagedProcess>(process);
+            }
+            Warning(format("Process not found. Retrying in {} ms... ", refreshIntervalMs));
+        }
+        else
+        {
+            Error("Error occurred during process search.");
+            break;
+        }
+        this_thread::sleep_for(chrono::milliseconds(refreshIntervalMs));
+        timeout -= chrono::milliseconds(refreshIntervalMs);
+    }
+
+    return nullptr;
+}
+
 
 bool ManagedProcess::ReadProcessBytes(const void* address, void* buffer, const size_t size) const
 {

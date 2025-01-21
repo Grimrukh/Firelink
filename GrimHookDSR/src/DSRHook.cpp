@@ -22,12 +22,12 @@ namespace
 }
 
 
-DSRHook::DSRHook::DSRHook(shared_ptr<ManagedProcess> process) : BaseHook(std::move(process))
+GrimHookDSR::DSRHook::DSRHook(shared_ptr<ManagedProcess> process) : BaseHook(std::move(process))
 {
     DSRHook::RefreshAllPointers();
 }
 
-void DSRHook::DSRHook::RefreshAllPointers()
+void GrimHookDSR::DSRHook::RefreshAllPointers()
 {
     Info(L"Searching for WorldChrMan AOB...");
     if (const LPCVOID worldChrManAobAddr = m_process->FindPattern(worldChrManAob))
@@ -56,7 +56,7 @@ void DSRHook::DSRHook::RefreshAllPointers()
     RefreshChildPointers();
 }
 
-void DSRHook::DSRHook::RefreshChildPointers()
+void GrimHookDSR::DSRHook::RefreshChildPointers()
 {
     m_process->CreateChildPointer("WorldChrMan", "PlayerIns", { world_chr_man_offsets::PLAYER_INS });
     m_process->CreateChildPointer("PlayerIns", "SpEffectManager", { enemy_ins_offsets::SP_EFFECT_MANAGER_ADDR });
@@ -65,18 +65,18 @@ void DSRHook::DSRHook::RefreshChildPointers()
 
 }
 
-bool DSRHook::DSRHook::IsGameLoaded() const
+bool GrimHookDSR::DSRHook::IsGameLoaded() const
 {
     // WorldChrMan only resolves to non-null if game is loaded.
     return !(*this)["WorldChrMan"]->IsNull();
 }
 
-u16string DSRHook::DSRHook::GetPlayerModelName() const
+u16string GrimHookDSR::DSRHook::GetPlayerModelName() const
 {
     return (*this)["PlayerIns"]->ReadUTF16String(enemy_ins_offsets::MODEL_NAME, 5);
 }
 
-pair<int, int> DSRHook::DSRHook::GetPlayerHp() const
+pair<int, int> GrimHookDSR::DSRHook::GetPlayerHp() const
 {
     const BasePointer* playerIns = (*this)["PlayerIns"];
     const int currentHP = playerIns->Read<int32_t>(enemy_ins_offsets::CURRENT_HP);
@@ -84,7 +84,7 @@ pair<int, int> DSRHook::DSRHook::GetPlayerHp() const
     return { currentHP, maxHP };
 }
 
-vector<int> DSRHook::DSRHook::GetPlayerActiveSpEffects() const
+vector<int> GrimHookDSR::DSRHook::GetPlayerActiveSpEffects() const
 {
     const BasePointer* spEffectManagerPtr = (*this)["SpEffectManager"];
     if (spEffectManagerPtr->IsNull())
@@ -110,7 +110,7 @@ vector<int> DSRHook::DSRHook::GetPlayerActiveSpEffects() const
     return spEffectIDs;
 }
 
-bool DSRHook::DSRHook::PlayerHasSpEffect(const int spEffectId) const
+bool GrimHookDSR::DSRHook::PlayerHasSpEffect(const int spEffectId) const
 {
     vector<int> playerSpEffects = GetPlayerActiveSpEffects();
     return ranges::find(playerSpEffects.begin(), playerSpEffects.end(), spEffectId) != playerSpEffects.end();
@@ -118,7 +118,7 @@ bool DSRHook::DSRHook::PlayerHasSpEffect(const int spEffectId) const
 
 // --- EQUIPPED WEAPONS ---
 
-int DSRHook::DSRHook::GetWeapon(WeaponSlot slot, const bool isLeftHand) const
+int GrimHookDSR::DSRHook::GetWeapon(WeaponSlot slot, const bool isLeftHand) const
 {
     const BasePointer* chrAsm = (*this)["ChrAsm"];
     if (slot == WeaponSlot::CURRENT)
@@ -141,7 +141,7 @@ int DSRHook::DSRHook::GetWeapon(WeaponSlot slot, const bool isLeftHand) const
     return -1;
 }
 
-bool DSRHook::DSRHook::SetWeapon(WeaponSlot slot, const int weaponId, const bool isLeftHand) const
+bool GrimHookDSR::DSRHook::SetWeapon(WeaponSlot slot, const int weaponId, const bool isLeftHand) const
 {
     const BasePointer* chrAsm = (*this)["ChrAsm"];
     if (slot == WeaponSlot::CURRENT)

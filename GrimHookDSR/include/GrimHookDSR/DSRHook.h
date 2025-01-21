@@ -11,7 +11,7 @@
 #include "DSREnums.h"
 
 
-namespace DSRHook
+namespace GrimHookDSR
 {
     /// @brief Name of DSR process, for the user to find it.
     inline constexpr wchar_t DSR_PROCESS_NAME[] = L"DarkSoulsRemastered.exe";
