@@ -1,12 +1,15 @@
 ﻿#include "../pch.h"
 
+#include <format>
+#include <ranges>
+
 #include <psapi.h>  // For `EnumProcessModules`
 #include <tlhelp32.h>  // For `CreateToolhelp32Snapshot`, `PROCESSENTRY32`
 
 #include "GrimHook/Logging.h"
-#include "GrimHook/Process.h"
 #include "GrimHook/MemoryUtils.h"
-#include "MemoryReadWrite.h"
+#include "GrimHook/Pointer.h"
+#include "GrimHook/Process.h"
 
 #pragma comment(lib, "Kernel32.lib")
 
@@ -15,6 +18,7 @@ using namespace GrimHook;
 
 namespace
 {
+    /// @brief Check if a memory page is searchable.
     bool IsSearchable(const DWORD protect, const bool pageExecuteOnly)
     {
         if (protect & (PAGE_GUARD | PAGE_NOACCESS))
@@ -26,7 +30,7 @@ namespace
         return protect & (PAGE_READONLY | PAGE_READWRITE | PAGE_EXECUTE_READ | PAGE_EXECUTE_READWRITE);
     }
 
-    // Search for a byte pattern in memory
+    /// @brief Search for a byte pattern in memory.
     BYTE* SearchBuffer(const BYTE* buffer, const SIZE_T bufferSize, const BYTE* pattern, const SIZE_T patternSize, const bool* wildcardMask = nullptr)
     {
         for (SIZE_T i = 0; i <= bufferSize - patternSize; ++i)
@@ -51,61 +55,23 @@ namespace
     }
 }
 
-ManagedProcess::ManagedProcess(const HANDLE processHandle)
-{
-    m_processHandle = processHandle;
 
+ManagedProcess::ManagedProcess(void* processHandle) : m_processHandle(processHandle, &CloseHandle)  // NOLINT
+{
     // Enumerate memory modules.
     DWORD cbNeeded;
     if (!EnumProcessModules(processHandle, m_hModules, sizeof(m_hModules), &cbNeeded))
     {
-        WinError(L"Failed to enumerate modules in process.");        
+        WinError("Failed to enumerate modules in process.");
     }
 }
 
-ManagedProcess::~ManagedProcess()
-{
-    if (m_processHandle != nullptr)
-    {
-        CloseHandle(m_processHandle);
-    }
-}
-
-ManagedProcess::ManagedProcess(ManagedProcess&& other) noexcept
-{
-    // Moves the handle to this object and nulls out the other object's handle.
-    m_processHandle = other.m_processHandle;
-    other.m_processHandle = nullptr;
-}
-
-ManagedProcess& ManagedProcess::operator=(ManagedProcess&& other) noexcept
-{
-    if (this != &other)
-    {
-        // Close the current handle.
-        if (m_processHandle != nullptr)
-        {
-            CloseHandle(m_processHandle);
-        }
-
-        // Moves the handle to this object and nulls out the other object's handle.
-        m_processHandle = other.m_processHandle;
-        other.m_processHandle = nullptr;
-    }
-    return *this;
-}
-
-HANDLE ManagedProcess::getHandle() const
-{
-    return m_processHandle;
-}
-
-bool ManagedProcess::getMainModuleBaseAddressAndSize(LPVOID& baseAddress, SIZE_T& mainModuleSize) const
+bool ManagedProcess::GetMainModuleBaseAddressAndSize(void*& baseAddress, SIZE_T& mainModuleSize) const
 {
     MODULEINFO moduleInfo;
-    if (!GetModuleInformation(m_processHandle, m_hModules[0], &moduleInfo, sizeof(moduleInfo)))
+    if (!GetModuleInformation(GetHandle(), m_hModules[0], &moduleInfo, sizeof(moduleInfo)))
     {
-        Error(L"Could not retrieve main module info for process.");
+        Error("Could not retrieve main module info for process.");
         // Failed to get module information
         baseAddress = nullptr;
         mainModuleSize = 0;
@@ -117,28 +83,27 @@ bool ManagedProcess::getMainModuleBaseAddressAndSize(LPVOID& baseAddress, SIZE_T
     return true;
 }
 
-bool ManagedProcess::isHandleValid() const
+bool ManagedProcess::IsHandleValid() const
 {
     if (m_processHandle == nullptr)
     {
-        Error(L"ManagedProcess handle is null.");
+        Error("ManagedProcess handle is null.");
         return false;
     }
-    const DWORD processId = GetProcessId(m_processHandle);
-    if (processId == 0)
+    if (GetProcessId(GetHandle()) == 0)
     {
-        WinError(L"ManagedProcess handle is invalid.");
+        WinError("ManagedProcess handle is invalid.");
         return false;
     }
     return true;
 }
 
-bool ManagedProcess::isProcessTerminated() const
+bool ManagedProcess::IsProcessTerminated() const
 {
     DWORD exitCode;
-    if (!GetExitCodeProcess(m_processHandle, &exitCode))
+    if (!GetExitCodeProcess(GetHandle(), &exitCode))
     {
-        WinError(L"Failed to get process exit code.");
+        WinError("Failed to get process exit code.");
         return false;
     }
     if (exitCode != STILL_ACTIVE)
@@ -149,272 +114,247 @@ bool ManagedProcess::isProcessTerminated() const
     return false;
 }
 
-bool ManagedProcess::isAddressValid(const LPCVOID address) const
+bool ManagedProcess::IsAddressValid(const void* address) const
 {
-    if (!isHandleValid())
+    if (!IsHandleValid())
         return false;
 
     MEMORY_BASIC_INFORMATION mbi;
-    if (VirtualQueryEx(m_processHandle, address, &mbi, sizeof(mbi)) != sizeof(mbi))
+    if (VirtualQueryEx(GetHandle(), address, &mbi, sizeof(mbi)) != sizeof(mbi))
     {
-        WinError(L"VirtualQueryEx failed.");
+        WinError("VirtualQueryEx failed.");
         return false;
     }
 
     if (mbi.State != MEM_COMMIT)
     {
-        Error(L"Address " + ToHexWstring(address) + L" is not committed.");
+        Error(format("Address {} is not committed.", address));
         return false;
     }
 
-    Debug(L"Address " + ToHexWstring(address) + L" is valid.");
+    Debug(format("Address {} is valid.", address));
     return true;
 }
 
-uint8_t ManagedProcess::readByte(const LPCVOID address) const
+const BasePointer* ManagedProcess::GetPointer(const string& name) const
 {
-    return MemoryReadWrite::ReadProcessByte(m_processHandle, address);
-}
-bool ManagedProcess::writeByte(const LPCVOID address, const uint8_t value) const
-{
-    return MemoryReadWrite::WriteProcessByte(m_processHandle, address, value);
-}
-
-int8_t ManagedProcess::readSByte(const LPCVOID address) const
-{
-    return MemoryReadWrite::ReadProcessSByte(m_processHandle, address);
-}
-bool ManagedProcess::writeSByte(const LPCVOID address, const int8_t value) const
-{
-    return MemoryReadWrite::WriteProcessSByte(m_processHandle, address, value);
+    try
+    {
+        return m_pointers.at(name).get();
+    }
+    catch (const out_of_range&)
+    {
+        Error(format("Pointer name '{}' not found in process.", name));
+        return nullptr;
+    }
 }
 
-uint16_t ManagedProcess::readUInt16(const LPCVOID address) const
+void ManagedProcess::DeletePointer(const string& name)
 {
-    return MemoryReadWrite::ReadProcessUInt16(m_processHandle, address);
-}
-bool ManagedProcess::writeUInt16(const LPCVOID address, const uint16_t value) const
-{
-    return MemoryReadWrite::WriteProcessUInt16(m_processHandle, address, value);
-}
-
-int16_t ManagedProcess::readInt16(const LPCVOID address) const
-{
-    return MemoryReadWrite::ReadProcessInt16(m_processHandle, address);
-}
-bool ManagedProcess::writeInt16(const LPCVOID address, const int16_t value) const
-{
-    return MemoryReadWrite::WriteProcessInt16(m_processHandle, address, value);
+    if (m_pointers.contains(name))
+        m_pointers.erase(name);
+    else
+        Error(format("Pointer name '{}' not found in process.", name));
 }
 
-uint32_t ManagedProcess::readUInt32(const LPCVOID address) const
+bool ManagedProcess::TryDeletePointer(const string& name)
 {
-    return MemoryReadWrite::ReadProcessUInt32(m_processHandle, address);
-}
-bool ManagedProcess::writeUInt32(const LPCVOID address, const uint32_t value) const
-{
-    return MemoryReadWrite::WriteProcessUInt32(m_processHandle, address, value);
-}
-
-int32_t ManagedProcess::readInt32(const LPCVOID address) const
-{
-    return MemoryReadWrite::ReadProcessInt32(m_processHandle, address);
-}
-bool ManagedProcess::writeInt32(const LPCVOID address, const int32_t value) const
-{
-    return MemoryReadWrite::WriteProcessInt32(m_processHandle, address, value);
+    if (m_pointers.contains(name))
+    {
+        m_pointers.erase(name);
+        return true;
+    }
+    return false;
 }
 
-uint64_t ManagedProcess::readUInt64(const LPCVOID address) const
+// region Pointer Construction
+
+BasePointer* ManagedProcess::CreatePointer(
+    const string& name, const void* baseAddress, const vector<int>& offsets)
 {
-    return MemoryReadWrite::ReadProcessUInt64(m_processHandle, address);
-}
-bool ManagedProcess::writeUInt64(const LPCVOID address, const uint64_t value) const
-{
-    return MemoryReadWrite::WriteProcessUInt64(m_processHandle, address, value);
+    if (!allowPointerOverwrite && m_pointers.contains(name))
+        throw invalid_argument(format("Pointer name already exists in process: {}", name));
+
+    const auto pointer = new BasePointer(*this, baseAddress, name, offsets);
+    m_pointers[name] = unique_ptr<BasePointer>(pointer);
+    return m_pointers[name].get();
 }
 
-int64_t ManagedProcess::readInt64(const LPCVOID address) const
+BasePointer* ManagedProcess::CreatePointerWithJumpInstruction(
+    const string& name, const void* baseAddress, const int jumpRelativeOffset, const vector<int>& offsets)
 {
-    return MemoryReadWrite::ReadProcessInt64(m_processHandle, address);
-}
-bool ManagedProcess::writeInt64(const LPCVOID address, const int64_t value) const
-{
-    return MemoryReadWrite::WriteProcessInt64(m_processHandle, address, value);
+    if (!allowPointerOverwrite && m_pointers.contains(name))
+        throw invalid_argument(format("Pointer name already exists in process: {}", name));
+
+    Debug(format("AOB pattern for BasePointer {} found at: {}", name, baseAddress));
+
+    // Resolve relative jump by reading 32-bit offset.
+    const void* jumpLocation = GetOffsetPointer(baseAddress, jumpRelativeOffset);
+    const int relativeJump = Read<int32_t>(jumpLocation);
+    // Jump from end of relative offset.
+    const void* jumpedAddress = GetOffsetPointer(jumpLocation, 4 + relativeJump);
+    Debug(format("Resolved pointer {} relative address to: {}", name, jumpedAddress));
+
+    const auto pointer = new BasePointer(*this, jumpedAddress, name, offsets);
+    m_pointers[name] = unique_ptr<BasePointer>(pointer);
+    return m_pointers[name].get();
 }
 
-LPCVOID ManagedProcess::readPointer(const LPCVOID address) const
+// AOB search constructor (Absolute AOB)
+BasePointer* ManagedProcess::CreatePointerToAob(const string& name, const string& aobPattern, const vector<int>& offsets)
 {
-    return MemoryReadWrite::ReadProcessPointer(m_processHandle, address);
-}
-bool ManagedProcess::writePointer(const LPCVOID address, const LPVOID value) const
-{
-    return MemoryReadWrite::WriteProcessPointer(m_processHandle, address, value);
+    if (!allowPointerOverwrite && m_pointers.contains(name))
+        throw invalid_argument(format("Pointer name already exists in process: {}", name));
+
+    const void* baseAddress = FindPattern(aobPattern);
+    if (baseAddress == nullptr)
+        Error("Failed to find AOB pattern for BasePointer " + name);
+    else
+        Debug(format("AOB pattern for BasePointer {} found at: {}", name, baseAddress));
+
+    const auto pointer = new BasePointer(*this, baseAddress, name, offsets);
+    m_pointers[name] = unique_ptr<BasePointer>(pointer);
+    return m_pointers[name].get();
 }
 
-float ManagedProcess::readSingle(const LPCVOID address) const
+// AOB search constructor (with relative jump offset)
+BasePointer* ManagedProcess::CreatePointerToAobWithJumpInstruction(
+    const string& name, const string& aobPattern, const int jumpRelativeOffset, const vector<int>& offsets)
 {
-    return MemoryReadWrite::ReadProcessSingle(m_processHandle, address);
-}
-bool ManagedProcess::writeSingle(const LPCVOID address, const float value) const
-{
-    return MemoryReadWrite::WriteProcessSingle(m_processHandle, address, value);
+    if (!allowPointerOverwrite && m_pointers.contains(name))
+        throw invalid_argument(format("Pointer name already exists in process: {}", name));
+
+    const void* aobAddress = FindPattern(aobPattern);
+    if (aobAddress == nullptr)
+    {
+        Error(format("Failed to find AOB pattern for relative jump BasePointer '{}'.", name));
+        const auto pointer = new BasePointer(*this, nullptr, name, offsets);
+        m_pointers[name] = unique_ptr<BasePointer>(pointer);
+        return pointer;
+    }
+    Debug(format("AOB pattern for relative jump BasePointer {} found at: ", name, aobAddress));
+
+    return CreatePointerWithJumpInstruction(name, aobAddress, jumpRelativeOffset, offsets);
 }
 
-double ManagedProcess::readDouble(const LPCVOID address) const
+ChildPointer* ManagedProcess::CreateChildPointer(const BasePointer& parent, const string& name,
+    const vector<int>& offsets)
 {
-    return MemoryReadWrite::ReadProcessDouble(m_processHandle, address);
-}
-bool ManagedProcess::writeDouble(const LPCVOID address, const double value) const 
-{
-    return MemoryReadWrite::WriteProcessDouble(m_processHandle, address, value);
+    if (!allowPointerOverwrite && m_pointers.contains(name))
+        throw invalid_argument(format("Pointer name already exists in process: {}", name));
+
+    // Check that `parent` is actually a pointer in this process.
+    bool parentFound = false;
+    for (const auto& value : views::values(m_pointers))
+    {
+        if (value.get() == &parent)
+        {
+            parentFound = true;
+            break;
+        }
+    }
+    if (!parentFound)
+    {
+        Error(format("Parent pointer '{}' not present in this process.", parent.GetName()));
+        return nullptr;
+    }
+
+    const auto child = new ChildPointer(parent, name, offsets);
+    m_pointers[name] = unique_ptr<BasePointer>(child);
+    return dynamic_cast<ChildPointer*>(m_pointers[name].get());
 }
 
-bool ManagedProcess::readBool(const LPCVOID address) const
+ChildPointer* ManagedProcess::CreateChildPointer(const string& parentName, const string& name,
+                                                 const vector<int>& offsets)
 {
-    return MemoryReadWrite::ReadProcessBool(m_processHandle, address);
-}
-bool ManagedProcess::writeBool(const LPCVOID address, const bool value) const
-{
-    return MemoryReadWrite::WriteProcessBool(m_processHandle, address, value);
+    if (!allowPointerOverwrite && m_pointers.contains(name))
+        throw invalid_argument(format("Pointer name already exists in process: {}", name));
+
+    try
+    {
+        const BasePointer* parent = GetPointer(parentName);
+        return CreateChildPointer(*parent, name, offsets);
+    }
+    catch (const out_of_range&)
+    {
+        Error(format("Parent pointer name '{}' not found in process.", parentName));
+        return nullptr;
+    }
 }
 
-string ManagedProcess::readString(const LPCVOID address, const size_t length) const
+string ManagedProcess::ReadString(const void* address, const size_t length) const
 {
-    return MemoryReadWrite::ReadProcessString(m_processHandle, address, length);
-}
-bool ManagedProcess::writeString(const LPCVOID address, const string& value) const
-{
-    return MemoryReadWrite::WriteProcessString(m_processHandle, address, value);
+    if (!IsAddressValid(address))
+        return "";
+
+    auto buffer = new char[length];  // NOLINT
+    if (!ReadProcessBytes(address, buffer, length))
+    {
+        delete[] buffer;
+        return "";
+    }
+
+    string str(buffer, length);
+    delete[] buffer;
+    return str;
 }
 
-wstring ManagedProcess::readUnicodeString(const LPCVOID address, const size_t length) const
+bool ManagedProcess::WriteString(const void* address, const string& str) const
 {
-    return MemoryReadWrite::ReadProcessUnicodeString(m_processHandle, address, length);
-}
-bool ManagedProcess::writeUnicodeString(const LPCVOID address, const wstring& value) const
-{
-    return MemoryReadWrite::WriteProcessUnicodeString(m_processHandle, address, value);
+    return WriteProcessBytes(address, str.c_str(), str.size());
 }
 
-vector<uint8_t> ManagedProcess::readByteArray(const LPCVOID address, size_t size) const
+u16string ManagedProcess::ReadUTF16String(const void* address, const size_t length) const
 {
-    return MemoryReadWrite::ReadProcessByteArray(m_processHandle, address, size);
-}
-bool ManagedProcess::writeByteArray(const LPCVOID address, const vector<uint8_t>& value) const
-{
-    return MemoryReadWrite::WriteProcessByteArray(m_processHandle, address, value);
+    if (!IsAddressValid(address))
+        return u"";
+
+    auto buffer = new char16_t[length];  // NOLINT
+    if (!ReadProcessBytes(address, buffer, length * sizeof(char16_t)))
+    {
+        delete[] buffer;
+        return u"";
+    }
+
+    u16string str(buffer, length);
+    delete[] buffer;
+    return str;
 }
 
-vector<int8_t> ManagedProcess::readSByteArray(const LPCVOID address, size_t size) const
+bool ManagedProcess::WriteUTF16String(const void* address, const u16string& u16str) const
 {
-    return MemoryReadWrite::ReadProcessSByteArray(m_processHandle, address, size);
-}
-bool ManagedProcess::writeSByteArray(const LPCVOID address, const vector<int8_t>& value) const
-{
-    return MemoryReadWrite::WriteProcessSByteArray(m_processHandle, address, value);
+    return WriteProcessBytes(address, u16str.c_str(), u16str.size() * sizeof(char16_t));
 }
 
-vector<uint16_t> ManagedProcess::readUInt16Array(const LPCVOID address, const size_t count) const
-{
-    return MemoryReadWrite::ReadProcessUInt16Array(m_processHandle, address, count);
-}
-bool ManagedProcess::writeUInt16Array(const LPCVOID address, const vector<uint16_t>& value) const
-{
-    return MemoryReadWrite::WriteProcessUInt16Array(m_processHandle, address, value);
-}
+// endregion
 
-vector<int16_t> ManagedProcess::readInt16Array(const LPCVOID address, const size_t count) const
+const void* ManagedProcess::FindPattern(const BYTE* pattern, const SIZE_T patternSize, const bool* wildcardMask, const bool pageExecuteOnly) const
 {
-    return MemoryReadWrite::ReadProcessInt16Array(m_processHandle, address, count);
-}
-bool ManagedProcess::writeInt16Array(const LPCVOID address, const vector<int16_t>& value) const
-{
-    return MemoryReadWrite::WriteProcessInt16Array(m_processHandle, address, value);
-}
-
-vector<uint32_t> ManagedProcess::readUInt32Array(const LPCVOID address, const size_t count) const
-{
-    return MemoryReadWrite::ReadProcessUInt32Array(m_processHandle, address, count);
-}
-bool ManagedProcess::writeUInt32Array(const LPCVOID address, const vector<uint32_t>& value) const
-{
-    return MemoryReadWrite::WriteProcessUInt32Array(m_processHandle, address, value);
-}
-
-vector<int32_t> ManagedProcess::readInt32Array(const LPCVOID address, const size_t count) const
-{
-    return MemoryReadWrite::ReadProcessInt32Array(m_processHandle, address, count);
-}
-bool ManagedProcess::writeInt32Array(const LPCVOID address, const vector<int32_t>& value) const
-{
-    return MemoryReadWrite::WriteProcessInt32Array(m_processHandle, address, value);
-}
-
-vector<uint64_t> ManagedProcess::readUInt64Array(const LPCVOID address, const size_t count) const
-{
-    return MemoryReadWrite::ReadProcessUInt64Array(m_processHandle, address, count);
-}
-bool ManagedProcess::writeUInt64Array(const LPCVOID address, const vector<uint64_t>& value) const
-{
-    return MemoryReadWrite::WriteProcessUInt64Array(m_processHandle, address, value);
-}
-
-vector<int64_t> ManagedProcess::readInt64Array(const LPCVOID address, const size_t count) const
-{
-    return MemoryReadWrite::ReadProcessInt64Array(m_processHandle, address, count);
-}
-bool ManagedProcess::writeInt64Array(const LPCVOID address, const vector<int64_t>& value) const
-{
-    return MemoryReadWrite::WriteProcessInt64Array(m_processHandle, address, value);
-}
-
-vector<float> ManagedProcess::readSingleArray(const LPCVOID address, const size_t count) const
-{
-    return MemoryReadWrite::ReadProcessSingleArray(m_processHandle, address, count);
-}
-bool ManagedProcess::writeSingleArray(const LPCVOID address, const vector<float>& value) const
-{
-    return MemoryReadWrite::WriteProcessSingleArray(m_processHandle, address, value);
-}
-
-vector<double> ManagedProcess::readDoubleArray(const LPCVOID address, const size_t count) const
-{
-    return MemoryReadWrite::ReadProcessDoubleArray(m_processHandle, address, count);
-}
-bool ManagedProcess::writeDoubleArray(const LPCVOID address, const vector<double>& value) const
-{
-    return MemoryReadWrite::WriteProcessDoubleArray(m_processHandle, address, value);
-}
-
-// Search through process memory regions with an optional wildcard mask.
-// By default, we only search memory with 'EXECUTE*' protection. Otherwise, we search any readable memory (slower).
-LPCVOID ManagedProcess::findPattern(const BYTE* pattern, const SIZE_T patternSize, const bool* wildcardMask, const bool pageExecuteOnly) const
-{
-    const HANDLE processHandle = getHandle();
+    void* processHandle = GetHandle();
     if (processHandle == nullptr)
     {
         Error("Invalid process handle. Cannot find AOB pattern in memory.");
         return nullptr;
     }
 
-    LPVOID baseAddress;
+    void* baseAddress;
     SIZE_T mainModuleSize;
-    if (!getMainModuleBaseAddressAndSize(baseAddress, mainModuleSize))
+    if (!GetMainModuleBaseAddressAndSize(baseAddress, mainModuleSize))
     {
         Error("Failed to get main module base address and size. Cannot find AOB pattern in memory.");
         return nullptr;
     }
 
-    Debug("Searching for pattern in process memory from base address " + ToHexString(baseAddress) 
-        + " (main module size " + to_string(mainModuleSize) + ")");
-    
-    LPVOID currentAddr = baseAddress;  // start of search
-    const LPBYTE endAddr = static_cast<LPBYTE>(baseAddress) + mainModuleSize;
+    Debug(format(
+        "Searching for pattern in process memory from base address {} (main module size {})",
+        baseAddress, mainModuleSize));
+
+    const void* currentAddr = baseAddress;  // start of search
+    LPBYTE endAddr = static_cast<LPBYTE>(baseAddress) + mainModuleSize;  // NOLINT
     MEMORY_BASIC_INFORMATION mbi;
     const auto buffer = new BYTE[4096];  // reusable 4 KB buffer
 
-    // Iterate over all memory regions in the target process
+    // Iterate over all memory regions in the target process.
     while (currentAddr < endAddr && VirtualQueryEx(processHandle, currentAddr, &mbi, sizeof(mbi)) == sizeof(mbi))
     {
         const SIZE_T regionSize = mbi.RegionSize;
@@ -422,31 +362,30 @@ LPCVOID ManagedProcess::findPattern(const BYTE* pattern, const SIZE_T patternSiz
 
         if (!IsSearchable(mbi.Protect, pageExecuteOnly))
         {
-            // Move to the next memory region
+            // Move to the next memory region.
             currentAddr = regionBase + regionSize;
             continue;
         }
 
-        Debug("Searching memory region at " + ToHexString(regionBase) + " with size " + to_string(regionSize));
+        Debug(format("Searching memory region at {} with size {}.", static_cast<void*>(regionBase), regionSize));
 
-        // Ensure we do not read beyond the module's size
+        // Ensure we do not read beyond the module's size.
         const SIZE_T readableSize = min(regionSize, static_cast<SIZE_T>(endAddr - regionBase));
 
-        // Search the memory region in 4 KB chunks
+        // Search the memory region in 4 KB chunks.
         SIZE_T offset = 0;
         while (offset < regionSize)
         {
-            // Read up to 4 KB at a time:
+            // Read up to 4 KB at a time.
             const SIZE_T bytesToRead = min(static_cast<uint64_t>(4096), regionSize - offset);
             SIZE_T bytesRead = 0;
 
             if (ReadProcessMemory(processHandle, regionBase + offset, buffer, bytesToRead, &bytesRead) && bytesRead > 0)
             {
-                const BYTE* match = SearchBuffer(buffer, bytesRead, pattern, patternSize, wildcardMask);
-                if (match)
+                if (const BYTE* match = SearchBuffer(buffer, bytesRead, pattern, patternSize, wildcardMask))
                 {
                     // Calculate match address in the process memory
-                    LPCVOID matchAddr = regionBase + offset + (match - buffer);
+                    const void* matchAddr = regionBase + offset + (match - buffer);  // NOLINT
                     delete[] buffer;
                     return matchAddr;
                 }
@@ -469,35 +408,36 @@ LPCVOID ManagedProcess::findPattern(const BYTE* pattern, const SIZE_T patternSiz
 }
 
 
-LPCVOID ManagedProcess::findPattern(const wstring& patternString, const bool pageExecuteOnly) const
+const void* ManagedProcess::FindPattern(const string& patternString, const bool pageExecuteOnly) const
 {
     vector<BYTE> pattern;
     vector<bool> wildcardMask;
-    const bool valid = ParsePatternString(patternString, pattern, wildcardMask);
-    if (!valid)
+    if (
+        const bool valid = ParsePatternString(patternString, pattern, wildcardMask);
+        !valid)
     {
-        Error(L"Invalid hex byte pattern string: " + patternString);
+        Error("Invalid hex byte pattern string: " + patternString);
         return nullptr;
     }
 
     const auto wildcardMaskArray = new bool[wildcardMask.size()];
-    copy(wildcardMask.begin(), wildcardMask.end(), wildcardMaskArray);
+    ranges::copy(wildcardMask, wildcardMaskArray);
 
-    const LPCVOID result = findPattern(pattern.data(), pattern.size(), wildcardMaskArray, pageExecuteOnly);
+    const void* result = FindPattern(pattern.data(), pattern.size(), wildcardMaskArray, pageExecuteOnly);
 
     delete[] wildcardMaskArray;
     return result;
 }
 
-bool ManagedProcess::findProcessByName(const wstring& processName, ManagedProcess*& outProcess)
+bool ManagedProcess::FindProcessByName(const wstring& processName, ManagedProcess*& outProcess)
 {
     outProcess = nullptr;  // Initialize the out parameter to nullptr
 
     // Take a snapshot of all running processes
-    HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+    void* snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
     if (snapshot == INVALID_HANDLE_VALUE)
     {
-        Error(L"Failed to create process snapshot. Error code: " + to_wstring(GetLastError()));
+        Error(format("Failed to create process snapshot. Error code: {}", GetLastError()));
         return false;  // Indicate an error in taking the snapshot
     }
 
@@ -512,10 +452,11 @@ bool ManagedProcess::findProcessByName(const wstring& processName, ManagedProces
             // Use _wcsicmp for wide string comparison
             if (_wcsicmp(entry.szExeFile, processName.c_str()) == 0)
             {
-                const HANDLE processHandle = OpenProcess(PROCESS_ALL_ACCESS, FALSE, entry.th32ProcessID);
+                void* processHandle = OpenProcess(PROCESS_ALL_ACCESS, FALSE, entry.th32ProcessID);
                 if (processHandle == nullptr)
                 {
-                    Error(L"Failed to open process: " + processName + L". Error code: " + to_wstring(GetLastError()));
+                    const wstring lastError = to_wstring(GetLastError());
+                    Error(format(L"Failed to open process '{}'. Error code: {}", processName, lastError));
                     CloseHandle(snapshot);
                     return false;  // Error opening the process
                 }
@@ -524,7 +465,7 @@ bool ManagedProcess::findProcessByName(const wstring& processName, ManagedProces
                 DWORD exitCode;
                 if (!GetExitCodeProcess(processHandle, &exitCode))
                 {
-                    WinError(L"Failed to get process exit code.");
+                    WinError("Failed to get process exit code.");
                     continue;  // ignore
                 }
                 if (exitCode != STILL_ACTIVE)
@@ -544,7 +485,7 @@ bool ManagedProcess::findProcessByName(const wstring& processName, ManagedProces
     }
     else
     {
-        Error(L"Failed to retrieve process list. Error code: " + to_wstring(GetLastError()));
+        Error(format("Failed to retrieve process list. Error code: {}", GetLastError()));
         CloseHandle(snapshot);
         return false;  // Error in retrieving process list
     }
@@ -554,12 +495,12 @@ bool ManagedProcess::findProcessByName(const wstring& processName, ManagedProces
     return true;  // No error occurred, but process not found
 }
 
-bool ManagedProcess::findProcessByWindowTitle(const wstring& windowTitle, ManagedProcess*& outProcess)
+bool ManagedProcess::FindProcessByWindowTitle(const wstring& windowTitle, ManagedProcess*& outProcess)
 {
     outProcess = nullptr;  // Initialize out parameter to nullptr
 
     // Find the window with the specified title
-    const HWND hwnd = FindWindowW(nullptr, windowTitle.c_str());
+    HWND hwnd = FindWindowW(nullptr, windowTitle.c_str());  // NOLINT
     if (!hwnd)
     {
         Info(L"Could not find process with window title: " + windowTitle);
@@ -571,7 +512,7 @@ bool ManagedProcess::findProcessByWindowTitle(const wstring& windowTitle, Manage
     GetWindowThreadProcessId(hwnd, &processId);
 
     // Open the process with desired access rights
-    HANDLE processHandle = OpenProcess(PROCESS_ALL_ACCESS, FALSE, processId);
+    void* processHandle = OpenProcess(PROCESS_ALL_ACCESS, FALSE, processId);
     if (!processHandle)
     {
         Error(L"Failed to open process with window title: " + windowTitle);
@@ -583,4 +524,49 @@ bool ManagedProcess::findProcessByWindowTitle(const wstring& windowTitle, Manage
 
     outProcess = new ManagedProcess(processHandle);
     return true;  // Success
+}
+
+bool ManagedProcess::ReadProcessBytes(const void* address, void* buffer, const size_t size) const
+{
+    SIZE_T bytesRead;
+    if (!ReadProcessMemory(GetHandle(), address, buffer, size, &bytesRead))
+    {
+        WinError(format("Failed to read ANY bytes from address: {}", address));
+        return false;
+    }
+    if (bytesRead != size)
+    {
+        WinError(format("Could only read {} out of {} bytes from address: {}", bytesRead, size, address));
+        return false;
+    }
+
+    Debug(format("Successfully read {} bytes from address: {}", size, address));
+    return true;
+}
+
+bool ManagedProcess::WriteProcessBytes(const void* address, const void* data, const size_t size) const
+{
+    SIZE_T bytesWritten;
+    DWORD oldProtect;
+
+    // Windows API requires mutable `void* lpAddress`.
+    auto lpAddress = const_cast<void*>(address);
+
+    if (
+        void* process = GetHandle();
+        VirtualProtectEx(process, lpAddress, size, PAGE_EXECUTE_READWRITE, &oldProtect))
+    {
+        if (WriteProcessMemory(process, lpAddress, data, size, &bytesWritten) && bytesWritten == size)
+        {
+            VirtualProtectEx(process, lpAddress, size, oldProtect, &oldProtect);
+            Debug(format("Successfully wrote {} bytes to address: {}", size, address));
+            return true;
+        }
+
+        WinError(format("Failed to write {} bytes to address: {} ", size, address));
+        return false;
+    }
+
+    WinError(format("Failed to change memory protection for address: {}", address));
+    return false;
 }

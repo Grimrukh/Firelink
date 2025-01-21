@@ -4,17 +4,15 @@
 #include <vector>
 #include <windows.h>
 
+#include "Export.h"
+
 namespace GrimHook
 {
-    // Get a pointer offset by a number of bytes.
-    LPCVOID GetOffsetPointer(LPCVOID ptr, SIZE_T offset);
+    /// @brief Get a pointer offset by a number of bytes.
+    GRIMHOOK_API const void* GetOffsetPointer(const void* ptr, int offset);
 
-    // Format a pointer as a hexadecimal string or '<NULL>'.
-    std::string ToHexString(LPCVOID ptr);
-
-    // Format a pointer as a wide hexadecimal string or '<NULL>'.
-    std::wstring ToHexWstring(LPCVOID ptr);
-
-    // Convert a string pattern, e.g. '45 2c ? 9a', into a pattern and wildcard mask.
-    bool ParsePatternString(const std::wstring& patternString, std::vector<BYTE>& pattern, std::vector<bool>& wildcardMask);
+    /// @brief Convert a string pattern, e.g. '45 2c ? 9a', into a pattern and wildcard mask.
+    ///
+    /// Returns true if pattern is valid. `pattern` and `wildcardMask` are output parameters.
+    GRIMHOOK_API bool ParsePatternString(const std::string& patternString, std::vector<BYTE>& pattern, std::vector<bool>& wildcardMask);
 }

@@ -17,7 +17,7 @@ namespace
     wstring LOG_FILE_PATH;
     wofstream LOG_FILE;
     once_flag LOG_MUTEX_INIT_FLAG;
-    mutex LOG_MUTEX{};
+    mutex LOG_MUTEX;
 
     GrimHook::LogLevel LOG_LEVEL = GrimHook::LogLevel::INFO;
 
@@ -32,8 +32,9 @@ namespace
         tm timeInfo{};
 
         // Use localtime_s instead of localtime to avoid C4996 error
-        const auto result = localtime_s(&timeInfo, &inTimeT);
-        if (result != 0)
+        if (
+            const auto result = localtime_s(&timeInfo, &inTimeT);
+            result != 0)
         {
             wcerr << L"Error getting current logging time: " << result << '\n';
             return L"";
@@ -57,7 +58,7 @@ namespace
     void Log(const wstring& level, const wstring& message, const bool toStdErr = false)
     {
         InitializeLogging();
-        lock_guard<mutex> lock(LOG_MUTEX);
+        lock_guard lock(LOG_MUTEX);
 
         const wstring logEntry = L"[" + GetCurrentDateTimeWide() + L"] " + level + message;
 
@@ -78,7 +79,7 @@ namespace
 void GrimHook::SetLogFile(const wstring& filePath)
 {
     InitializeLogging();
-    lock_guard<mutex> lock(LOG_MUTEX);
+    lock_guard lock(LOG_MUTEX);
 
     if (LOG_FILE.is_open())
     {
@@ -101,7 +102,7 @@ void GrimHook::SetLogFile(const wstring& filePath)
 // Disable logging to a file
 void GrimHook::ClearLogFile()
 {
-    lock_guard<mutex> lock(LOG_MUTEX);
+    lock_guard lock(LOG_MUTEX);
     if (LOG_FILE.is_open())
     {
         Info(L"Log file closing: " + LOG_FILE_PATH);
@@ -126,10 +127,6 @@ void GrimHook::Debug(const string& message)
 {
     return Debug(wstring(message.begin(), message.end()));
 }
-void GrimHook::DebugPtr(const wstring& message, const LPCVOID& address)
-{
-    Debug(message + L" " + GrimHook::ToHexWstring(address));
-}
 
 // Info log
 void GrimHook::Info(const wstring& message)
@@ -140,10 +137,6 @@ void GrimHook::Info(const wstring& message)
 void GrimHook::Info(const string& message)
 {
     return Info(wstring(message.begin(), message.end()));
-}
-void GrimHook::InfoPtr(const wstring& message, const LPCVOID& address)
-{
-    Info(message + L" " + GrimHook::ToHexWstring(address));
 }
 
 // Warning log
@@ -156,10 +149,6 @@ void GrimHook::Warning(const string& message)
 {
     return Warning(wstring(message.begin(), message.end()));
 }
-void GrimHook::WarningPtr(const wstring& message, const LPCVOID& address)
-{
-    Warning(message + L" " + GrimHook::ToHexWstring(address));
-}
 
 // Error log
 void GrimHook::Error(const wstring& message)
@@ -170,10 +159,6 @@ void GrimHook::Error(const wstring& message)
 void GrimHook::Error(const string& message)
 {
     return Error(wstring(message.begin(), message.end()));
-}
-void GrimHook::ErrorPtr(const wstring& message, const LPCVOID& address)
-{
-    Error(message + L" " + ToHexWstring(address));
 }
 
 // Windows error log
@@ -191,8 +176,4 @@ void GrimHook::WinError(const wstring& message)
 void GrimHook::WinError(const string& message)
 {
     return WinError(wstring(message.begin(), message.end()));
-}
-void GrimHook::WinErrorPtr(const wstring& message, const LPCVOID& address)
-{
-    WinError(message + L" " + ToHexWstring(address));
 }

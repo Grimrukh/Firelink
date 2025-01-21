@@ -1,7 +1,8 @@
 ﻿#pragma once
 
 #include <string>
-#include <windows.h>
+
+#include "Export.h"
 
 namespace GrimHook
 {
@@ -15,29 +16,24 @@ namespace GrimHook
     };
 
     // While file logging is set, output will go to `filePath` instead of `std::cout` or `std::cerr`.
-    __declspec(dllexport) void SetLogFile(const std::wstring& filePath);
-    __declspec(dllexport) void ClearLogFile();
+    GRIMHOOK_API void SetLogFile(const std::wstring& filePath);
+    GRIMHOOK_API void ClearLogFile();
 
-    __declspec(dllexport) void SetLogLevel(const LogLevel& level);
+    GRIMHOOK_API void SetLogLevel(const LogLevel& level);
 
-    __declspec(dllexport) void Debug(const std::string& message);
-    __declspec(dllexport) void Debug(const std::wstring& message);
-    __declspec(dllexport) void DebugPtr(const std::wstring& message, const LPCVOID& address);
+    GRIMHOOK_API void Debug(const std::string& message);
+    GRIMHOOK_API void Debug(const std::wstring& message);
 
-    __declspec(dllexport) void Info(const std::string& message);
-    __declspec(dllexport) void Info(const std::wstring& message);
-    __declspec(dllexport) void InfoPtr(const std::wstring& message, const LPCVOID& address);
+    GRIMHOOK_API void Info(const std::string& message);
+    GRIMHOOK_API void Info(const std::wstring& message);
 
-    __declspec(dllexport) void Warning(const std::string& message);
-    __declspec(dllexport) void Warning(const std::wstring& message);
-    __declspec(dllexport) void WarningPtr(const std::wstring& message, const LPCVOID& address);
+    GRIMHOOK_API void Warning(const std::string& message);
+    GRIMHOOK_API void Warning(const std::wstring& message);
 
-    __declspec(dllexport) void Error(const std::string& message);
-    __declspec(dllexport) void Error(const std::wstring& message);
-    __declspec(dllexport) void ErrorPtr(const std::wstring& message, const LPCVOID& address);
+    GRIMHOOK_API void Error(const std::string& message);
+    GRIMHOOK_API void Error(const std::wstring& message);
 
     // These call `GetLastError()` and fill it in automatically.
-    __declspec(dllexport) void WinError(const std::string& message);
-    __declspec(dllexport) void WinError(const std::wstring& message);
-    __declspec(dllexport) void WinErrorPtr(const std::wstring& message, const LPCVOID& address);
+    GRIMHOOK_API void WinError(const std::string& message);
+    GRIMHOOK_API void WinError(const std::wstring& message);
 }

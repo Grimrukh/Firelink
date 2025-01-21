@@ -1,9 +1,11 @@
 ﻿#pragma once
 
-// Enum for the `CURRENT_*_SLOT` values in ChrAsm struct, plus
-// a CURRENT value that can be passed to ChrAsm getters that
-// tell them to check the appropriate `CURRENT_*_SLOT` value.
-enum WeaponSlot
+/**
+ * @brief Enum for the weapon slots in the player's current equipment set.
+ *
+ * `CURRENT` is not a real game value, but is used by hook methods to detect the current active slot from the game.
+ */
+enum class WeaponSlot
 {
     CURRENT = -1,
     PRIMARY = 0,

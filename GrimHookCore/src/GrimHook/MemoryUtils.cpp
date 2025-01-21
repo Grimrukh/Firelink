@@ -1,54 +1,21 @@
-﻿#include "GrimHook/MemoryUtils.h"
-
-#include <sstream>
+﻿#include <sstream>
 #include <iomanip>
 
 #include "GrimHook/Logging.h"
+#include "GrimHook/MemoryUtils.h"
 
 using namespace std;
 
-// Get a pointer offset by a number of bytes
-LPCVOID GrimHook::GetOffsetPointer(const LPCVOID ptr, const SIZE_T offset)
+const void* GrimHook::GetOffsetPointer(const void* ptr, const int offset)
 {
     return static_cast<const char*>(ptr) + offset;
 }
 
-// Format a pointer as a hexadecimal string or '<NULL>'
-string GrimHook::ToHexString(LPCVOID ptr)
-{
-    if (ptr == nullptr)
-    {
-        return "<NULL>";
-    }
-    ostringstream oss;
-    oss << "0x"
-        << hex << uppercase << setw(sizeof(void*) * 2)
-        << setfill('0')
-        << reinterpret_cast<uintptr_t>(ptr);
-    return oss.str();
-}
 
-// Format a pointer as a wide hexadecimal string or '<NULL>'
-wstring GrimHook::ToHexWstring(LPCVOID ptr)
+bool GrimHook::ParsePatternString(const string& patternString, vector<BYTE>& pattern, vector<bool>& wildcardMask)
 {
-    if (ptr == nullptr)
-    {
-        return L"<NULL>";
-    }
-    wostringstream oss;
-    oss << L"0x"
-        << hex << uppercase << setw(sizeof(void*) * 2)
-        << setfill(L'0')
-        << reinterpret_cast<uintptr_t>(ptr);
-    return oss.str();
-}
-
-// Parses a pattern string like "45 2c ? 9A" into pattern and wildcard mask arrays.
-// Returns true if pattern is valid. `pattern` and `wildcardMask` are output parameters.
-bool GrimHook::ParsePatternString(const wstring& patternString, vector<BYTE>& pattern, vector<bool>& wildcardMask)
-{
-    wistringstream stream(patternString);
-    wstring token;
+    istringstream stream(patternString);
+    string token;
 
     // Clear output vectors
     pattern.clear();
@@ -56,7 +23,7 @@ bool GrimHook::ParsePatternString(const wstring& patternString, vector<BYTE>& pa
 
     while (stream >> token)
     {
-        if (token == L"?")
+        if (token == "?")
         {
             // Wildcard detected
             pattern.push_back(0x00);  // Placeholder value (doesn't matter, as mask will ignore it)
@@ -73,7 +40,7 @@ bool GrimHook::ParsePatternString(const wstring& patternString, vector<BYTE>& pa
             }
             catch (...)
             {
-                Error(L"Invalid token in pattern string: " + token);
+                Error("Invalid token in pattern string: " + token);
                 return false;  // Parsing error
             }
         }
