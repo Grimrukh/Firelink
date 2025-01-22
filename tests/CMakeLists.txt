@@ -4,25 +4,28 @@ cmake_minimum_required(VERSION 3.21)
 # C++20
 set(CMAKE_CXX_STANDARD 20)
 
-add_executable(log_test
+add_executable(LogTest
     log_test.cpp
 )
 
-message(STATUS "Adding log_test test...")
-add_test(NAME log_test COMMAND log_test)
+enable_testing()
+message(STATUS "Adding LogTest test...")
+add_test(NAME LogTest COMMAND LogTest)
 
 # Link statically against GCC runtime (all).
-target_link_options(log_test PRIVATE -static)
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    target_link_options(LogTest PRIVATE -static)
+endif()
 
-target_link_libraries(log_test
+target_link_libraries(LogTest
     PRIVATE GrimHookCore
     PRIVATE GrimHookDSR
 )
 
 # Copy DLLs to the output directory.
-add_custom_command(TARGET log_test POST_BUILD
+add_custom_command(TARGET LogTest POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
         $<TARGET_FILE:GrimHookCore>
         $<TARGET_FILE:GrimHookDSR>
-        $<TARGET_FILE_DIR:log_test>
+        $<TARGET_FILE_DIR:LogTest>
 )

@@ -21,8 +21,9 @@ if (WIN32)
     set_target_properties(GrimHookCore PROPERTIES PREFIX "")
 endif()
 
-# Link statically against GCC runtime (all).
-target_link_options(GrimHookCore PRIVATE -static)
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    target_link_options(GrimHookCore PRIVATE -static)
+endif()
 
 # Enable DLL exports for GrimHookCore.
 target_compile_definitions(GrimHookCore PRIVATE GRIMHOOKCORE_EXPORTS)
