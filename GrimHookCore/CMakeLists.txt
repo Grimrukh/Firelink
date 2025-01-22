@@ -1,4 +1,4 @@
-﻿cmake_minimum_required(VERSION 3.17)
+﻿cmake_minimum_required(VERSION 3.21)
 project(GrimHookCore)
 
 # C++20
@@ -20,6 +20,9 @@ if (WIN32)
     # Disable default 'lib' prefix of DLL.
     set_target_properties(GrimHookCore PROPERTIES PREFIX "")
 endif()
+
+# Link statically against GCC runtime (all).
+target_link_options(GrimHookCore PRIVATE -static)
 
 # Enable DLL exports for GrimHookCore.
 target_compile_definitions(GrimHookCore PRIVATE GRIMHOOKCORE_EXPORTS)

@@ -1,15 +1,11 @@
-﻿cmake_minimum_required(VERSION 3.20)
-project(GrimHookTest)
+﻿cmake_minimum_required(VERSION 3.21)
 
-# C++20
-set(CMAKE_CXX_STANDARD 20)
+project(GrimHook LANGUAGES CXX)
 
-# Subdirectories for core and DSR modules
+# Add subdirectories for modules and tests.
 add_subdirectory(GrimHookCore)
 add_subdirectory(GrimHookDSR)
-
-# Enable testing
-enable_testing()
-
-# Add test directory
 add_subdirectory(tests)
+
+# Enable ctest.
+enable_testing()
