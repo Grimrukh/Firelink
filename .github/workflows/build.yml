@@ -25,18 +25,9 @@ jobs:
       - name: Install ninja-build tool
         uses: seanmiddleditch/gha-setup-ninja@v5
 
-      # Default MinGW (posix-seh) may have limited <format> support for C++20.
-#      - name: Install UCRT MinGW Toolchain
-#        run: |
-#          C:\msys64\usr\bin\bash -lc "pacman --noconfirm -S mingw-w64-ucrt-x86_64-gcc"
-#          echo "C:\msys64\mingw64\bin" >> "$GITHUB_PATH"
-#          echo "C:\msys64\ucrt64\bin" >> "$GITHUB_PATH"
-
-      - name: Check MSVC (cl.exe) version (Optional)
-        run: cl.exe
-        continue-on-error: true
-
       # Configure with CMake (Release) to `build` subdirectory.
+      # The GHA Windows 2022 runner has Visual Studio 17 2022 installed.
+      # (It also has MinGW installed, but the GCC version is too old for C++20.)
       - name: Configure CMake with MSVC
         run: >
           cmake -S . -B build
@@ -48,6 +39,6 @@ jobs:
       - name: Build the DLLs
         run: cmake --build build --config Release
 
-      # Run the executable.
-      - name: Run the Executable
-        run: build/Release/GrimHookTest.exe
+      # Run tests.
+      - name: Run Tests
+        run: ctest --test-dir build --output-on-failure
