@@ -8,4 +8,5 @@ enable_testing()
 # Add subdirectories for modules and tests.
 add_subdirectory(GrimHookCore)
 add_subdirectory(GrimHookDSR)
+add_subdirectory(GrimHookER)
 add_subdirectory(tests)

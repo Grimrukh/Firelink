@@ -9,7 +9,8 @@
 #include "Logging.h"
 
 
-namespace GrimHook {
+namespace GrimHook
+{
 
     // Forward declarations.
     class BasePointer;

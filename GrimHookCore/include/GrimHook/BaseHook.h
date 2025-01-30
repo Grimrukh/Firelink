@@ -3,7 +3,6 @@
 #include <memory>
 
 #include "Export.h"
-#include "Pointer.h"
 #include "Process.h"
 
 
@@ -40,5 +39,13 @@ namespace GrimHook
 
     protected:
         std::shared_ptr<ManagedProcess> m_process;
+
+        /// @brief Search for `aobPattern`, read a relative jump offset 3 bytes into it, and follow the found pointer.
+        ///
+        /// Specifically, calls `m_process->CreatePointerWithJumpInstruction(pointerName, aobAddr, 0x3, { 0 })`.
+        ///
+        /// @param pointerName Name of the pointer to create.
+        /// @param aobPattern AOB pattern to search for.
+        void CreatePointerFromAobWithJump3(const std::string& pointerName, const std::string& aobPattern) const;
     };
 }

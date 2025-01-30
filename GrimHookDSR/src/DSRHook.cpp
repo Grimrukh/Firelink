@@ -2,7 +2,6 @@
 #include <vector>
 
 #include "GrimHook/BaseHook.h"
-#include "GrimHook/Logging.h"
 #include "GrimHook/MemoryUtils.h"
 #include "GrimHook/Pointer.h"
 #include "GrimHook/Process.h"
@@ -29,29 +28,10 @@ GrimHookDSR::DSRHook::DSRHook(shared_ptr<ManagedProcess> process) : BaseHook(std
 
 void GrimHookDSR::DSRHook::RefreshAllPointers()
 {
-    Info(L"Searching for WorldChrMan AOB...");
-    if (const LPCVOID worldChrManAobAddr = m_process->FindPattern(worldChrManAob))
-    {
-        m_process->CreatePointerWithJumpInstruction("WorldChrMan", worldChrManAobAddr, 0x3, { 0 });
-        Info(L"WorldChrMan address found.");
-    }
-    else
-    {
-        Warning(L"WorldChrMan AOB not found.");
-    }
-
-    Info(L"Searching for ChrClassBase AOB...");
-    if (const LPCVOID chrClassBaseAobPtr = m_process->FindPattern(chrClassBaseAob))
-    {
-        m_process->CreatePointerWithJumpInstruction("ChrClassBase", chrClassBaseAobPtr, 0x3, { 0 });
-        Info(L"ChrClassBase address found.");
-    }
-    else
-    {
-        Warning(L"ChrClassBase AOB not found.");
-    }
-
-    // TODO: ChrClassWarp, more AoBs.
+    CreatePointerFromAobWithJump3("WorldChrMan", worldChrManAob);
+    CreatePointerFromAobWithJump3("ChrClassBase", chrClassBaseAob);
+    // TODO: ChrClassWarp.
+    // TODO: More AoBs.
 
     RefreshChildPointers();
 }

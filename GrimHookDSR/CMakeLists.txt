@@ -5,6 +5,11 @@ project(GrimHookDSR)
 set(CMAKE_CXX_STANDARD 20)
 
 set(PROJECT_SOURCES
+    include/GrimHookDSR/DSREnums.h
+    include/GrimHookDSR/DSRHook.h
+    include/GrimHookDSR/DSROffsets.h
+    include/GrimHookDSR/Export.h
+
     src/DSRHook.cpp
 )
 

@@ -47,8 +47,10 @@ namespace
     }
 
     // Ensure logging mutex is initialized
-    void InitializeLogging() {
-        std::call_once(LOG_MUTEX_INIT_FLAG, [] {
+    void InitializeLogging()
+    {
+        std::call_once(LOG_MUTEX_INIT_FLAG, []
+        {
             LOG_MUTEX.lock();
             LOG_MUTEX.unlock();
         });
