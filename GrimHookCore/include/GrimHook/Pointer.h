@@ -2,17 +2,16 @@
 
 #include <cstdint>
 #include <format>
-#include <memory>
 #include <string>
 #include <vector>
 
 #include "Export.h"
+#include "MemoryUtils.h"
 #include "Process.h"
 
 
 namespace GrimHook
 {
-
     /// @brief EXPORT: Manages a pointer to a memory address in a process, with read/write functions to use at that
     /// address.
     class GRIMHOOK_API BasePointer

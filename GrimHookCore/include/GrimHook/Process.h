@@ -7,6 +7,7 @@
 
 #include "Export.h"
 #include "Logging.h"
+#include "MemoryUtils.h"
 
 
 namespace GrimHook
@@ -15,10 +16,6 @@ namespace GrimHook
     // Forward declarations.
     class BasePointer;
     class ChildPointer;
-
-    /// @brief Concept that constrains memory read/write methods to types that are trivially copyable.
-    template <typename T>
-    concept MemReadWriteType = std::is_trivially_copyable_v<T>;
 
     /**
      * @brief Owns a Windows process handle and passes it to memory read/write methods.
@@ -32,6 +29,9 @@ namespace GrimHook
     {
     public:
         explicit ManagedProcess(void* processHandle);
+
+        // Defined in CPP file due to forward declaration of `BasePointer`.
+        ~ManagedProcess();
 
         /// @brief Get a (non-owning) reference to the process handle.
         [[nodiscard]] void* GetHandle() const { return m_processHandle.get(); }
@@ -84,7 +84,7 @@ namespace GrimHook
             const std::string& aobPattern,
             const std::vector<int>& offsets = {});
 
-        /// @brief Scan processs memory for the given `aobPattern` then read and execute a jump near its start address.
+        /// @brief Scan process memory for the given `aobPattern` then read and execute a jump near its start address.
         BasePointer* CreatePointerToAobWithJumpInstruction(
             const std::string& name,
             const std::string& aobPattern,

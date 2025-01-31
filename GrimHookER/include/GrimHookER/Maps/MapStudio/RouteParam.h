@@ -5,20 +5,22 @@
 #include "Route.h"
 
 #define CASE_MAKE_UNIQUE(ENUM_TYPE) \
-    case RouteType::ENUM_TYPE: \
-        newRoute = std::make_unique<ENUM_TYPE##Route>(""); \
-        break;
+    case static_cast<int>(RouteType::ENUM_TYPE): \
+    { \
+        newRoute = std::make_unique<ENUM_TYPE##Route>(); \
+        break; \
+    }
 
 
 namespace GrimHookER::Maps::MapStudio
 {
-    class GRIMHOOKER_API RouteParam final : public EntryParam<Route, RouteType>
+    class GRIMHOOKER_API RouteParam final : public EntryParam<Route>
     {
     public:
         RouteParam() : EntryParam(73, "ROUTE_PARAM_ST") {}
 
         /// @brief Create a new Route with no name.
-        [[nodiscard]] Route* GetNewEntry(const RouteType entrySubtype) override
+        [[nodiscard]] Route* GetNewEntry(const int entrySubtype) override
         {
             std::unique_ptr<Route> newRoute;
             switch (entrySubtype)
@@ -31,8 +33,9 @@ namespace GrimHookER::Maps::MapStudio
                         "Invalid Route subtype: {}", static_cast<int>(entrySubtype)));
             }
 
-            m_entriesBySubtype.at(entrySubtype).push_back(std::move(newRoute));
-            return m_entriesBySubtype.at(entrySubtype).back().get();
+            std::vector<std::unique_ptr<Route>>& subtypeVector = m_entriesBySubtype.at(static_cast<int>(entrySubtype));
+            subtypeVector.push_back(std::move(newRoute));
+            return subtypeVector.back().get();
         }
     };
 }

@@ -6,6 +6,31 @@
 
 using namespace std;
 
+string GrimHook::UTF16ToUTF8(const u16string& utf16)
+{
+    string str;
+    str.reserve(utf16.size());
+    for (const char16_t c : utf16)
+    {
+        if (c < 0x80)
+        {
+            str.push_back(static_cast<char>(c));
+        }
+        else if (c < 0x800)
+        {
+            str.push_back(static_cast<char>(0xC0 | (c >> 6)));
+            str.push_back(static_cast<char>(0x80 | (c & 0x3F)));
+        }
+        else
+        {
+            str.push_back(static_cast<char>(0xE0 | (c >> 12)));
+            str.push_back(static_cast<char>(0x80 | ((c >> 6) & 0x3F)));
+            str.push_back(static_cast<char>(0x80 | (c & 0x3F)));
+        }
+    }
+    return str;
+}
+
 const void* GrimHook::GetOffsetPointer(const void* ptr, const int offset)
 {
     return static_cast<const char*>(ptr) + offset;

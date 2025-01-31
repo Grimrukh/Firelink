@@ -6,20 +6,22 @@
 #include "Part.h"
 
 #define CASE_MAKE_UNIQUE(ENUM_TYPE) \
-    case PartType::ENUM_TYPE: \
-        newPart = std::make_unique<ENUM_TYPE##Part>(""); \
-        break;
+    case static_cast<int>(PartType::ENUM_TYPE): \
+    { \
+        newPart = std::make_unique<ENUM_TYPE##Part>(); \
+        break; \
+    }
 
 
 namespace GrimHookER::Maps::MapStudio
 {
-    class GRIMHOOKER_API PartParam final : public EntryParam<Part, PartType>
+    class GRIMHOOKER_API PartParam final : public EntryParam<Part>
     {
     public:
         PartParam() : EntryParam(73, "PARTS_PARAM_ST") {}
 
         /// @brief Create a new Part with no name.
-        [[nodiscard]] Part* GetNewEntry(const PartType entrySubtype) override
+        [[nodiscard]] Part* GetNewEntry(const int entrySubtype) override
         {
             std::unique_ptr<Part> newPart;
             switch (entrySubtype)
@@ -36,8 +38,9 @@ namespace GrimHookER::Maps::MapStudio
                     throw MSBFormatError(std::format("Invalid Part subtype: {}", static_cast<int>(entrySubtype)));
             }
 
-            m_entriesBySubtype.at(entrySubtype).push_back(std::move(newPart));
-            return m_entriesBySubtype.at(entrySubtype).back().get();
+            std::vector<std::unique_ptr<Part>>& subtypeVector = m_entriesBySubtype.at(static_cast<int>(entrySubtype));
+            subtypeVector.push_back(std::move(newPart));
+            return subtypeVector.back().get();
         }
     };
 }

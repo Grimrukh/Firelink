@@ -8,12 +8,14 @@ set(PROJECT_SOURCES
     include/GrimHookER/ERHook.h
     include/GrimHookER/EROffsets.h
     include/GrimHookER/Export.h
+    include/GrimHookER/Maps/MapStudio/Enums.h
     include/GrimHookER/Maps/MapStudio/Entry.h
     include/GrimHookER/Maps/MapStudio/EntryParam.h
     include/GrimHookER/Maps/MapStudio/EntryReference.h
     include/GrimHookER/Maps/MapStudio/Event.h
     include/GrimHookER/Maps/MapStudio/EventParam.h
     include/GrimHookER/Maps/MapStudio/Layer.h
+    include/GrimHookER/Maps/MapStudio/LayerParam.h
     include/GrimHookER/Maps/MapStudio/Model.h
     include/GrimHookER/Maps/MapStudio/ModelParam.h
     include/GrimHookER/Maps/MapStudio/MSB.h
@@ -37,8 +39,6 @@ set(PROJECT_SOURCES
     src/Maps/MapStudio/Region.cpp
     src/Maps/MapStudio/Route.cpp
     src/Maps/MapStudio/Shape.cpp
-    include/GrimHookER/Maps/MapStudio/LayerParam.h
-    include/GrimHookER/Maps/MapStudio/Enums.h
 )
 
 add_library(GrimHookER SHARED ${PROJECT_SOURCES})

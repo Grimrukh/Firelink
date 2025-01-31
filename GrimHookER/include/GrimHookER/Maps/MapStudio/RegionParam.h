@@ -6,20 +6,20 @@
 #include "Region.h"
 
 #define CASE_MAKE_UNIQUE(ENUM_TYPE) \
-    case RegionType::ENUM_TYPE: \
-        newRegion = std::make_unique<ENUM_TYPE##Region>(""); \
+    case static_cast<int>(RegionType::ENUM_TYPE): \
+        newRegion = std::make_unique<ENUM_TYPE##Region>(); \
         break;
 
 
 namespace GrimHookER::Maps::MapStudio
 {
-    class GRIMHOOKER_API RegionParam final : public EntryParam<Region, RegionType>
+    class GRIMHOOKER_API RegionParam final : public EntryParam<Region>
     {
     public:
         RegionParam() : EntryParam(73, "POINT_PARAM_ST") {}
 
         /// @brief Create a new Region with no name.
-        [[nodiscard]] Region* GetNewEntry(const RegionType entrySubtype) override
+        [[nodiscard]] Region* GetNewEntry(const int entrySubtype) override
         {
             std::unique_ptr<Region> newRegion;
             switch (entrySubtype)
@@ -65,8 +65,9 @@ namespace GrimHookER::Maps::MapStudio
                         "Invalid Region subtype: {}", static_cast<int>(entrySubtype)));
             }
 
-            m_entriesBySubtype.at(entrySubtype).push_back(std::move(newRegion));
-            return m_entriesBySubtype.at(entrySubtype).back().get();
+            std::vector<std::unique_ptr<Region>>& subtypeVector = m_entriesBySubtype.at(static_cast<int>(entrySubtype));
+            subtypeVector.push_back(std::move(newRegion));
+            return subtypeVector.back().get();
         }
     };
 }

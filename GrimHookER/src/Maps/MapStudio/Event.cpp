@@ -1,7 +1,8 @@
 ﻿
+#include "GrimHookER/Maps/MapStudio/Event.h"
 #include "GrimHook/BinaryReadWrite.h"
 #include "GrimHook/BinaryValidation.h"
-#include "GrimHookER/Maps/MapStudio/Event.h"
+#include "GrimHook/MemoryUtils.h"
 #include "GrimHookER/Maps/MapStudio/MSBFormatError.h"
 
 using namespace std;
@@ -67,8 +68,8 @@ void Event::Deserialize(ifstream& stream)
     if (header.nameOffset == 0)
         throw MSBFormatError("Event name offset is zero.");
     stream.seekg(start + header.nameOffset);
-    u16string nameWide = ReadUTF16String(stream);
-    m_name = string(nameWide.begin(), nameWide.end());
+    const u16string nameWide = ReadUTF16String(stream);
+    m_name = GrimHook::UTF16ToUTF8(nameWide);
 
     // Check type
     if (header.subtype != GetType())

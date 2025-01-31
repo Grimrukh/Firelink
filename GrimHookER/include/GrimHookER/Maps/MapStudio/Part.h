@@ -200,6 +200,8 @@ namespace GrimHookER::Maps::MapStudio
             return data;
         }
 
+        Part() = default;
+
         explicit Part(const std::string& name) : EntityEntry(name) {}
 
         [[nodiscard]] virtual PartType GetType() const = 0;
@@ -364,6 +366,8 @@ namespace GrimHookER::Maps::MapStudio
     public:
         static constexpr auto Type = PartType::MapPiece;
 
+        MapPiecePart() = default;
+
         explicit MapPiecePart(const std::string& name) : Part(name) {}
 
         [[nodiscard]] PartType GetType() const override { return Type; }
@@ -391,6 +395,8 @@ namespace GrimHookER::Maps::MapStudio
     {
     public:
         static constexpr auto Type = PartType::Character;
+
+        CharacterPart() = default;
 
         explicit CharacterPart(const std::string& name) : Part(name) {}
 
@@ -496,6 +502,8 @@ namespace GrimHookER::Maps::MapStudio
     public:
         static constexpr auto Type = PartType::PlayerStart;
 
+        PlayerStartPart() = default;
+
         explicit PlayerStartPart(const std::string& name) : Part(name) {}
 
         [[nodiscard]] PartType GetType() const override { return Type; }
@@ -543,6 +551,8 @@ namespace GrimHookER::Maps::MapStudio
 
     public:
         static constexpr auto Type = PartType::Collision;
+
+        CollisionPart() = default;
 
         explicit CollisionPart(const std::string& name) : Part(name) {}
 
@@ -620,6 +630,8 @@ namespace GrimHookER::Maps::MapStudio
     public:
         static constexpr auto Type = PartType::DummyAsset;
 
+        DummyAssetPart() = default;
+
         explicit DummyAssetPart(const std::string& name) : Part(name) {}
 
         [[nodiscard]] PartType GetType() const override { return Type; }
@@ -647,6 +659,8 @@ namespace GrimHookER::Maps::MapStudio
     public:
         static constexpr auto Type = PartType::DummyCharacter;
 
+        DummyCharacterPart() = default;
+
         explicit DummyCharacterPart(const std::string& name) : CharacterPart(name) {}
 
         [[nodiscard]] PartType GetType() const override { return Type; }
@@ -672,6 +686,8 @@ namespace GrimHookER::Maps::MapStudio
 
     public:
         static constexpr auto Type = PartType::ConnectCollision;
+
+        ConnectCollisionPart() = default;
 
         explicit ConnectCollisionPart(const std::string& name) : Part(name) {}
 
@@ -776,6 +792,8 @@ namespace GrimHookER::Maps::MapStudio
     {
     public:
         static constexpr auto Type = PartType::Asset;
+
+        AssetPart() = default;
 
         explicit AssetPart(const std::string& name) : Part(name)
         {

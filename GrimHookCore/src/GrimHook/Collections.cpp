@@ -2,6 +2,7 @@
 #include <sstream>
 #include <stdexcept>
 
+#include "GrimHook/Export.h"
 #include "GrimHook/BinaryReadWrite.h"
 #include "GrimHook/Collections.h"
 
@@ -237,6 +238,6 @@ GrimHook::GroupBitSet<BIT_COUNT>::operator std::basic_string<char>() const
 }
 
 // Explicit instantiations.
-template class GrimHook::GroupBitSet<128>;
-template class GrimHook::GroupBitSet<256>;
-template class GrimHook::GroupBitSet<1024>;
+template class GRIMHOOK_API GrimHook::GroupBitSet<128>;
+template class GRIMHOOK_API GrimHook::GroupBitSet<256>;
+template class GRIMHOOK_API GrimHook::GroupBitSet<1024>;

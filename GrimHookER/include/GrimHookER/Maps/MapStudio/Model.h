@@ -32,6 +32,8 @@ namespace GrimHookER::Maps::MapStudio
             return data;
         }
 
+        Model() = default;
+
         explicit Model(const std::string& name) : Entry(name) {}
 
         /// @brief Returns `static constexpr ModelType` defined in each subclass.
@@ -58,8 +60,9 @@ namespace GrimHookER::Maps::MapStudio
     public:
         static constexpr auto Type = ModelType::MapPiece;
 
-        explicit MapPieceModel(const std::string& name) : Model(name) {}
         MapPieceModel() : Model("m999999") {}
+
+        explicit MapPieceModel(const std::string& name) : Model(name) {}
 
         [[nodiscard]] ModelType GetType() const override { return Type; }
     };
@@ -71,8 +74,9 @@ namespace GrimHookER::Maps::MapStudio
     public:
         static constexpr auto Type = ModelType::Asset;
 
-        explicit AssetModel(const std::string& name) : Model(name) {}
         AssetModel() : Model("AEG999_999") {}
+
+        explicit AssetModel(const std::string& name) : Model(name) {}
 
         [[nodiscard]] ModelType GetType() const override { return Type; }
     };
@@ -82,8 +86,9 @@ namespace GrimHookER::Maps::MapStudio
     public:
         static constexpr auto Type = ModelType::Character;
 
-        explicit CharacterModel(const std::string& name) : Model(name) {}
         CharacterModel() : Model("c9999") {}
+
+        explicit CharacterModel(const std::string& name) : Model(name) {}
 
         [[nodiscard]] ModelType GetType() const override { return Type; }
     };
@@ -94,8 +99,9 @@ namespace GrimHookER::Maps::MapStudio
     public:
         static constexpr auto Type = ModelType::Player;
 
-        explicit PlayerModel(const std::string& name) : Model(name) {}
         PlayerModel() : Model("c0000") {}
+
+        explicit PlayerModel(const std::string& name) : Model(name) {}
 
         [[nodiscard]] ModelType GetType() const override { return Type; }
     };
@@ -106,8 +112,9 @@ namespace GrimHookER::Maps::MapStudio
     public:
         static constexpr auto Type = ModelType::Collision;
 
-        explicit CollisionModel(const std::string& name) : Model(name) {}
         CollisionModel() : Model("h999999") {}
+
+        explicit CollisionModel(const std::string& name) : Model(name) {}
 
         [[nodiscard]] ModelType GetType() const override { return Type; }
     };

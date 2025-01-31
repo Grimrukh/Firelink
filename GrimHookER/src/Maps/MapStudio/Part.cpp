@@ -1,13 +1,14 @@
 ﻿#include <cstdint>
 
+#include "GrimHookER/Maps/MapStudio/Part.h"
 #include "GrimHook/BinaryReadWrite.h"
 #include "GrimHook/BinaryValidation.h"
 #include "GrimHook/Collections.h"
+#include "GrimHook/MemoryUtils.h"
+#include "GrimHookER/Maps/MapStudio/Model.h"
 #include "GrimHookER/Maps/MapStudio/MSB.h"
 #include "GrimHookER/Maps/MapStudio/MSBFormatError.h"
-#include "GrimHookER/Maps/MapStudio/Model.h"
 #include "GrimHookER/Maps/MapStudio/Region.h"
-#include "GrimHookER/Maps/MapStudio/Part.h"
 
 using namespace std;
 using namespace GrimHook;
@@ -362,12 +363,12 @@ void Part::Deserialize(ifstream& stream)
     const auto header = ReadValidatedStruct<PartHeader>(stream);
 
     stream.seekg(start + header.nameOffset);
-    u16string nameWide = ReadUTF16String(stream, start + header.nameOffset);
-    m_name = string(nameWide.begin(), nameWide.end());
+    const u16string nameWide = ReadUTF16String(stream);
+    m_name = UTF16ToUTF8(nameWide);
 
     stream.seekg(start + header.sibPathOffset);
-    u16string sibPathWide = ReadUTF16String(stream, start + header.sibPathOffset);
-    sibPath = string(sibPathWide.begin(), sibPathWide.end());
+    const u16string sibPathWide = ReadUTF16String(stream);
+    sibPath = UTF16ToUTF8(sibPathWide);
 
     modelIndex = header.modelIndex;
     modelInstanceId = header.modelInstanceId;

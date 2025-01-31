@@ -1,9 +1,13 @@
-﻿#include <filesystem>
+﻿#include <chrono>
+#include <filesystem>
 #include <format>
+#include <vector>
 
 #include "GrimHook/Logging.h"
+#include "GrimHookER/Maps/MapStudio/EntryParam.h"
 #include "GrimHookER/Maps/MapStudio/MSB.h"
 #include "GrimHookER/Maps/MapStudio/MSBFormatError.h"
+#include "GrimHookER/Maps/MapStudio/Part.h"
 
 using namespace std;
 using namespace GrimHook;
@@ -23,7 +27,10 @@ int main()
     unique_ptr<MSB> msb;
     try
     {
+        const auto startTime = chrono::high_resolution_clock::now();
         msb = MSB::NewFromFilePath(msbPath);
+        const auto endTime = chrono::high_resolution_clock::now();
+        Info(format("MSB loaded in {} ms.", chrono::duration_cast<chrono::milliseconds>(endTime - startTime).count()));
     }
     catch (const MSBFormatError& e)
     {
@@ -41,9 +48,18 @@ int main()
     const auto allParts = partParam.GetAllEntries();
     const auto& firstPart = allParts.at(0);
 
-    const auto& firstPart = msb->GetPartParam().GetAllEntries().at(0);
-
     string name = firstPart->GetName();
     auto [x, y, z] = firstPart->GetTranslate();
-    Info(format("First character: '{}' at ({}, {}, {})", name, x, y, z));
+    Info(format("First part: '{}' at ({}, {}, {})", name, x, y, z));
+
+    const auto& characters = partParam.GetSubtypeEntries<CharacterPart>();
+    if (characters.empty())
+    {
+        Error("No characters found in MSB.");
+        throw runtime_error("No characters found in MSB.");
+    }
+    const auto& firstChr = characters[0];
+
+    auto [cx, cy, cz] = firstChr->GetTranslate();
+    Info(format("First character: '{}' at ({}, {}, {})", firstChr->GetName(), cx, cy, cz));
 }

@@ -1,9 +1,9 @@
-﻿
-#include <fstream>
+﻿#include <fstream>
 
 #include "GrimHookER/Maps/MapStudio/Route.h"
 #include "GrimHook/BinaryReadWrite.h"
 #include "GrimHook/BinaryValidation.h"
+#include "GrimHook/MemoryUtils.h"
 
 using namespace std;
 using namespace GrimHook::BinaryReadWrite;
@@ -38,8 +38,8 @@ void Route::Deserialize(ifstream& stream)
     subtypeIndexOverride = header.subtypeIndex;
 
     stream.seekg(start + header.nameOffset);
-    u16string nameWide = ReadUTF16String(stream);
-    m_name = string(nameWide.begin(), nameWide.end());
+    const u16string nameWide = ReadUTF16String(stream);
+    m_name = GrimHook::UTF16ToUTF8(nameWide);
 }
 
 

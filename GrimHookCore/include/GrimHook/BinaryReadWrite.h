@@ -11,6 +11,7 @@
 #include "Export.h"
 #include "Logging.h"
 
+
 namespace GrimHook::BinaryReadWrite
 {
     // BASIC VALUES
@@ -287,7 +288,7 @@ namespace GrimHook::BinaryReadWrite
      * @param position The temporary position to seek to.
      * @param func A function or lambda to execute while at the specified position.
      */
-    GRIMHOOK_API void WithStreamPosition(std::iostream& stream, std::streampos position, const std::function<void()>& func);
+    GRIMHOOK_API void WithStreamPosition(std::iostream& stream, const std::streampos& position, const std::function<void()>& func);
 
     // RESERVER
 

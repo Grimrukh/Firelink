@@ -46,6 +46,8 @@ namespace GrimHookER::Maps::MapStudio
             return data;
         }
 
+        Event() = default;
+
         explicit Event(const std::string& name) : Entry(name) {}
 
         /// @brief Returns `static constexpr EventType` defined in each subclass.
@@ -123,6 +125,8 @@ namespace GrimHookER::Maps::MapStudio
     public:
         static constexpr auto Type = EventType::Treasure;
 
+        TreasureEvent() = default;
+
         explicit TreasureEvent(const std::string& name) : Event(name) {}
 
         [[nodiscard]] EventType GetType() const override { return Type; }
@@ -166,6 +170,8 @@ namespace GrimHookER::Maps::MapStudio
     {
     public:
         static constexpr auto Type = EventType::Spawner;
+
+        SpawnerEvent() = default;
 
         explicit SpawnerEvent(const std::string& name) : Event(name)
         {
@@ -243,6 +249,9 @@ namespace GrimHookER::Maps::MapStudio
     public:
         static constexpr auto Type = EventType::Navigation;
 
+
+NavigationEvent() = default;
+
         explicit NavigationEvent(const std::string& name) : Event(name) {}
 
         [[nodiscard]] EventType GetType() const override { return Type; }
@@ -265,6 +274,8 @@ namespace GrimHookER::Maps::MapStudio
     {
     public:
         static constexpr auto Type = EventType::ObjAct;
+
+        ObjActEvent() = default;
 
         explicit ObjActEvent(const std::string& name) : Event(name) {}
 
@@ -318,6 +329,8 @@ namespace GrimHookER::Maps::MapStudio
     public:
         static constexpr auto Type = EventType::NPCInvasion;
 
+        NPCInvasionEvent() = default;
+
         explicit NPCInvasionEvent(const std::string& name) : Event(name) {}
 
         [[nodiscard]] EventType GetType() const override { return Type; }
@@ -351,6 +364,8 @@ namespace GrimHookER::Maps::MapStudio
     {
     public:
         static constexpr auto Type = EventType::Platoon;
+
+        PlatoonEvent() = default;
 
         explicit PlatoonEvent(const std::string& name) : Event(name)
         {
@@ -390,6 +405,8 @@ namespace GrimHookER::Maps::MapStudio
     public:
         static constexpr auto Type = EventType::PatrolRoute;
 
+        PatrolRouteEvent() = default;
+
         explicit PatrolRouteEvent(const std::string& name) : Event(name)
         {
             patrolRegionsIndices.fill(-1);
@@ -421,6 +438,8 @@ namespace GrimHookER::Maps::MapStudio
     public:
         static constexpr auto Type = EventType::Mount;
 
+        MountEvent() = default;
+
         explicit MountEvent(const std::string& name) : Event(name) {}
 
         [[nodiscard]] EventType GetType() const override { return Type; }
@@ -451,6 +470,8 @@ namespace GrimHookER::Maps::MapStudio
     public:
         static constexpr auto Type = EventType::SignPool;
 
+        SignPoolEvent() = default;
+
         explicit SignPoolEvent(const std::string& name) : Event(name) {}
 
         [[nodiscard]] EventType GetType() const override { return Type; }
@@ -478,6 +499,8 @@ namespace GrimHookER::Maps::MapStudio
     {
     public:
         static constexpr auto Type = EventType::RetryPoint;
+
+        RetryPointEvent() = default;
 
         explicit RetryPointEvent(const std::string& name) : Event(name) {}
 
@@ -512,11 +535,12 @@ namespace GrimHookER::Maps::MapStudio
         bool SerializeSubtypeData(std::ofstream& stream) const override;
     };
 
-
     class GRIMHOOKER_API AreaTeamEvent final : public Event
     {
     public:
         static constexpr auto Type = EventType::AreaTeam;
+
+        AreaTeamEvent() = default;
 
         explicit AreaTeamEvent(const std::string& name) : Event(name) {}
 
@@ -581,11 +605,12 @@ namespace GrimHookER::Maps::MapStudio
         bool SerializeSubtypeData(std::ofstream& stream) const override;
     };
 
-
     class GRIMHOOKER_API OtherEvent final : public Event
     {
     public:
         static constexpr auto Type = EventType::Other;
+
+        OtherEvent() = default;
 
         explicit OtherEvent(const std::string& name) : Event(name) {}
 

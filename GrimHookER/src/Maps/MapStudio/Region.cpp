@@ -1,13 +1,14 @@
 ﻿#include <cstdint>
-#include <string>
 #include <fstream>
+#include <string>
 
-#include "GrimHook/Collections.h"
-#include "GrimHookER/Maps/MapStudio/MSBFormatError.h"
 #include "GrimHookER/Maps/MapStudio/Region.h"
-#include "GrimHookER/Maps/MapStudio/Shape.h"
 #include "GrimHook/BinaryReadWrite.h"
 #include "GrimHook/BinaryValidation.h"
+#include "GrimHook/Collections.h"
+#include "GrimHook/MemoryUtils.h"
+#include "GrimHookER/Maps/MapStudio/MSBFormatError.h"
+#include "GrimHookER/Maps/MapStudio/Shape.h"
 
 using namespace std;
 using namespace GrimHook;
@@ -126,8 +127,8 @@ void Region::Deserialize(ifstream &stream)
     this->hUnk40 = header.unk40;
 
     stream.seekg(start + header.nameOffset);
-    u16string wName = ReadUTF16String(stream);
-    m_name = string(wName.begin(), wName.end());
+    const u16string nameWide = ReadUTF16String(stream);
+    m_name = GrimHook::UTF16ToUTF8(nameWide);
 
     stream.seekg(start + header.unkShortsAOffset);
     const auto unkShortsACount = ReadValue<int16_t>(stream);

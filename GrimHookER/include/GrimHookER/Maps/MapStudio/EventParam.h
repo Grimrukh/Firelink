@@ -9,19 +9,19 @@
 #include "MSBFormatError.h"
 
 #define CASE_MAKE_UNIQUE(ENUM_TYPE) \
-    case EventType::ENUM_TYPE: \
-        newEvent = std::make_unique<ENUM_TYPE##Event>(""); \
+    case static_cast<int>(EventType::ENUM_TYPE): \
+        newEvent = std::make_unique<ENUM_TYPE##Event>(); \
         break;
 
 namespace GrimHookER::Maps::MapStudio
 {
-    class GRIMHOOKER_API EventParam final : public EntryParam<Event, EventType>
+    class GRIMHOOKER_API EventParam final : public EntryParam<Event>
     {
     public:
         EventParam() : EntryParam(73, "EVENT_PARAM_ST") {}
 
         /// @brief Create a new Event with no name.
-        [[nodiscard]] Event* GetNewEntry(const EventType entrySubtype) override
+        [[nodiscard]] Event* GetNewEntry(const int entrySubtype) override
         {
             std::unique_ptr<Event> newEvent;
             switch (entrySubtype)
@@ -43,8 +43,9 @@ namespace GrimHookER::Maps::MapStudio
                         "Invalid Event subtype: {}", static_cast<int>(entrySubtype)));
             }
 
-            m_entriesBySubtype.at(entrySubtype).push_back(std::move(newEvent));
-            return m_entriesBySubtype.at(entrySubtype).back().get();
+            std::vector<std::unique_ptr<Event>>& subtypeVector = m_entriesBySubtype.at(static_cast<int>(entrySubtype));
+            subtypeVector.push_back(std::move(newEvent));
+            return subtypeVector.back().get();
         }
     };
 }

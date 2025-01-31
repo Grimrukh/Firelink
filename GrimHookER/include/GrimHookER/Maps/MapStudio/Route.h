@@ -30,6 +30,8 @@ namespace GrimHookER::Maps::MapStudio
             return data;
         }
 
+        Route() = default;
+
         explicit Route(const std::string& name) : Entry(name) {}
 
         [[nodiscard]] virtual RouteType GetType() const = 0;
@@ -52,6 +54,8 @@ namespace GrimHookER::Maps::MapStudio
     class GRIMHOOKER_API MufflingPortalLinkRoute final : public Route
     {
     public:
+        MufflingPortalLinkRoute() = default;
+
         explicit MufflingPortalLinkRoute(const std::string& name) : Route(name) {}
 
         [[nodiscard]] RouteType GetType() const override { return RouteType::MufflingPortalLink; }
@@ -60,6 +64,8 @@ namespace GrimHookER::Maps::MapStudio
     class GRIMHOOKER_API MufflingBoxLinkRoute final : public Route
     {
     public:
+        MufflingBoxLinkRoute() = default;
+
         explicit MufflingBoxLinkRoute(const std::string& name) : Route(name) {}
 
         [[nodiscard]] RouteType GetType() const override { return RouteType::MufflingBoxLink; }
@@ -68,6 +74,8 @@ namespace GrimHookER::Maps::MapStudio
     class GRIMHOOKER_API OtherRoute final : public Route
     {
     public:
+        OtherRoute() = default;
+
         explicit OtherRoute(const std::string& name) : Route(name) {}
 
         [[nodiscard]] RouteType GetType() const override { return RouteType::Other; }

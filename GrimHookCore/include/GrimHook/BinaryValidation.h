@@ -1,10 +1,10 @@
 ﻿#pragma once
 
+#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <stdexcept>
 #include <string>
-#include <bits/ranges_algo.h>
 
 namespace GrimHook::BinaryValidation
 {

@@ -12,17 +12,34 @@ namespace GrimHookER::Maps::MapStudio
     /// @brief MSB entry supertype list, which maps subtypes of that supertype (by enum) to their unique instances.
     ///
     /// Use `AddEntry()` and `RemoveEntry()` at this level to manage the underlying mapped entries.
-    template <typename T, typename EnumType>  // Model, Event, Part, Region, Route, Layer
+    template <typename T>  // , typename EnumType>  // Model, Event, Part, Region, Route, Layer
     class GRIMHOOKER_API EntryParam
     {
     public:
         EntryParam(int version, std::string name);
+
+        // Delete copy constructor.
+        EntryParam(const EntryParam&) = delete;
+        // Delete copy assignment operator.
+        EntryParam& operator=(const EntryParam&) = delete;
 
         [[nodiscard]] int GetVersion() const { return m_version; }
         void SetVersion(const int newVersion) { m_version = newVersion; }
 
         /// @brief Get name of this MSB Param (not mutable).
         [[nodiscard]] const std::string& GetParamName() const { return m_name; }
+
+        template<typename ST>
+        [[nodiscard]] std::vector<ST*> GetSubtypeEntries() const
+        {
+            static_assert(std::is_base_of_v<T, ST>, "Specified subtype is not derived from Param entry supertype.");
+            const std::vector<std::unique_ptr<T>>& subtypeEntries = m_entriesBySubtype.at(static_cast<int>(ST::Type));
+            std::vector<ST*> result;
+            result.reserve(subtypeEntries.size());
+            for (const auto& entry : subtypeEntries)
+                result.push_back(static_cast<ST*>(entry.get()));
+            return result;
+        }
 
         /// @brief Detects subtype of `entry`, takes ownership, and moves it to the appropriate mapped vector.
         void AddEntry(std::unique_ptr<T> entry);
@@ -31,7 +48,7 @@ namespace GrimHookER::Maps::MapStudio
         void RemoveEntry(T* entry);
 
         /// @brief Create an `T` of subtype `entrySubtype`. Should typically be used with `AddEntry()` immediately.
-        [[nodiscard]] virtual T* GetNewEntry(EnumType entrySubtype) = 0;
+        [[nodiscard]] virtual T* GetNewEntry(int entrySubtype) = 0;
 
         /// @brief Read fixed Param header data and create all subtypes entries in their owning `EntrySubParam`s.
         ///
@@ -54,7 +71,7 @@ namespace GrimHookER::Maps::MapStudio
         /// @brief Retrieve non-owning pointers to all entries of all subtypes in MSB order.
         ///
         /// Does NOT do any automatic within-subtype sorting.
-        std::vector<T*> GetAllEntries() const;
+        [[nodiscard]] std::vector<T*> GetAllEntries() const;
 
         /// @brief Get total number of entries across all subtypes in this supertype.
         [[nodiscard]] size_t GetSize() const;
@@ -66,26 +83,26 @@ namespace GrimHookER::Maps::MapStudio
         explicit operator std::string() const;
 
     protected:
-        int m_version;
+        int m_version = 0;
         const std::string m_name;
 
         // Initialized with all valid enum types in constructor.
-        std::unordered_map<EnumType, std::vector<std::unique_ptr<T>>> m_entriesBySubtype;
+        std::unordered_map<int, std::vector<std::unique_ptr<T>>> m_entriesBySubtype;
 
         /// @brief Uses `unique_ptr` for entries, so no explicit deletion needed.
         ~EntryParam() = default;
     };
 
     // class Model;
-    // extern template class EntryParam<Model, ModelType>;
+    // extern template class EntryParam<Model>;
     // class Event;
-    // extern template class EntryParam<Event, EventType>;
+    // extern template class EntryParam<Event>;
     // class Region;
-    // extern template class EntryParam<Region, RegionType>;
+    // extern template class EntryParam<Region>;
     // class Part;
-    // extern template class EntryParam<Part, PartType>;
+    // extern template class EntryParam<Part>;
     // class Layer;
-    // extern template class EntryParam<Layer, LayerType>;
+    // extern template class EntryParam<Layer>;
     // class Route;
-    // extern template class EntryParam<Route, RouteType>;
+    // extern template class EntryParam<Route>;
 }

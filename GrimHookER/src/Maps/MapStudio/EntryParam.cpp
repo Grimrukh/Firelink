@@ -5,19 +5,19 @@
 #include <typeinfo>
 #include <utility>
 
-#include "GrimHookER/Maps/MapStudio/Entry.h"
 #include "GrimHookER/Maps/MapStudio/EntryParam.h"
-#include "GrimHookER/Maps/MapStudio/Enums.h"
-#include "GrimHookER/Maps/MapStudio/Model.h"
-#include "GrimHookER/Maps/MapStudio/Event.h"
-#include "GrimHookER/Maps/MapStudio/Region.h"
-#include "GrimHookER/Maps/MapStudio/Part.h"
-#include "GrimHookER/Maps/MapStudio/Route.h"
-#include "GrimHookER/Maps/MapStudio/Layer.h"
-
-#include "GrimHookER/Maps/MapStudio/MSBFormatError.h"
 #include "GrimHook/BinaryReadWrite.h"
 #include "GrimHook/BinaryValidation.h"
+#include "GrimHook/MemoryUtils.h"
+#include "GrimHookER/Export.h"
+#include "GrimHookER/Maps/MapStudio/Entry.h"
+#include "GrimHookER/Maps/MapStudio/Event.h"
+#include "GrimHookER/Maps/MapStudio/Layer.h"
+#include "GrimHookER/Maps/MapStudio/Model.h"
+#include "GrimHookER/Maps/MapStudio/MSBFormatError.h"
+#include "GrimHookER/Maps/MapStudio/Part.h"
+#include "GrimHookER/Maps/MapStudio/Region.h"
+#include "GrimHookER/Maps/MapStudio/Route.h"
 
 using namespace std;
 using namespace GrimHook::BinaryReadWrite;
@@ -25,35 +25,36 @@ using namespace GrimHook::BinaryValidation;
 using namespace GrimHookER::Maps::MapStudio;
 
 
-template <typename T, typename EnumType>
-EntryParam<T, EnumType>::EntryParam(const int version, string name) : m_version(version), m_name(move(name))
+template <typename T>
+EntryParam<T>::EntryParam(const int version, string name) : m_version(version), m_name(move(name))
 {
     static_assert(std::is_base_of_v<Entry, T>, "EntryParam type must be an `Entry` subclass.");
     // Initialize empty vectors for all `T` subtypes.
     for (const auto& enumType : std::views::keys(T::GetTypeNames()))
-        m_entriesBySubtype[enumType] = std::vector<std::unique_ptr<T>>();
+        m_entriesBySubtype.try_emplace(static_cast<int>(enumType));
 }
 
-
-template<typename T, typename EnumType>
-void EntryParam<T, EnumType>::AddEntry(unique_ptr<T> entry)
+template<typename T>
+void EntryParam<T>::AddEntry(unique_ptr<T> entry)
 {
     typename T::EnumType subtype = entry->GetType();
-    if (!m_entriesBySubtype.contains(subtype))
+    int subtypeInt = static_cast<int>(subtype);
+    if (!m_entriesBySubtype.contains(subtypeInt))
         throw MSBFormatError(
             format("Cannot add Entry subtype {} to Param '{}'.", static_cast<int>(subtype), m_name));
-    auto& subtypeVector = m_entriesBySubtype[subtype];
+    auto& subtypeVector = m_entriesBySubtype.at(subtypeInt);
     subtypeVector.push_back(std::move(entry));
 }
 
-template<typename T, typename EnumType>
-void EntryParam<T, EnumType>::RemoveEntry(T* entry)
+template<typename T>
+void EntryParam<T>::RemoveEntry(T* entry)
 {
     typename T::EnumType subtype = entry->GetType();
-    if (!m_entriesBySubtype.contains(subtype))
+    int subtypeInt = static_cast<int>(subtype);
+    if (!m_entriesBySubtype.contains(subtypeInt))
         throw MSBFormatError(
             format("Cannot remove Entry subtype {} from Param '{}'.", static_cast<int>(subtype), m_name));
-    auto& subtypeVector = m_entriesBySubtype[subtype];
+    auto& subtypeVector = m_entriesBySubtype.at(subtypeInt);
     auto it = subtypeVector.erase(std::remove_if(
         subtypeVector.begin(), subtypeVector.end(),
              [entry](const unique_ptr<T>& e) { return e.get() == entry; }),
@@ -64,8 +65,8 @@ void EntryParam<T, EnumType>::RemoveEntry(T* entry)
 }
 
 // Base read method: sets `version` and `name`, and returns list of entries for subtype sorting (in subclass).
-template <typename T, typename EnumType>
-vector<T*> EntryParam<T, EnumType>::Deserialize(ifstream& stream)
+template <typename T>
+vector<T*> EntryParam<T>::Deserialize(ifstream& stream)
 {
     m_version = ReadValue<int>(stream);
     const auto entryOffsetCount = ReadValue<int32_t>(stream);
@@ -79,8 +80,8 @@ vector<T*> EntryParam<T, EnumType>::Deserialize(ifstream& stream)
     const auto nextEntryParamOffset = ReadValue<int64_t>(stream);
 
     // Read and validate name.
-    u16string nameWide = ReadUTF16String(stream, listNameOffset);
-    if (const string readName(nameWide.begin(), nameWide.end()); readName != m_name)
+    const u16string nameWide = ReadUTF16String(stream, listNameOffset);
+    if (const string readName = GrimHook::UTF16ToUTF8(nameWide); readName != m_name)
         throw MSBFormatError("Expected MSB entry list name: \"" + m_name + "\", got: \"" + readName + "\"");
 
     // Read and collect pointers to all entries.
@@ -102,8 +103,8 @@ vector<T*> EntryParam<T, EnumType>::Deserialize(ifstream& stream)
 
 
 // Write method
-template <typename T, typename EnumType>
-streampos EntryParam<T, EnumType>::Serialize(ofstream& stream, const vector<T*>& entries)
+template <typename T>
+streampos EntryParam<T>::Serialize(ofstream& stream, const vector<T*>& entries)
 {
     WriteValue(stream, m_version);
     WriteValue(stream, static_cast<int>(entries.size() + 1));
@@ -147,24 +148,25 @@ streampos EntryParam<T, EnumType>::Serialize(ofstream& stream, const vector<T*>&
     return nextEntryParamOffset;
 }
 
-template<typename T, typename EnumType>
-T* EntryParam<T, EnumType>::DeserializeEntry(ifstream& stream)
+template<typename T>
+T* EntryParam<T>::DeserializeEntry(ifstream& stream)
 {
     auto entrySubtype = ReadEnum32<typename T::EnumType>(
         stream, stream.tellg() + static_cast<streamoff>(T::SubtypeEnumOffset));
 
-    const auto it = m_entriesBySubtype.find(entrySubtype);
+    int subtypeInt = static_cast<int>(entrySubtype);
+    const auto it = m_entriesBySubtype.find(subtypeInt);
     if (it == m_entriesBySubtype.end())
         throw MSBFormatError(
-            std::format("Unknown Entry type {} for Param '{}'.", static_cast<int>(entrySubtype), m_name));
+            std::format("Unknown Entry type {} for Param '{}'.", subtypeInt, m_name));
     auto& subtypeVector = it->second;
-    auto entry = GetNewEntry(entrySubtype);
+    auto entry = GetNewEntry(subtypeInt);
     entry->Deserialize(stream);
     return entry;
 }
 
-template<typename T, typename EnumType>
-vector<T*> EntryParam<T, EnumType>::GetAllEntries() const
+template<typename T>
+vector<T*> EntryParam<T>::GetAllEntries() const
 {
     vector<T*> allEntries;
     allEntries.reserve(GetSize());
@@ -176,8 +178,8 @@ vector<T*> EntryParam<T, EnumType>::GetAllEntries() const
     return allEntries;
 }
 
-template<typename T, typename EnumType>
-size_t EntryParam<T, EnumType>::GetSize() const
+template<typename T>
+size_t EntryParam<T>::GetSize() const
 {
     size_t size = 0;
     for (const auto&[_, subtypeVector] : m_entriesBySubtype)
@@ -185,15 +187,15 @@ size_t EntryParam<T, EnumType>::GetSize() const
     return size;
 }
 
-template<typename T, typename EnumType>
-void EntryParam<T, EnumType>::ClearAllEntries()
+template<typename T>
+void EntryParam<T>::ClearAllEntries()
 {
     for (auto& [_, subtypeVector] : m_entriesBySubtype)
         subtypeVector.clear();
 }
 
-template<typename T, typename EnumType>
-EntryParam<T, EnumType>::operator string() const
+template<typename T>
+EntryParam<T>::operator string() const
 {
     ostringstream oss;
     oss << "0x" << hex << uppercase << m_version << " " << m_name;
@@ -202,9 +204,9 @@ EntryParam<T, EnumType>::operator string() const
 
 
 // Explicit instantiations.
-template class EntryParam<Model, ModelType>;
-template class EntryParam<Event, EventType>;
-template class EntryParam<Layer, LayerType>;
-template class EntryParam<Part, PartType>;
-template class EntryParam<Region, RegionType>;
-template class EntryParam<Route, RouteType>;
+template class GRIMHOOKER_API EntryParam<Model>;
+template class GRIMHOOKER_API EntryParam<Event>;
+template class GRIMHOOKER_API EntryParam<Layer>;
+template class GRIMHOOKER_API EntryParam<Part>;
+template class GRIMHOOKER_API EntryParam<Region>;
+template class GRIMHOOKER_API EntryParam<Route>;

@@ -1,6 +1,7 @@
 ﻿
 #include <fstream>
 #include <functional>
+#include <ranges>
 #include <vector>
 
 #include "GrimHook/BinaryReadWrite.h"
@@ -107,7 +108,7 @@ void BinaryReadWrite::WriteUTF16String(ofstream& stream, const streampos& offset
 
 void BinaryReadWrite::WriteUTF16String(ofstream& stream, const string& str)
 {
-    for (auto u16str = u16string(str.begin(), str.end()); char16_t ch : u16str)
+    for (const auto u16str = u16string(str.begin(), str.end()); char16_t ch : u16str)
         stream.write(reinterpret_cast<const char*>(&ch), sizeof(char16_t));
     constexpr char16_t nullTerminator = u'\0';
     stream.write(reinterpret_cast<const char*>(&nullTerminator), sizeof(char16_t));
@@ -147,7 +148,7 @@ void BinaryReadWrite::AlignStream(ofstream& stream, const streamsize& alignment)
  * @param position The temporary position to seek to.
  * @param func A function or lambda to execute while at the specified position.
  */
-void BinaryReadWrite::WithStreamPosition(iostream& stream, const streampos position, const function<void()>& func)
+void BinaryReadWrite::WithStreamPosition(iostream& stream, const streampos& position, const function<void()>& func)
 {
     // Save the current position
     const streampos originalPosition = stream.tellg();
@@ -273,10 +274,8 @@ void BinaryReadWrite::Reserver::Finish()
     }
 
     string unfilledOffsets;
-    for (const auto& [label, pos] : reservedOffsetOffsets)
-    {
+    for (const auto& label : std::views::keys(reservedOffsetOffsets))
         unfilledOffsets += label + ", ";
-    }
 
     throw runtime_error("Unfilled Reserver offsets: " + unfilledOffsets);
 }

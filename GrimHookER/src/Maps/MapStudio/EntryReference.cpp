@@ -1,12 +1,12 @@
 ﻿#include <format>
 
+#include "GrimHookER/Maps/MapStudio/EntryReference.h"
 #include "GrimHook/Logging.h"
 #include "GrimHookER/Maps/MapStudio/Entry.h"
-#include "GrimHookER/Maps/MapStudio/Model.h"
 #include "GrimHookER/Maps/MapStudio/Event.h"
-#include "GrimHookER/Maps/MapStudio/Region.h"
+#include "GrimHookER/Maps/MapStudio/Model.h"
 #include "GrimHookER/Maps/MapStudio/Part.h"
-#include "GrimHookER/Maps/MapStudio/EntryReference.h"
+#include "GrimHookER/Maps/MapStudio/Region.h"
 
 using namespace std;
 using namespace GrimHook;

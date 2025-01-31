@@ -74,6 +74,8 @@ namespace GrimHookER::Maps::MapStudio
     class EntityEntry : public Entry
     {
     public:
+        EntityEntry() = default;
+
         explicit EntityEntry(std::string name) : Entry(std::move(name)) {}
 
         [[nodiscard]] uint32_t GetEntityId() const { return m_entityId; }

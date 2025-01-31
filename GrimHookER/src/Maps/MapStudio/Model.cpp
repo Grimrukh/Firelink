@@ -1,11 +1,12 @@
 ﻿#include <fstream>
-#include <string>
 #include <memory>
+#include <string>
 
 #include "GrimHookER/Maps/MapStudio/Model.h"
-#include "GrimHookER/Maps/MapStudio/MSBFormatError.h"
 #include "GrimHook/BinaryReadWrite.h"
 #include "GrimHook/BinaryValidation.h"
+#include "GrimHook/MemoryUtils.h"
+#include "GrimHookER/Maps/MapStudio/MSBFormatError.h"
 
 using namespace std;
 using namespace GrimHookER::Maps::MapStudio;
@@ -48,8 +49,8 @@ void Model::Deserialize(ifstream& stream)
     const auto header = ReadValidatedStruct<ModelHeader>(stream);
 
     stream.seekg(start + header.nameOffset);
-    u16string nameWide = ReadUTF16String(stream);
-    m_name = string(nameWide.begin(), nameWide.end());
+    const u16string nameWide = ReadUTF16String(stream);
+    m_name = GrimHook::UTF16ToUTF8(nameWide);
 
     if (header.modelDataType != GetType())
     {
@@ -58,8 +59,8 @@ void Model::Deserialize(ifstream& stream)
     instanceCount = header.instanceCount;
 
     stream.seekg(start + header.sibPathOffset);
-    u16string sibPathWide = ReadUTF16String(stream);
-    sibPath = string(sibPathWide.begin(), sibPathWide.end());
+    const u16string sibPathWide = ReadUTF16String(stream);
+    sibPath = GrimHook::UTF16ToUTF8(sibPathWide);
 
     // No subtype data for models.
 }

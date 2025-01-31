@@ -8,6 +8,13 @@
 
 namespace GrimHook
 {
+    /// @brief Concept that constrains memory read/write methods to types that are trivially copyable.
+    template <typename T>
+    concept MemReadWriteType = std::is_trivially_copyable_v<T>;
+
+    /// @brief Convert a UTF-16 string to a standard UTF-8 string without warning about data loss.
+    GRIMHOOK_API std::string UTF16ToUTF8(const std::u16string& utf16);
+
     /// @brief Get a pointer offset by a number of bytes.
     GRIMHOOK_API const void* GetOffsetPointer(const void* ptr, int offset);
 

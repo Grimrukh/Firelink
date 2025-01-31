@@ -69,6 +69,8 @@ namespace GrimHookER::Maps::MapStudio
             return data;
         }
 
+        Region() = default;
+
         explicit Region(const std::string& name) : EntityEntry(name) {}
 
         /// @brief Copy constructor that clones a new unique `Shape` (if present).
@@ -203,6 +205,8 @@ namespace GrimHookER::Maps::MapStudio
     public:
         static constexpr auto Type = RegionType::InvasionPoint;
 
+        InvasionPointRegion() = default;
+
         explicit InvasionPointRegion(const std::string& name) : Region(name) {}
 
         [[nodiscard]] RegionType GetType() const override { return Type; }
@@ -221,6 +225,8 @@ namespace GrimHookER::Maps::MapStudio
     {
     public:
         static constexpr auto Type = RegionType::EnvironmentMapPoint;
+
+        EnvironmentMapPointRegion() = default;
 
         explicit EnvironmentMapPointRegion(const std::string& name) : Region(name) {}
 
@@ -277,6 +283,8 @@ namespace GrimHookER::Maps::MapStudio
     public:
         static constexpr auto Type = RegionType::Sound;
 
+        SoundRegion() = default;
+
         explicit SoundRegion(const std::string& name) : Region(name)
         {
             childRegionsIndices.fill(-1);
@@ -316,6 +324,8 @@ namespace GrimHookER::Maps::MapStudio
     public:
         static constexpr auto Type = RegionType::VFX;
 
+        VFXRegion() = default;
+
         explicit VFXRegion(const std::string& name) : Region(name) {}
 
         [[nodiscard]] RegionType GetType() const override { return Type; }
@@ -337,6 +347,8 @@ namespace GrimHookER::Maps::MapStudio
     {
     public:
         static constexpr auto Type = RegionType::WindVFX;
+
+        WindVFXRegion() = default;
 
         explicit WindVFXRegion(const std::string& name) : Region(name) {}
 
@@ -371,6 +383,8 @@ namespace GrimHookER::Maps::MapStudio
     public:
         static constexpr auto Type = RegionType::SpawnPoint;
 
+        SpawnPointRegion() = default;
+
         explicit SpawnPointRegion(const std::string& name) : Region(name) {}
 
         [[nodiscard]] RegionType GetType() const override { return Type; }
@@ -386,6 +400,8 @@ namespace GrimHookER::Maps::MapStudio
     {
     public:
         static constexpr auto Type = RegionType::Message;
+
+        MessageRegion() = default;
 
         explicit MessageRegion(const std::string& name) : Region(name) {}
 
@@ -430,6 +446,8 @@ namespace GrimHookER::Maps::MapStudio
     {
     public:
         static constexpr auto Type = RegionType::EnvironmentMapEffectBox;
+
+        EnvironmentMapEffectBoxRegion() = default;
 
         explicit EnvironmentMapEffectBoxRegion(const std::string& name) : Region(name) {}
 
@@ -489,6 +507,8 @@ namespace GrimHookER::Maps::MapStudio
     public:
         static constexpr auto Type = RegionType::WindArea;
 
+        WindAreaRegion() = default;
+
         explicit WindAreaRegion(const std::string& name) : Region(name) {}
 
         [[nodiscard]] RegionType GetType() const override { return Type; }
@@ -500,6 +520,8 @@ namespace GrimHookER::Maps::MapStudio
     {
     public:
         static constexpr auto Type = RegionType::Connection;
+
+        ConnectionRegion() = default;
 
         explicit ConnectionRegion(const std::string& name) : Region(name) {}
 
@@ -520,6 +542,8 @@ namespace GrimHookER::Maps::MapStudio
     public:
         static constexpr auto Type = RegionType::PatrolRoute22;
 
+        PatrolRoute22Region() = default;
+
         explicit PatrolRoute22Region(const std::string& name) : Region(name) {}
 
         [[nodiscard]] RegionType GetType() const override { return Type; }
@@ -535,6 +559,8 @@ namespace GrimHookER::Maps::MapStudio
     public:
         static constexpr auto Type = RegionType::BuddySummonPoint;
 
+        BuddySummonPointRegion() = default;
+
         explicit BuddySummonPointRegion(const std::string& name) : Region(name) {}
 
         [[nodiscard]] RegionType GetType() const override { return Type; }
@@ -548,6 +574,8 @@ namespace GrimHookER::Maps::MapStudio
     {
     public:
         static constexpr auto Type = RegionType::MufflingBox;
+
+        MufflingBoxRegion() = default;
 
         explicit MufflingBoxRegion(const std::string& name) : Region(name) {}
 
@@ -583,6 +611,8 @@ namespace GrimHookER::Maps::MapStudio
     public:
         static constexpr auto Type = RegionType::MufflingPortal;
 
+        MufflingPortalRegion() = default;
+
         explicit MufflingPortalRegion(const std::string& name) : Region(name) {}
 
         [[nodiscard]] RegionType GetType() const override { return Type; }
@@ -601,6 +631,8 @@ namespace GrimHookER::Maps::MapStudio
     {
     public:
         static constexpr auto Type = RegionType::OtherSound;
+
+        OtherSoundRegion() = default;
 
         explicit OtherSoundRegion(const std::string& name) : Region(name) {}
 
@@ -643,6 +675,8 @@ namespace GrimHookER::Maps::MapStudio
     public:
         static constexpr auto Type = RegionType::MufflingPlane;
 
+        MufflingPlaneRegion() = default;
+
         explicit MufflingPlaneRegion(const std::string& name) : Region(name) {}
 
         [[nodiscard]] RegionType GetType() const override { return Type; }
@@ -652,6 +686,8 @@ namespace GrimHookER::Maps::MapStudio
     {
     public:
         static constexpr auto Type = RegionType::PatrolRoute;
+
+        PatrolRouteRegion() = default;
 
         explicit PatrolRouteRegion(const std::string& name) : Region(name) {}
 
@@ -671,6 +707,8 @@ namespace GrimHookER::Maps::MapStudio
     {
     public:
         static constexpr auto Type = RegionType::MapPoint;
+
+        MapPointRegion() = default;
 
         explicit MapPointRegion(const std::string& name) : Region(name) {}
 
@@ -705,6 +743,8 @@ namespace GrimHookER::Maps::MapStudio
     public:
         static constexpr auto Type = RegionType::WeatherOverride;
 
+        WeatherOverrideRegion() = default;
+
         explicit WeatherOverrideRegion(const std::string& name) : Region(name) {}
 
         [[nodiscard]] RegionType GetType() const override { return Type; }
@@ -724,6 +764,8 @@ namespace GrimHookER::Maps::MapStudio
     public:
         static constexpr auto Type = RegionType::AutoDrawGroupPoint;
 
+        AutoDrawGroupPointRegion() = default;
+
         explicit AutoDrawGroupPointRegion(const std::string& name) : Region(name) {}
 
         [[nodiscard]] RegionType GetType() const override { return Type; }
@@ -742,6 +784,8 @@ namespace GrimHookER::Maps::MapStudio
     {
     public:
         static constexpr auto Type = RegionType::GroupDefeatReward;
+
+        GroupDefeatRewardRegion() = default;
 
         explicit GroupDefeatRewardRegion(const std::string& name) : Region(name)
         {
@@ -791,6 +835,8 @@ namespace GrimHookER::Maps::MapStudio
     public:
         static constexpr auto Type = RegionType::MapPointDiscoveryOverride;
 
+        MapPointDiscoveryOverrideRegion() = default;
+
         explicit MapPointDiscoveryOverrideRegion(const std::string& name) : Region(name) {}
 
         [[nodiscard]] RegionType GetType() const override { return Type; }
@@ -802,6 +848,8 @@ namespace GrimHookER::Maps::MapStudio
     public:
         static constexpr auto Type = RegionType::MapPointParticipationOverride;
 
+        MapPointParticipationOverrideRegion() = default;
+
         explicit MapPointParticipationOverrideRegion(const std::string& name) : Region(name) {}
         
         [[nodiscard]] RegionType GetType() const override { return Type; }
@@ -811,6 +859,8 @@ namespace GrimHookER::Maps::MapStudio
     {
     public:
         static constexpr auto Type = RegionType::Hitset;
+
+        HitsetRegion() = default;
 
         explicit HitsetRegion(const std::string& name) : Region(name) {}
         
@@ -829,6 +879,8 @@ namespace GrimHookER::Maps::MapStudio
     {
     public:
         static constexpr auto Type = RegionType::FastTravelRestriction;
+
+        FastTravelRestrictionRegion() = default;
 
         explicit FastTravelRestrictionRegion(const std::string& name) : Region(name) {}
         
@@ -849,6 +901,8 @@ namespace GrimHookER::Maps::MapStudio
     public:
         static constexpr auto Type = RegionType::WeatherCreateAssetPoint;
 
+        WeatherCreateAssetPointRegion() = default;
+
         explicit WeatherCreateAssetPointRegion(const std::string& name) : Region(name) {}
         
         [[nodiscard]] RegionType GetType() const override { return Type; }
@@ -862,6 +916,8 @@ namespace GrimHookER::Maps::MapStudio
     {
     public:
         static constexpr auto Type = RegionType::PlayArea;
+
+        PlayAreaRegion() = default;
 
         explicit PlayAreaRegion(const std::string& name) : Region(name) {}
         
@@ -885,6 +941,8 @@ namespace GrimHookER::Maps::MapStudio
     public:
         static constexpr auto Type = RegionType::EnvironmentMapOutput;
 
+        EnvironmentMapOutputRegion() = default;
+
         explicit EnvironmentMapOutputRegion(const std::string& name) : Region(name) {}
         
         [[nodiscard]] RegionType GetType() const override { return Type; }
@@ -896,6 +954,8 @@ namespace GrimHookER::Maps::MapStudio
     {
     public:
         static constexpr auto Type = RegionType::MountJump;
+
+        MountJumpRegion() = default;
 
         explicit MountJumpRegion(const std::string& name) : Region(name) {}
         
@@ -919,6 +979,8 @@ namespace GrimHookER::Maps::MapStudio
     public:
         static constexpr auto Type = RegionType::Dummy;
 
+        DummyRegion() = default;
+
         explicit DummyRegion(const std::string& name) : Region(name) {}
         
         [[nodiscard]] RegionType GetType() const override { return Type; }
@@ -938,6 +1000,8 @@ namespace GrimHookER::Maps::MapStudio
     public:
         static constexpr auto Type = RegionType::FallPreventionRemoval;
 
+        FallPreventionRemovalRegion() = default;
+
         explicit FallPreventionRemovalRegion(const std::string& name) : Region(name) {}
         
         [[nodiscard]] RegionType GetType() const override { return Type; }
@@ -952,6 +1016,8 @@ namespace GrimHookER::Maps::MapStudio
     public:
         static constexpr auto Type = RegionType::NavmeshCutting;
 
+        NavmeshCuttingRegion() = default;
+
         explicit NavmeshCuttingRegion(const std::string& name) : Region(name) {}
         
         [[nodiscard]] RegionType GetType() const override { return Type; }
@@ -965,6 +1031,8 @@ namespace GrimHookER::Maps::MapStudio
     {
     public:
         static constexpr auto Type = RegionType::MapNameOverride;
+
+        MapNameOverrideRegion() = default;
 
         explicit MapNameOverrideRegion(const std::string& name) : Region(name) {}
         
@@ -984,6 +1052,8 @@ namespace GrimHookER::Maps::MapStudio
     {
     public:
         static constexpr auto Type = RegionType::MountJumpFall;
+
+        MountJumpFallRegion() = default;
 
         explicit MountJumpFallRegion(const std::string& name) : Region(name) {}
         
@@ -1009,6 +1079,8 @@ namespace GrimHookER::Maps::MapStudio
 
         static constexpr auto Type = RegionType::HorseRideOverride;
 
+        HorseRideOverrideRegion() = default;
+
         explicit HorseRideOverrideRegion(const std::string& name) : Region(name) {}
         
         [[nodiscard]] RegionType GetType() const override { return Type; }
@@ -1027,6 +1099,8 @@ namespace GrimHookER::Maps::MapStudio
     {
     public:
         static constexpr auto Type = RegionType::Other;
+
+        OtherRegion() = default;
 
         explicit OtherRegion(const std::string& name) : Region(name) {}
         

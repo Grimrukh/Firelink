@@ -69,6 +69,12 @@ ManagedProcess::ManagedProcess(void* processHandle) : m_processHandle(processHan
     }
 }
 
+ManagedProcess::~ManagedProcess()
+{
+    // Clear pointers before closing process handle.
+    m_pointers.clear();
+}
+
 bool ManagedProcess::GetMainModuleBaseAddressAndSize(void*& baseAddress, SIZE_T& mainModuleSize) const
 {
     MODULEINFO moduleInfo;
