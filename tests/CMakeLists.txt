@@ -15,10 +15,16 @@ add_executable(EldenRingMSBTest
 enable_testing()
 
 message(STATUS "Adding LogTest test...")
-add_test(NAME LogTest COMMAND LogTest)
+add_test(NAME LogTest
+    COMMAND LogTest
+    WORKING_DIRECTORY $<TARGET_FILE_DIR:LogTest>
+)
 
 message(STATUS "Adding Elden Ring MSB test...")
-add_test(NAME EldenRingMSBTest COMMAND EldenRingMSBTest)
+add_test(NAME EldenRingMSBTest
+    COMMAND EldenRingMSBTest
+    WORKING_DIRECTORY $<TARGET_FILE_DIR:EldenRingMSBTest>
+)
 
 # Link statically against GCC runtime (all).
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
@@ -27,37 +33,36 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
 endif()
 
 target_link_libraries(LogTest
-    PRIVATE GrimHookCore
-    PRIVATE GrimHookDSR
-    PRIVATE GrimHookER
+    PRIVATE FirelinkCore
+    PRIVATE FirelinkDSR
+    PRIVATE FirelinkER
 )
 
 target_link_libraries(EldenRingMSBTest
-    PRIVATE GrimHookCore
-    PRIVATE GrimHookDSR
-    PRIVATE GrimHookER
+    PRIVATE FirelinkCore
+    PRIVATE FirelinkDSR
+    PRIVATE FirelinkER
 )
 
 # Copy DLLs to the output directories.
 add_custom_command(TARGET LogTest POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        $<TARGET_FILE:GrimHookCore>
-        $<TARGET_FILE:GrimHookDSR>
-        $<TARGET_FILE:GrimHookER>
+        $<TARGET_FILE:FirelinkCore>
+        $<TARGET_FILE:FirelinkDSR>
+        $<TARGET_FILE:FirelinkER>
         $<TARGET_FILE_DIR:LogTest>
 )
 
 add_custom_command(TARGET EldenRingMSBTest POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
-    $<TARGET_FILE:GrimHookCore>
-    $<TARGET_FILE:GrimHookDSR>
-    $<TARGET_FILE:GrimHookER>
-    $<TARGET_FILE_DIR:EldenRingMSBTest>
+        $<TARGET_FILE:FirelinkCore>
+        $<TARGET_FILE:FirelinkER>
+        $<TARGET_FILE_DIR:EldenRingMSBTest>
 )
 add_custom_command(TARGET EldenRingMSBTest POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E make_directory $<TARGET_FILE_DIR:EldenRingMSBTest>/resources/elden_ring
+    COMMAND ${CMAKE_COMMAND} -E make_directory
+        $<TARGET_FILE_DIR:EldenRingMSBTest>/resources/elden_ring
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
-    ${CMAKE_CURRENT_SOURCE_DIR}/resources/elden_ring/m10_00_00_00.msb
-    $<TARGET_FILE_DIR:EldenRingMSBTest>/resources/elden_ring/m10_00_00_00.msb
+        ${CMAKE_CURRENT_SOURCE_DIR}/resources/elden_ring/m10_00_00_00.msb
+        $<TARGET_FILE_DIR:EldenRingMSBTest>/resources/elden_ring/m10_00_00_00.msb
 )
-

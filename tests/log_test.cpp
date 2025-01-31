@@ -1,15 +1,15 @@
 ﻿#include <format>
 #include <string>
 
-#include "GrimHook/Logging.h"
-#include "GrimHookDSR/DSRHook.h"
+#include "Firelink/Logging.h"
+#include "FirelinkDSR/DSRHook.h"
 
 
-/// @brief Tests C++20 (format), GrimHookCore logging, and GrimHookDSR process name.
+/// @brief Tests C++20 (format), FirelinkCore logging, and FirelinkDSR process name.
 int main()
 {
-    GrimHook::Info("GrimHook logging success.");
-    const std::wstring dsrMsg = std::format(L"DSR Process Name: '{}'", GrimHookDSR::DSR_PROCESS_NAME);
-    GrimHook::Info(dsrMsg);
+    Firelink::Info("Firelink logging success.");
+    const std::wstring dsrMsg = std::format(L"DSR Process Name: '{}'", FirelinkDSR::DSR_PROCESS_NAME);
+    Firelink::Info(dsrMsg);
     return 0;
 }

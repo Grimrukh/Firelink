@@ -1,19 +1,19 @@
-# GrimHook
+# Firelink
 
-GrimHook is a C++ project for building DLLs that hook into running Windows applications and provide pointer and memory
+Firelink is a C++ project for building DLLs that hook into running Windows applications and provide pointer and memory
 manipulation features (like Cheat Engine). This project is intended for educational or modding purposes and should not 
 be used to cheat in online games or other malicious activities.
 
-Of course, the real value of GrimHook is the `BaseHook` subclasses that target FromSoftware games. Currently, only
-***Dark Souls: Remastered*** is supported (`GrimHookDSR`). Elden Ring support will come in the future. These hook subclasses
+Of course, the real value of Firelink is the `BaseHook` subclasses that target FromSoftware games. Currently, only
+***Dark Souls: Remastered*** is supported (`FirelinkDSR`). Elden Ring support will come in the future. These hook subclasses
 (like similar projects by others and myself in C# and Python) automatically expose valuable memory addresses in the
 running game application.
 
 ---
 
 ## Features
-- **GrimHookCore**: Core utilities and memory manipulation functions, centered around `ManagedProcess`.
-- **GrimHookDSR**: Extensions and hooks specific to ***Dark Souls: Remastered***, centered around `DSRHook`.
+- **FirelinkCore**: Core utilities and memory manipulation functions, centered around `ManagedProcess`.
+- **FirelinkDSR**: Extensions and hooks specific to ***Dark Souls: Remastered***, centered around `DSRHook`.
 
 ---
 
@@ -42,13 +42,13 @@ Follow these steps to build the project:
 
 ### Clone the Repository
 ```bash
-git clone https://github.com/Grimrukh/GrimHook.git
-cd GrimHook
+git clone https://github.com/Grimrukh/Firelink.git
+cd Firelink
 ```
 or via SSH:
 ```bash
-git clone git@github.com/Grimrukh/GrimHook.git
-cd GrimHook
+git clone git@github.com/Grimrukh/Firelink.git
+cd Firelink
 ```
 
 ### Configure the Project with CMake
@@ -90,8 +90,8 @@ ctest --test-dir build --output-on-failure
 ## Using the DLLs
 
 Once built, the DLLs will be located in the `build` directory. To use them, copy them to the directory of your own C++
-application that links against `GrimHookCore` (and optionally `GrimHookDSR`) and use the public `include` headers to
-gain access to classes such as `GrimHook::BaseHook` and `GrimHookDSR::DSRHook`.
+application that links against `FirelinkCore` (and optionally `FirelinkDSR`) and use the public `include` headers to
+gain access to classes such as `Firelink::BaseHook` and `FirelinkDSR::DSRHook`.
 
 Here's a simple example loop that prints the player's health in ***Dark Souls: Remastered***. See other projects, such
 as [DSRWeaponSwap](https://github.com/Grimrukh/DSRWeaponSwap), for more complex examples.
@@ -102,13 +102,13 @@ as [DSRWeaponSwap](https://github.com/Grimrukh/DSRWeaponSwap), for more complex 
 #include <iostream>
 #include <thread>
 
-#include "GrimHookDSR/DSRHook.h"
+#include "FirelinkDSR/DSRHook.h"
 
 void PrintHealthEverySecond()
 {
     using namespace std;
-    using namespace GrimHook;
-    using namespace GrimHookDSR;
+    using namespace Firelink;
+    using namespace FirelinkDSR;
 
     // We need an atomic flag to pass to `WaitForProcess` to stop the search if needed.
     // It's not used in this example, but the caller could pass it in and set it to `true` in another thread to
@@ -182,6 +182,6 @@ Contributions are welcome! To contribute:
 
 ## Support
 
-If you encounter any issues, please open an issue on the [GitHub repository](https://github.com/Grimrukh/GrimHook/issues).
+If you encounter any issues, please open an issue on the [GitHub repository](https://github.com/Grimrukh/Firelink/issues).
 
 Happy hooking!
