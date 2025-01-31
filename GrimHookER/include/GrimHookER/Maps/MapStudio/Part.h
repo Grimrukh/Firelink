@@ -5,13 +5,13 @@
 #include <map>
 #include <memory>
 #include <string>
-#include <variant>
-#include <vector>
 
 #include "GrimHook/Collections.h"
 #include "GrimHookER/Export.h"
 #include "Entry.h"
 #include "EntryReference.h"
+#include "Enums.h"
+
 
 namespace GrimHookER::Maps::MapStudio
 {
@@ -24,19 +24,6 @@ namespace GrimHookER::Maps::MapStudio
     class PatrolRouteEvent;
     // Forward declaration for use as an argument to `DeserializeStructs` and `SerializeStructs`.
     struct PartHeader;
-
-    enum class PartType : uint32_t
-    {
-        MapPiece = 0,
-        Character = 2,
-        PlayerStart = 4,
-        Collision = 5,
-        DummyAsset = 9,
-        DummyCharacter = 10,
-        ConnectCollision = 11,
-        Asset = 13,
-        // No `Other` part type.
-    };
 
     enum class CollisionHitFilter : uint8_t
     {
@@ -53,18 +40,6 @@ namespace GrimHookER::Maps::MapStudio
         Unk23 = 23,
         Unk24 = 24,
         Unk29 = 29,
-    };
-
-    inline std::map<PartType, std::string> partTypeNames =
-    {
-        {PartType::MapPiece, "MapPiece"},
-        {PartType::Character, "Character"},
-        {PartType::PlayerStart, "PlayerStart"},
-        {PartType::Collision, "Collision"},
-        {PartType::DummyAsset, "DummyAsset"},
-        {PartType::DummyCharacter, "DummyCharacter"},
-        {PartType::ConnectCollision, "ConnectCollision"},
-        {PartType::Asset, "Asset"},
     };
 
     // NOTE: Parts use many different optional structs, varying across subtype, in addition to subtype-specific structs.
@@ -207,6 +182,23 @@ namespace GrimHookER::Maps::MapStudio
     {
     public:
         using EnumType = PartType;
+
+        static constexpr int SubtypeEnumOffset = 12;
+
+        [[nodiscard]] static const std::map<PartType, std::string>& GetTypeNames()
+        {
+            static const std::map<PartType, std::string> data = {
+                {PartType::MapPiece, "MapPiece"},
+                {PartType::Character, "Character"},
+                {PartType::PlayerStart, "PlayerStart"},
+                {PartType::Collision, "Collision"},
+                {PartType::DummyAsset, "DummyAsset"},
+                {PartType::DummyCharacter, "DummyCharacter"},
+                {PartType::ConnectCollision, "ConnectCollision"},
+                {PartType::Asset, "Asset"},
+            };
+            return data;
+        }
 
         explicit Part(const std::string& name) : EntityEntry(name) {}
 
@@ -611,6 +603,11 @@ namespace GrimHookER::Maps::MapStudio
         UnkPartStruct8 unkStruct8{};
         TileLoadConfig tileLoadConfig{};
         UnkPartStruct11 unkStruct11{};
+
+        explicit operator std::string() const
+        {
+            return GetTypeNames().at(GetType()) + " " + m_name;
+        }
     };
 
     // Unlike `DummyObject` in earlier games, almost all data has been nuked here, which prevents this from being a
@@ -893,15 +890,4 @@ namespace GrimHookER::Maps::MapStudio
         bool DeserializeSubtypeData(std::ifstream& stream) override;
         bool SerializeSubtypeData(std::ofstream& stream, int supertypeIndex, int subtypeIndex) const override;
     };
-
-    using PartVariantType = std::variant<
-        std::vector<std::unique_ptr<MapPiecePart>>,
-        std::vector<std::unique_ptr<CharacterPart>>,
-        std::vector<std::unique_ptr<PlayerStartPart>>,
-        std::vector<std::unique_ptr<CollisionPart>>,
-        std::vector<std::unique_ptr<DummyAssetPart>>,
-        std::vector<std::unique_ptr<DummyCharacterPart>>,
-        std::vector<std::unique_ptr<ConnectCollisionPart>>,
-        std::vector<std::unique_ptr<AssetPart>>
-    >;
 }

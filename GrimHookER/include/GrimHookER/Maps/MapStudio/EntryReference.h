@@ -9,14 +9,7 @@
 
 namespace GrimHookER::Maps::MapStudio
 {
-    // Forward declarations of all referenced `Entry` subtypes.
     class Entry;
-    class Model;
-    class Event;
-    class Region;
-    class Part;
-    class PatrolRouteEvent;
-    class CollisionPart;
 
     /// @brief Base class of templated `EntryReference` for use with `Entry` referral management.
     class EntryReferenceBase
@@ -32,7 +25,7 @@ namespace GrimHookER::Maps::MapStudio
     /// @brief Non-owning reference from one MSB `Entry` (of any subtype) to another (subtype of `T`).
     /// References are registered in the target entry so that they can be cleared when that entry is removed.
     template <typename T>
-    class EntryReference final : public EntryReferenceBase
+    class GRIMHOOKER_API EntryReference final : public EntryReferenceBase
     {
     public:
         /// @brief Default constructor (empty reference).
@@ -164,11 +157,16 @@ namespace GrimHookER::Maps::MapStudio
             references[i].Clear();
     }
 
-    // Template specializations. Defined in `EntryReference.cpp`.
-    extern template class GRIMHOOKER_API EntryReference<Model>;
-    extern template class GRIMHOOKER_API EntryReference<Event>;
-    extern template class GRIMHOOKER_API EntryReference<Region>;
-    extern template class GRIMHOOKER_API EntryReference<Part>;
-    extern template class GRIMHOOKER_API EntryReference<PatrolRouteEvent>;
-    extern template class GRIMHOOKER_API EntryReference<CollisionPart>;
+    // class Model;
+    // extern template class EntryReference<Model>;
+    // class Event;
+    // extern template class EntryReference<Event>;
+    // class Region;
+    // extern template class EntryReference<Region>;
+    // class Part;
+    // extern template class EntryReference<Part>;
+    // class PatrolRouteEvent;
+    // extern template class EntryReference<PatrolRouteEvent>;
+    // class CollisionPart;
+    // extern template class EntryReference<CollisionPart>;
 }

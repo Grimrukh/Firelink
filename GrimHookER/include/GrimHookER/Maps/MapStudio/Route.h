@@ -3,33 +3,32 @@
 #include <cstdint>
 #include <map>
 #include <string>
-#include <variant>
-#include <vector>
 
 #include "GrimHookER/Export.h"
 #include "Entry.h"
+#include "Enums.h"
+
 
 namespace GrimHookER::Maps::MapStudio
 {
-    enum class RouteType : uint32_t
-    {
-        MufflingPortalLink = 3,
-        MufflingBoxLink = 4,
-        Other = 0xFFFFFFFF,
-    };
-
-    inline std::map<RouteType, std::string> routeTypeNames =
-    {
-        {RouteType::MufflingPortalLink, "MufflingPortalLink"},
-        {RouteType::MufflingBoxLink, "MufflingBoxLink"},
-        {RouteType::Other, "Other"},
-    };
-
     // Minimal MSB type related to muffling box/portal Regions. Has two subtypes, neither of which has any subtype data.
     class GRIMHOOKER_API Route : public Entry
     {
     public:
         using EnumType = RouteType;
+
+        static constexpr int SubtypeEnumOffset = 16;
+
+        [[nodiscard]] static const std::map<RouteType, std::string>& GetTypeNames()
+        {
+            static const std::map<RouteType, std::string> data =
+            {
+                {RouteType::MufflingPortalLink, "MufflingPortalLink"},
+                {RouteType::MufflingBoxLink, "MufflingBoxLink"},
+                {RouteType::Other, "Other"},
+            };
+            return data;
+        }
 
         explicit Route(const std::string& name) : Entry(name) {}
 
@@ -37,6 +36,11 @@ namespace GrimHookER::Maps::MapStudio
 
         void Deserialize(std::ifstream& stream) override;
         void Serialize(std::ofstream& stream, int supertypeIndex, int subtypeIndex) const override;
+
+        explicit operator std::string() const
+        {
+            return GetTypeNames().at(GetType()) + " " + m_name;
+        }
 
         // No subtype data to read/write.
     protected:
@@ -68,11 +72,4 @@ namespace GrimHookER::Maps::MapStudio
 
         [[nodiscard]] RouteType GetType() const override { return RouteType::Other; }
     };
-
-
-    using RouteVariantType = std::variant<
-        std::vector<std::unique_ptr<MufflingPortalLinkRoute>>,
-        std::vector<std::unique_ptr<MufflingBoxLinkRoute>>,
-        std::vector<std::unique_ptr<OtherRoute>>
-    >;
 }

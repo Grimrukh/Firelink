@@ -24,21 +24,30 @@ namespace GrimHookER::Maps::MapStudio
         CompositeShape = 6,
     };
 
-    inline std::map<ShapeType, std::string> shapeTypeNames =
-    {
-        {ShapeType::PointShape, "Point"},
-        {ShapeType::CircleShape, "Circle"},
-        {ShapeType::SphereShape, "Sphere"},
-        {ShapeType::CylinderShape, "Cylinder"},
-        {ShapeType::RectangleShape, "Rectangle"},
-        {ShapeType::BoxShape, "Box"},
-        {ShapeType::CompositeShape, "Composite"},
-    };
-
     /// @brief Shape attached to an MSB `Region` entry.
     class GRIMHOOKER_API Shape
     {
     public:
+        [[nodiscard]] static const std::map<ShapeType, std::string>& GetTypeNames()
+        {
+            static const std::map<ShapeType, std::string> data =
+            {
+                {ShapeType::PointShape, "Point"},
+                {ShapeType::CircleShape, "Circle"},
+                {ShapeType::SphereShape, "Sphere"},
+                {ShapeType::CylinderShape, "Cylinder"},
+                {ShapeType::RectangleShape, "Rectangle"},
+                {ShapeType::BoxShape, "Box"},
+                {ShapeType::CompositeShape, "Composite"},
+            };
+            return data;
+        }
+
+        static const inline std::map<ShapeType, std::string> TypeNames =
+        {
+
+        };
+
         virtual ~Shape() = default;
 
         [[nodiscard]] virtual ShapeType GetType() const = 0;
@@ -48,6 +57,8 @@ namespace GrimHookER::Maps::MapStudio
 
         virtual void DeserializeShapeData(std::ifstream& stream) = 0;
         virtual void SerializeShapeData(std::ofstream& stream) = 0;
+
+        [[nodiscard]] std::string GetShapeTypeName() const { return TypeNames.at(GetType()); }
     };
 
     class GRIMHOOKER_API Point final : public Shape

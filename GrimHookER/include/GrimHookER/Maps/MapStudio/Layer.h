@@ -1,8 +1,7 @@
 ﻿#pragma once
 
-#include <variant>
-
 #include "Entry.h"
+#include "Enums.h"
 #include "MSBFormatError.h"
 
 
@@ -13,17 +12,24 @@ namespace GrimHookER::Maps::MapStudio
     class Layer final : public Entry
     {
     public:
-        /// @brief Placeholder enum type for `Layer`.
-        enum class EnumType { None };
+        using EnumType = LayerType;
+
+        static constexpr int SubtypeEnumOffset = 0;
+
+        static const std::map<LayerType, std::string>& GetTypeNames()
+        {
+            static const std::map<LayerType, std::string> data = {};
+            return data;
+        }
 
         explicit Layer() : Entry("")
         {
             throw MSBFormatError("MSB `Layer` should never be instantiated.");
         }
 
+        static LayerType GetType() { return LayerType::None; }
+
         void Deserialize(std::ifstream& stream) override {}
         void Serialize(std::ofstream& stream, int supertypeIndex, int subtypeIndex) const override {}
     };
-
-    using LayerVariantType = std::variant<std::monostate>;
 }

@@ -37,9 +37,13 @@ int main()
     }
 
     // Get first character name and translate.
-    const auto& firstCharacter = msb->GetPartParam().GetCharacterParts()[0];
+    const auto& partParam = msb->GetPartParam();
+    const auto allParts = partParam.GetAllEntries();
+    const auto& firstPart = allParts.at(0);
 
-    string name = firstCharacter->GetName();
-    auto [x, y, z] = firstCharacter->GetTranslate();
+    const auto& firstPart = msb->GetPartParam().GetAllEntries().at(0);
+
+    string name = firstPart->GetName();
+    auto [x, y, z] = firstPart->GetTranslate();
     Info(format("First character: '{}' at ({}, {}, {})", name, x, y, z));
 }

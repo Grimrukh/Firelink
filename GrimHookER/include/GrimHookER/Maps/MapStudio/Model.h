@@ -1,39 +1,36 @@
 ﻿#pragma once
 
 #include <map>
-#include <cstdint>
 #include <string>
-#include <variant>
-#include <vector>
 
 #include "GrimHookER/Export.h"
 #include "Entry.h"
+#include "Enums.h"
+
 
 namespace GrimHookER::Maps::MapStudio
 {
-    enum class ModelType : uint32_t
-    {
-        MapPiece = 0,
-        Character = 2,
-        Player = 4,
-        Collision = 5,
-        Asset = 10
-    };
-
-    inline std::map<ModelType, std::string> modelTypeNames =
-    {
-        {ModelType::MapPiece, "MapPiece"},
-        {ModelType::Character, "Character"},
-        {ModelType::Player, "Player"},
-        {ModelType::Collision, "Collision"},
-        {ModelType::Asset, "Asset"},
-    };
 
     // MSB Model supertype
     class GRIMHOOKER_API Model : public Entry
     {
     public:
         using EnumType = ModelType;
+
+        static constexpr int SubtypeEnumOffset = 8;
+
+        [[nodiscard]] static const std::map<ModelType, std::string>& GetTypeNames()
+        {
+            static const std::map<ModelType, std::string> data =
+            {
+                {ModelType::MapPiece, "MapPiece"},
+                {ModelType::Character, "Character"},
+                {ModelType::Player, "Player"},
+                {ModelType::Collision, "Collision"},
+                {ModelType::Asset, "Asset"},
+            };
+            return data;
+        }
 
         explicit Model(const std::string& name) : Entry(name) {}
 
@@ -47,7 +44,7 @@ namespace GrimHookER::Maps::MapStudio
 
         explicit operator std::string() const
         {
-            return modelTypeNames[GetType()] + " " + m_name;
+            return GetTypeNames().at(GetType()) + " " + m_name;
         }
 
     protected:
@@ -114,12 +111,4 @@ namespace GrimHookER::Maps::MapStudio
 
         [[nodiscard]] ModelType GetType() const override { return Type; }
     };
-
-    using ModelVariantType = std::variant<
-        std::vector<std::unique_ptr<MapPieceModel>>,
-        std::vector<std::unique_ptr<CharacterModel>>,
-        std::vector<std::unique_ptr<PlayerModel>>,
-        std::vector<std::unique_ptr<CollisionModel>>,
-        std::vector<std::unique_ptr<AssetModel>>
-    >;
 }

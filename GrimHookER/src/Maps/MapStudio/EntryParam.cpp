@@ -1,11 +1,13 @@
-﻿#include <typeindex>
-#include <typeinfo>
+﻿#include <format>
+#include <ranges>
 #include <sstream>
+#include <typeindex>
+#include <typeinfo>
 #include <utility>
-#include <variant>
 
 #include "GrimHookER/Maps/MapStudio/Entry.h"
 #include "GrimHookER/Maps/MapStudio/EntryParam.h"
+#include "GrimHookER/Maps/MapStudio/Enums.h"
 #include "GrimHookER/Maps/MapStudio/Model.h"
 #include "GrimHookER/Maps/MapStudio/Event.h"
 #include "GrimHookER/Maps/MapStudio/Region.h"
@@ -23,24 +25,56 @@ using namespace GrimHook::BinaryValidation;
 using namespace GrimHookER::Maps::MapStudio;
 
 
-// Constructor
-template <EntryType T, typename VariantType>
-EntryParam<T, VariantType>::EntryParam(const int version, string name)
-    : m_version(version), m_name(move(name)) {}
+template <typename T, typename EnumType>
+EntryParam<T, EnumType>::EntryParam(const int version, string name) : m_version(version), m_name(move(name))
+{
+    static_assert(std::is_base_of_v<Entry, T>, "EntryParam type must be an `Entry` subclass.");
+    // Initialize empty vectors for all `T` subtypes.
+    for (const auto& enumType : std::views::keys(T::GetTypeNames()))
+        m_entriesBySubtype[enumType] = std::vector<std::unique_ptr<T>>();
+}
 
+
+template<typename T, typename EnumType>
+void EntryParam<T, EnumType>::AddEntry(unique_ptr<T> entry)
+{
+    typename T::EnumType subtype = entry->GetType();
+    if (!m_entriesBySubtype.contains(subtype))
+        throw MSBFormatError(
+            format("Cannot add Entry subtype {} to Param '{}'.", static_cast<int>(subtype), m_name));
+    auto& subtypeVector = m_entriesBySubtype[subtype];
+    subtypeVector.push_back(std::move(entry));
+}
+
+template<typename T, typename EnumType>
+void EntryParam<T, EnumType>::RemoveEntry(T* entry)
+{
+    typename T::EnumType subtype = entry->GetType();
+    if (!m_entriesBySubtype.contains(subtype))
+        throw MSBFormatError(
+            format("Cannot remove Entry subtype {} from Param '{}'.", static_cast<int>(subtype), m_name));
+    auto& subtypeVector = m_entriesBySubtype[subtype];
+    auto it = subtypeVector.erase(std::remove_if(
+        subtypeVector.begin(), subtypeVector.end(),
+             [entry](const unique_ptr<T>& e) { return e.get() == entry; }),
+        subtypeVector.end());
+
+    if (it == subtypeVector.end())
+        throw MSBFormatError("Failed to remove entry from MSB entry list (not present).");
+}
 
 // Base read method: sets `version` and `name`, and returns list of entries for subtype sorting (in subclass).
-template <EntryType T, typename VariantType>
-vector<T*> EntryParam<T, VariantType>::Deserialize(ifstream& stream)
+template <typename T, typename EnumType>
+vector<T*> EntryParam<T, EnumType>::Deserialize(ifstream& stream)
 {
     m_version = ReadValue<int>(stream);
-    const auto entryCount = ReadValue<int32_t>(stream);
+    const auto entryOffsetCount = ReadValue<int32_t>(stream);
     const auto listNameOffset = ReadValue<int64_t>(stream);
 
     // Final offset is for next `EntryParam` in MSB.
     vector<int64_t> entryOffsets;
-    entryOffsets.reserve(entryCount - 1);
-    for (int i = 0; i < entryCount - 1; ++i)
+    entryOffsets.reserve(entryOffsetCount - 1);
+    for (int i = 0; i < entryOffsetCount - 1; ++i)
         entryOffsets.push_back(ReadValue<int64_t>(stream));
     const auto nextEntryParamOffset = ReadValue<int64_t>(stream);
 
@@ -51,7 +85,7 @@ vector<T*> EntryParam<T, VariantType>::Deserialize(ifstream& stream)
 
     // Read and collect pointers to all entries.
     vector<T*> entries;
-    entries.reserve(entryCount - 1);  // allocate vector capacity now
+    entries.reserve(entryOffsetCount - 1);  // allocate vector capacity now
     for (const int64_t offset : entryOffsets)
     {
         stream.seekg(offset);
@@ -68,8 +102,8 @@ vector<T*> EntryParam<T, VariantType>::Deserialize(ifstream& stream)
 
 
 // Write method
-template <EntryType T, typename VariantType>
-streampos EntryParam<T, VariantType>::Serialize(ofstream& stream, const vector<T*>& entries)
+template <typename T, typename EnumType>
+streampos EntryParam<T, EnumType>::Serialize(ofstream& stream, const vector<T*>& entries)
 {
     WriteValue(stream, m_version);
     WriteValue(stream, static_cast<int>(entries.size() + 1));
@@ -113,127 +147,53 @@ streampos EntryParam<T, VariantType>::Serialize(ofstream& stream, const vector<T
     return nextEntryParamOffset;
 }
 
-template<EntryType T>
-struct DeserializeVisitor
+template<typename T, typename EnumType>
+T* EntryParam<T, EnumType>::DeserializeEntry(ifstream& stream)
 {
-    std::ifstream& stream;
-    T* rawPtr;
+    auto entrySubtype = ReadEnum32<typename T::EnumType>(
+        stream, stream.tellg() + static_cast<streamoff>(T::SubtypeEnumOffset));
 
-    template<typename S>
-    void operator()(std::vector<std::unique_ptr<S>>& subtypeVector)
-    {
-        static_assert(std::is_base_of_v<T, S>, "Variant type must be a vector of unique pointers to subtypes of this Param.");  // sanity
-        auto entry = std::make_unique<S>("");
-        entry->Deserialize(stream);
-        subtypeVector.push_back(std::move(entry));
-        rawPtr = subtypeVector.back().get();
-    }
-
-    // Absorbs and ignores monostate variant contents (`LayerParam`).
-    void operator()(std::monostate) const {}
-};
-
-template<EntryType T, typename VariantType>
-T* EntryParam<T, VariantType>::DeserializeEntry(std::ifstream& stream)
-{
-    // TODO: Static assert to exclude `T = Layer`.
-
-    auto entrySubtype = ReadEnum32<typename T::EnumType>(stream, stream.tellg() + static_cast<streamoff>(12));
-
-    const auto it = m_subtypeEntries.find(entrySubtype);
-    if (it == m_subtypeEntries.end())
-        throw MSBFormatError("Unknown Entry type: " + to_string(static_cast<int>(entrySubtype)));
-
-    DeserializeVisitor<T> visitor{stream, nullptr};
-    std::visit(visitor, it->second);
-
-    if (!visitor.rawPtr)
-        throw MSBFormatError("Failed to deserialize Entry.");
-
-    return visitor.rawPtr;
+    const auto it = m_entriesBySubtype.find(entrySubtype);
+    if (it == m_entriesBySubtype.end())
+        throw MSBFormatError(
+            std::format("Unknown Entry type {} for Param '{}'.", static_cast<int>(entrySubtype), m_name));
+    auto& subtypeVector = it->second;
+    auto entry = GetNewEntry(entrySubtype);
+    entry->Deserialize(stream);
+    return entry;
 }
 
-template<EntryType T>
-struct GetAllVisitor
-{
-    vector<T*> allEntries;
-
-    template<typename S>
-    void operator()(const std::vector<std::unique_ptr<S>>& subtypeVector)
-    {
-        static_assert(std::is_base_of_v<T, S>, "Variant type must be a vector of unique pointers to subtypes of this Param.");  // sanity
-        for (const auto& entryPtr : subtypeVector)
-            allEntries.push_back(entryPtr.get());
-    }
-
-    // Absorbs and ignores monostate variant contents (`LayerParam`).
-    void operator()(std::monostate) const {}
-};
-
-template<EntryType T, typename VariantType>
-vector<T*> EntryParam<T, VariantType>::GetAllEntries()
+template<typename T, typename EnumType>
+vector<T*> EntryParam<T, EnumType>::GetAllEntries() const
 {
     vector<T*> allEntries;
     allEntries.reserve(GetSize());
-    GetAllVisitor<T> visitor{allEntries};
-
-    for (const auto& [entrySubtype, subtypeVector] : m_subtypeEntries)
+    for (const auto& [entrySubtype, subtypeVector] : m_entriesBySubtype)
     {
-        std::visit(visitor, subtypeVector);
+        for (const auto& entry : subtypeVector)
+            allEntries.push_back(entry.get());
     }
-
     return allEntries;
 }
 
-template<EntryType T>
-struct GetSizeVisitor
+template<typename T, typename EnumType>
+size_t EntryParam<T, EnumType>::GetSize() const
 {
-    int sizeSum;
-
-    template<typename S>
-    void operator()(const std::vector<std::unique_ptr<S>>& subtypeVector)
-    {
-        static_assert(std::is_base_of_v<T, S>, "Variant type must be a vector of unique pointers to subtypes of this Param.");  // sanity
-        sizeSum += subtypeVector.size();
-    }
-
-    // Absorbs and ignores monostate variant contents (`LayerParam`).
-    void operator()(std::monostate) const {}
-};
-
-template<EntryType T, typename VariantType>
-size_t EntryParam<T, VariantType>::GetSize() const
-{
-    GetSizeVisitor<T> visitor{0};
-    for (const auto&[_, subtypeVector] : m_subtypeEntries)
-        std::visit(visitor, subtypeVector);
-    return visitor.sizeSum;
+    size_t size = 0;
+    for (const auto&[_, subtypeVector] : m_entriesBySubtype)
+        size += subtypeVector.size();
+    return size;
 }
 
-template<EntryType T>
-struct ClearVisitor
+template<typename T, typename EnumType>
+void EntryParam<T, EnumType>::ClearAllEntries()
 {
-    template<typename S>
-    void operator()(std::vector<std::unique_ptr<S>>& subtypeVector) const
-    {
-        static_assert(std::is_base_of_v<T, S>, "Variant type must be a vector of unique pointers to subtypes of this Param.");  // sanity
+    for (auto& [_, subtypeVector] : m_entriesBySubtype)
         subtypeVector.clear();
-    }
-
-    // Absorbs and ignores monostate variant contents (`LayerParam`).
-    void operator()(std::monostate) const {}
-};
-
-template<EntryType T, typename VariantType>
-void EntryParam<T, VariantType>::ClearAllEntries()
-{
-    ClearVisitor<T> visitor;
-    for (auto& [_, subtypeVector] : m_subtypeEntries)
-        std::visit(visitor, subtypeVector);
 }
 
-template<EntryType T, typename VariantType>
-EntryParam<T, VariantType>::operator string() const
+template<typename T, typename EnumType>
+EntryParam<T, EnumType>::operator string() const
 {
     ostringstream oss;
     oss << "0x" << hex << uppercase << m_version << " " << m_name;
@@ -241,10 +201,10 @@ EntryParam<T, VariantType>::operator string() const
 }
 
 
-// Explicit specializations:
-template class EntryParam<Model, ModelVariantType>;
-template class EntryParam<Event, EventVariantType>;
-template class EntryParam<Layer, LayerVariantType>;
-template class EntryParam<Part, PartVariantType>;
-template class EntryParam<Region, RegionVariantType>;
-template class EntryParam<Route, RouteVariantType>;
+// Explicit instantiations.
+template class EntryParam<Model, ModelType>;
+template class EntryParam<Event, EventType>;
+template class EntryParam<Layer, LayerType>;
+template class EntryParam<Part, PartType>;
+template class EntryParam<Region, RegionType>;
+template class EntryParam<Route, RouteType>;

@@ -4,104 +4,70 @@
 #include <cstdint>
 #include <map>
 #include <string>
-#include <variant>
-#include <vector>
 
 #include "GrimHook/Collections.h"
 #include "GrimHookER/Export.h"
 #include "Entry.h"
-#include "EntryParam.h"
 #include "EntryReference.h"
+#include "Enums.h"
 #include "Shape.h"
 
 namespace GrimHookER::Maps::MapStudio
 {
+    class Part;
+
     using GrimHook::Vector3;
-
-    enum class RegionType : uint32_t
-    {
-        InvasionPoint = 1,
-        EnvironmentMapPoint = 2,
-        Sound = 4,
-        VFX = 5,
-        WindVFX = 6,
-        SpawnPoint = 8,
-        Message = 9,
-        EnvironmentMapEffectBox = 17,
-        WindArea = 18,
-        Connection = 21,
-        PatrolRoute22 = 22,
-        BuddySummonPoint = 26,
-        MufflingBox = 28,
-        MufflingPortal = 29,
-        OtherSound = 30,
-        MufflingPlane = 31,
-        PatrolRoute = 32,  // NOTE: be wary of Event subtype with same name
-        MapPoint = 33,
-        WeatherOverride = 35,
-        AutoDrawGroupPoint = 36,
-        GroupDefeatReward = 37,
-        MapPointDiscoveryOverride = 38,
-        MapPointParticipationOverride = 39,
-        Hitset = 40,
-        FastTravelRestriction = 41,
-        WeatherCreateAssetPoint = 42,
-        PlayArea = 43,
-        EnvironmentMapOutput = 44,
-        MountJump = 46,
-        Dummy = 48,
-        FallPreventionRemoval = 49,
-        NavmeshCutting = 50,
-        MapNameOverride = 51,
-        MountJumpFall = 52,
-        HorseRideOverride = 53,
-        Other = 0xFFFFFFFF,
-    };
-
-    inline std::map<RegionType, std::string> regionTypeNames =
-    {
-        {RegionType::InvasionPoint, "InvasionPoint"},
-        {RegionType::EnvironmentMapPoint, "EnvironmentMapPoint"},
-        {RegionType::Sound, "Sound"},
-        {RegionType::VFX, "VFX"},
-        {RegionType::WindVFX, "WindVFX"},
-        {RegionType::SpawnPoint, "SpawnPoint"},
-        {RegionType::Message, "Message"},
-        {RegionType::EnvironmentMapEffectBox, "EnvironmentMapEffectBox"},
-        {RegionType::WindArea, "WindArea"},
-        {RegionType::Connection, "Connection"},
-        {RegionType::PatrolRoute22, "PatrolRoute22"},
-        {RegionType::BuddySummonPoint, "BuddySummonPoint"},
-        {RegionType::MufflingBox, "MufflingBox"},
-        {RegionType::MufflingPortal, "MufflingPortal"},
-        {RegionType::OtherSound, "OtherSound"},
-        {RegionType::MufflingPlane, "MufflingPlane"},
-        {RegionType::PatrolRoute, "PatrolRoute"},
-        {RegionType::MapPoint, "MapPoint"},
-        {RegionType::WeatherOverride, "WeatherOverride"},
-        {RegionType::AutoDrawGroupPoint, "AutoDrawGroupPoint"},
-        {RegionType::GroupDefeatReward, "GroupDefeatReward"},
-        {RegionType::MapPointDiscoveryOverride, "MapPointDiscoveryOverride"},
-        {RegionType::MapPointParticipationOverride, "MapPointParticipationOverride"},
-        {RegionType::Hitset, "Hitset"},
-        {RegionType::FastTravelRestriction, "FastTravelRestriction"},
-        {RegionType::WeatherCreateAssetPoint, "WeatherCreateAssetPoint"},
-        {RegionType::PlayArea, "PlayArea"},
-        {RegionType::EnvironmentMapOutput, "EnvironmentMapOutput"},
-        {RegionType::MountJump, "MountJump"},
-        {RegionType::Dummy, "Dummy"},
-        {RegionType::FallPreventionRemoval, "FallPreventionRemoval"},
-        {RegionType::NavmeshCutting, "NavmeshCutting"},
-        {RegionType::MapNameOverride, "MapNameOverride"},
-        {RegionType::MountJumpFall, "MountJumpFall"},
-        {RegionType::HorseRideOverride, "HorseRideOverride"},
-        {RegionType::Other, "OtherRegion"},
-    };
 
     class GRIMHOOKER_API Region : public EntityEntry
     {
     public:
         using EnumType = RegionType;
+
+        static constexpr int SubtypeEnumOffset = 8;
+
+        [[nodiscard]] static const std::map<RegionType, std::string>& GetTypeNames()
+        {
+            static const std::map<RegionType, std::string> data =
+            {
+                {RegionType::InvasionPoint, "InvasionPoint"},
+                {RegionType::EnvironmentMapPoint, "EnvironmentMapPoint"},
+                {RegionType::Sound, "Sound"},
+                {RegionType::VFX, "VFX"},
+                {RegionType::WindVFX, "WindVFX"},
+                {RegionType::SpawnPoint, "SpawnPoint"},
+                {RegionType::Message, "Message"},
+                {RegionType::EnvironmentMapEffectBox, "EnvironmentMapEffectBox"},
+                {RegionType::WindArea, "WindArea"},
+                {RegionType::Connection, "Connection"},
+                {RegionType::PatrolRoute22, "PatrolRoute22"},
+                {RegionType::BuddySummonPoint, "BuddySummonPoint"},
+                {RegionType::MufflingBox, "MufflingBox"},
+                {RegionType::MufflingPortal, "MufflingPortal"},
+                {RegionType::OtherSound, "OtherSound"},
+                {RegionType::MufflingPlane, "MufflingPlane"},
+                {RegionType::PatrolRoute, "PatrolRoute"},
+                {RegionType::MapPoint, "MapPoint"},
+                {RegionType::WeatherOverride, "WeatherOverride"},
+                {RegionType::AutoDrawGroupPoint, "AutoDrawGroupPoint"},
+                {RegionType::GroupDefeatReward, "GroupDefeatReward"},
+                {RegionType::MapPointDiscoveryOverride, "MapPointDiscoveryOverride"},
+                {RegionType::MapPointParticipationOverride, "MapPointParticipationOverride"},
+                {RegionType::Hitset, "Hitset"},
+                {RegionType::FastTravelRestriction, "FastTravelRestriction"},
+                {RegionType::WeatherCreateAssetPoint, "WeatherCreateAssetPoint"},
+                {RegionType::PlayArea, "PlayArea"},
+                {RegionType::EnvironmentMapOutput, "EnvironmentMapOutput"},
+                {RegionType::MountJump, "MountJump"},
+                {RegionType::Dummy, "Dummy"},
+                {RegionType::FallPreventionRemoval, "FallPreventionRemoval"},
+                {RegionType::NavmeshCutting, "NavmeshCutting"},
+                {RegionType::MapNameOverride, "MapNameOverride"},
+                {RegionType::MountJumpFall, "MountJumpFall"},
+                {RegionType::HorseRideOverride, "HorseRideOverride"},
+                {RegionType::Other, "OtherRegion"},
+            };
+            return data;
+        }
 
         explicit Region(const std::string& name) : EntityEntry(name) {}
 
@@ -127,14 +93,14 @@ namespace GrimHookER::Maps::MapStudio
 
         [[nodiscard]] virtual RegionType GetType() const = 0;
 
-        /// @brief Get type enum `ShapeType` of this Region's shape.
+        /// @brief Get type enum `ShapeType` of this Region's shape. `shape == nullptr` also means `PointShape`.
         [[nodiscard]] ShapeType GetShapeType() const { return shape == nullptr ? ShapeType::PointShape : shape->GetType(); }
 
         /// @brief Set this region's shape to  Creates a new instance of given shape type, which is then returned for caller modification.
         // Previous shape will be discarded (as a unique_ptr).
         std::unique_ptr<Shape>& SetShapeType(ShapeType shapeType);
 
-        [[nodiscard]] std::string GetShapeTypeName() const { return shapeTypeNames[GetShapeType()]; }
+        [[nodiscard]] std::string GetShapeTypeName() const { return Shape::TypeNames.at(GetShapeType()); }
 
         [[nodiscard]] std::unique_ptr<Shape>& GetShape() { return shape; }
 
@@ -174,7 +140,7 @@ namespace GrimHookER::Maps::MapStudio
 
         explicit operator std::string() const
         {
-            return regionTypeNames[GetType()] + " <" + GetShapeTypeName() + "> " + m_name;
+            return GetTypeNames().at(GetType()) + " <" + GetShapeTypeName() + "> " + m_name;
         }
 
     protected:
@@ -1068,43 +1034,4 @@ namespace GrimHookER::Maps::MapStudio
 
         // No subtype data at all (not even pads).
     };
-
-    using RegionVariantType = std::variant<
-        std::vector<std::unique_ptr<InvasionPointRegion>>,
-        std::vector<std::unique_ptr<EnvironmentMapPointRegion>>,
-        std::vector<std::unique_ptr<SoundRegion>>,
-        std::vector<std::unique_ptr<VFXRegion>>,
-        std::vector<std::unique_ptr<WindVFXRegion>>,
-        std::vector<std::unique_ptr<SpawnPointRegion>>,
-        std::vector<std::unique_ptr<MessageRegion>>,
-        std::vector<std::unique_ptr<EnvironmentMapEffectBoxRegion>>,
-        std::vector<std::unique_ptr<WindAreaRegion>>,
-        std::vector<std::unique_ptr<ConnectionRegion>>,
-        std::vector<std::unique_ptr<PatrolRoute22Region>>,
-        std::vector<std::unique_ptr<BuddySummonPointRegion>>,
-        std::vector<std::unique_ptr<MufflingBoxRegion>>,
-        std::vector<std::unique_ptr<MufflingPortalRegion>>,
-        std::vector<std::unique_ptr<OtherSoundRegion>>,
-        std::vector<std::unique_ptr<MufflingPlaneRegion>>,
-        std::vector<std::unique_ptr<PatrolRouteRegion>>,
-        std::vector<std::unique_ptr<MapPointRegion>>,
-        std::vector<std::unique_ptr<WeatherOverrideRegion>>,
-        std::vector<std::unique_ptr<AutoDrawGroupPointRegion>>,
-        std::vector<std::unique_ptr<GroupDefeatRewardRegion>>,
-        std::vector<std::unique_ptr<MapPointDiscoveryOverrideRegion>>,
-        std::vector<std::unique_ptr<MapPointParticipationOverrideRegion>>,
-        std::vector<std::unique_ptr<HitsetRegion>>,
-        std::vector<std::unique_ptr<FastTravelRestrictionRegion>>,
-        std::vector<std::unique_ptr<WeatherCreateAssetPointRegion>>,
-        std::vector<std::unique_ptr<PlayAreaRegion>>,
-        std::vector<std::unique_ptr<EnvironmentMapOutputRegion>>,
-        std::vector<std::unique_ptr<MountJumpRegion>>,
-        std::vector<std::unique_ptr<DummyRegion>>,
-        std::vector<std::unique_ptr<FallPreventionRemovalRegion>>,
-        std::vector<std::unique_ptr<NavmeshCuttingRegion>>,
-        std::vector<std::unique_ptr<MapNameOverrideRegion>>,
-        std::vector<std::unique_ptr<MountJumpFallRegion>>,
-        std::vector<std::unique_ptr<HorseRideOverrideRegion>>,
-        std::vector<std::unique_ptr<OtherRegion>>
-    >;
 }

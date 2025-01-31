@@ -58,7 +58,7 @@ namespace GrimHookER::Maps::MapStudio
         }
 
     protected:
-        std::string m_name = "";
+        std::string m_name;
 
         /// @brief Virtual method to clear all references to this `Entry` by the referrer.
         /// Does nothing by default (though this base method will never feature in an incoming reference, by design).

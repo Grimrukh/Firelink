@@ -1,7 +1,6 @@
 ﻿#include <fstream>
 #include <string>
 #include <memory>
-#include <vector>
 
 #include "GrimHookER/Maps/MapStudio/Model.h"
 #include "GrimHookER/Maps/MapStudio/MSBFormatError.h"

@@ -1,34 +1,74 @@
 ﻿#pragma once
 
-#include <variant>
-#include <vector>
-
 #include "GrimHookER/Export.h"
 #include "EntryParam.h"
+#include "Enums.h"
 #include "Region.h"
+
+#define CASE_MAKE_UNIQUE(ENUM_TYPE) \
+    case RegionType::ENUM_TYPE: \
+        newRegion = std::make_unique<ENUM_TYPE##Region>(""); \
+        break;
 
 
 namespace GrimHookER::Maps::MapStudio
 {
-    class GRIMHOOKER_API RegionParam final : public EntryParam<Region, RegionVariantType>
+    class GRIMHOOKER_API RegionParam final : public EntryParam<Region, RegionType>
     {
     public:
         RegionParam() : EntryParam(73, "POINT_PARAM_ST") {}
 
-        /// @brief Create a new Region with the given name.
-        template<typename T>
-        [[nodiscard]] std::unique_ptr<T> Create()
+        /// @brief Create a new Region with no name.
+        [[nodiscard]] Region* GetNewEntry(const RegionType entrySubtype) override
         {
-            static_assert(std::is_base_of_v<Region, T>, "T must derive from Region");
-            return std::make_unique<T>();
-        }
+            std::unique_ptr<Region> newRegion;
+            switch (entrySubtype)
+            {
+                CASE_MAKE_UNIQUE(InvasionPoint)
+                CASE_MAKE_UNIQUE(EnvironmentMapPoint)
+                CASE_MAKE_UNIQUE(Sound)
+                CASE_MAKE_UNIQUE(VFX)
+                CASE_MAKE_UNIQUE(WindVFX)
+                CASE_MAKE_UNIQUE(SpawnPoint)
+                CASE_MAKE_UNIQUE(Message)
+                CASE_MAKE_UNIQUE(EnvironmentMapEffectBox)
+                CASE_MAKE_UNIQUE(WindArea)
+                CASE_MAKE_UNIQUE(Connection)
+                CASE_MAKE_UNIQUE(PatrolRoute22)
+                CASE_MAKE_UNIQUE(BuddySummonPoint)
+                CASE_MAKE_UNIQUE(MufflingBox)
+                CASE_MAKE_UNIQUE(MufflingPortal)
+                CASE_MAKE_UNIQUE(OtherSound)
+                CASE_MAKE_UNIQUE(MufflingPlane)
+                CASE_MAKE_UNIQUE(PatrolRoute)
+                CASE_MAKE_UNIQUE(MapPoint)
+                CASE_MAKE_UNIQUE(WeatherOverride)
+                CASE_MAKE_UNIQUE(AutoDrawGroupPoint)
+                CASE_MAKE_UNIQUE(GroupDefeatReward)
+                CASE_MAKE_UNIQUE(MapPointDiscoveryOverride)
+                CASE_MAKE_UNIQUE(MapPointParticipationOverride)
+                CASE_MAKE_UNIQUE(Hitset)
+                CASE_MAKE_UNIQUE(FastTravelRestriction)
+                CASE_MAKE_UNIQUE(WeatherCreateAssetPoint)
+                CASE_MAKE_UNIQUE(PlayArea)
+                CASE_MAKE_UNIQUE(EnvironmentMapOutput)
+                CASE_MAKE_UNIQUE(MountJump)
+                CASE_MAKE_UNIQUE(Dummy)
+                CASE_MAKE_UNIQUE(FallPreventionRemoval)
+                CASE_MAKE_UNIQUE(NavmeshCutting)
+                CASE_MAKE_UNIQUE(MapNameOverride)
+                CASE_MAKE_UNIQUE(MountJumpFall)
+                CASE_MAKE_UNIQUE(HorseRideOverride)
+                CASE_MAKE_UNIQUE(Other)
+                default:
+                    throw MSBFormatError(std::format(
+                        "Invalid Region subtype: {}", static_cast<int>(entrySubtype)));
+            }
 
-        /// @brief Get entries (as vector reference) of a specific Region subtype.
-        template<typename T>
-        [[nodiscard]] std::vector<T>& Get()
-        {
-            static_assert(std::is_base_of_v<Region, T>, "T must derive from Region");
-            return std::get<std::vector<T>>(m_subtypeEntries[T::Type]);
+            m_entriesBySubtype.at(entrySubtype).push_back(std::move(newRegion));
+            return m_entriesBySubtype.at(entrySubtype).back().get();
         }
     };
 }
+
+#undef CASE_MAKE_UNIQUE

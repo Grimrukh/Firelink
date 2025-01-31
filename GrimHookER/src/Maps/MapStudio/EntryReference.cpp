@@ -2,11 +2,11 @@
 
 #include "GrimHook/Logging.h"
 #include "GrimHookER/Maps/MapStudio/Entry.h"
-#include "GrimHookER/Maps/MapStudio/EntryReference.h"
 #include "GrimHookER/Maps/MapStudio/Model.h"
-#include "GrimHookER/Maps/MapStudio/Part.h"
 #include "GrimHookER/Maps/MapStudio/Event.h"
 #include "GrimHookER/Maps/MapStudio/Region.h"
+#include "GrimHookER/Maps/MapStudio/Part.h"
+#include "GrimHookER/Maps/MapStudio/EntryReference.h"
 
 using namespace std;
 using namespace GrimHook;
@@ -122,24 +122,6 @@ int16_t EntryReference<T>::ToIndex16(const Entry* sourceEntry, const vector<T*>&
         i++;
     }
 
-    // auto it = std::find(entries.begin(), entries.end(), m_destEntry);
-    // if (it != entries.end())
-    // {
-    //     // Try to cast the distance to int16_t. Catch an out-of-bounds error.
-    //     try
-    //     {
-    //         return static_cast<int16_t>(distance(entries.begin(), it));
-    //     }
-    //     catch (const std::out_of_range& _)
-    //     {
-    //         string sourceName = m_destEntry->GetName();
-    //         string destName = m_destEntry->GetName();
-    //         Error(format("EntryReference '{}' references entry '{}' with an index that is too large "
-    //                      "(index field is 16-bit).", sourceName, destName));
-    //         return -1;
-    //     }
-    // }
-
     string sourceName = sourceEntry->GetName();
     string destName = m_destEntry->GetName();
     Error(format("EntryReference '{}' references an invalid entry: '{}'", sourceName, destName));
@@ -167,37 +149,27 @@ template<typename T>
 void EntryReference<T>::SetFromIndex(const vector<T*>& entries, int32_t index)
 {
     static_assert(is_base_of_v<Entry, T>, "EntryReference destination type must be an `Entry` subclass.");
-    Set(entries[index]);
+    if (index == -1)
+        Clear();
+    else
+        Set(entries[index]);
 }
 
 template<typename T>
 void EntryReference<T>::SetFromIndex16(const vector<T*>& entries, int16_t index)
 {
     static_assert(is_base_of_v<Entry, T>, "EntryReference destination type must be an `Entry` subclass.");
-    Set(entries[index]);
+    if (index == -1)
+        Clear();
+    else
+        Set(entries[index]);
 }
 
 
-// Explicit template specifications:
+// Explicit template instantiations.
 template class EntryReference<Part>;
 template class EntryReference<Event>;
 template class EntryReference<Model>;
 template class EntryReference<Region>;
 template class EntryReference<PatrolRouteEvent>;
 template class EntryReference<CollisionPart>;
-
-// // Basic templates instantiated for all MSB Entry types:
-// ENTRY_REF_32(Model);
-// ENTRY_REF_32(Event);
-// ENTRY_REF_32(Region);
-// ENTRY_REF_32(Part);
-// Bespoke templates as needed across all MSB Entry fields:
-// // ENTRY_REF_32(CollisionPart);  // ConnectCollision.collision
-// ENTRY_REF_16(PatrolRouteEvent);  // CharacterPart.patrolRouteEvent
-// ENTRY_REF_16(Region);  // RetryPointEvent.retryRegion, PatrolRouteEvent.patrolRegions
-// ENTRY_REF_ARRAY_16(Region, 64);  // PatrolRouteEvent.patrolRegions
-// ENTRY_REF_ARRAY_32(Part, 32);  // SpawnerEvent.spawnParts, PlatoonEvent.platoonParts
-// ENTRY_REF_ARRAY_32(Part, 8);  // GroupDefeatRewardRegion. groupParts
-// ENTRY_REF_ARRAY_32(Part, 6);  // AssetPart.drawParentParts
-// ENTRY_REF_ARRAY_32(Region, 8)  // SpawnerEvent.spawnRegions
-// ENTRY_REF_ARRAY_32(Region, 16)  // SoundRegion.childRegions

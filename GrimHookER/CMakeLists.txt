@@ -11,7 +11,6 @@ set(PROJECT_SOURCES
     include/GrimHookER/Maps/MapStudio/Entry.h
     include/GrimHookER/Maps/MapStudio/EntryParam.h
     include/GrimHookER/Maps/MapStudio/EntryReference.h
-    include/GrimHookER/Maps/MapStudio/EntryType.h
     include/GrimHookER/Maps/MapStudio/Event.h
     include/GrimHookER/Maps/MapStudio/EventParam.h
     include/GrimHookER/Maps/MapStudio/Layer.h
@@ -39,6 +38,7 @@ set(PROJECT_SOURCES
     src/Maps/MapStudio/Route.cpp
     src/Maps/MapStudio/Shape.cpp
     include/GrimHookER/Maps/MapStudio/LayerParam.h
+    include/GrimHookER/Maps/MapStudio/Enums.h
 )
 
 add_library(GrimHookER SHARED ${PROJECT_SOURCES})

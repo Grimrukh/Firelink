@@ -4,12 +4,11 @@
 #include <cstdint>
 #include <map>
 #include <string>
-#include <variant>
-#include <vector>
 
 #include "GrimHookER/Export.h"
 #include "Entry.h"
 #include "EntryReference.h"
+#include "Enums.h"
 
 
 namespace GrimHookER::Maps::MapStudio
@@ -18,45 +17,34 @@ namespace GrimHookER::Maps::MapStudio
     class Part;
     class Region;
 
-    /// @brief Type enumerate for MSB Events. Not all numeric values are used.
-    enum class EventType : uint32_t
-    {
-        Treasure = 4,
-        Spawner = 5,
-        ObjAct = 7,
-        Navigation = 10,
-        NPCInvasion = 12,
-        Platoon = 15,
-        PatrolRoute = 20,  // NOTE: be wary of Region subtype with same name
-        Mount = 21,
-        SignPool = 23,
-        RetryPoint = 24,
-        AreaTeam = 25,
-        Other = 0xFFFFFFFF,
-    };
-
-    inline std::map<EventType, std::string> eventTypeNames =
-    {
-        {EventType::Treasure, "Treasure"},
-        {EventType::Spawner, "Spawner"},
-        {EventType::ObjAct, "ObjAct"},
-        {EventType::Navigation, "Navigation"},
-        {EventType::NPCInvasion, "NPCInvasion"},
-        {EventType::Platoon, "Platoon"},
-        {EventType::PatrolRoute, "PatrolRoute"},
-        {EventType::Mount, "Mount"},
-        {EventType::SignPool, "SignPool"},
-        {EventType::RetryPoint, "RetryPoint"},
-        {EventType::AreaTeam, "AreaTeam"},
-        {EventType::Other, "Other"},
-    };
-
     // MSB Event supertype. Does not inherit from `EntityEntry` because despite all having an `entityId` field, not all
     // events actually use it (i.e. not all are valid EMEVD variables).
     class GRIMHOOKER_API Event : public Entry
     {
     public:
         using EnumType = EventType;
+
+        static constexpr int SubtypeEnumOffset = 12;
+
+        [[nodiscard]] static const std::map<EventType, std::string>& GetTypeNames()
+        {
+            static const std::map<EventType, std::string> data =
+            {
+                {EventType::Treasure, "Treasure"},
+                {EventType::Spawner, "Spawner"},
+                {EventType::ObjAct, "ObjAct"},
+                {EventType::Navigation, "Navigation"},
+                {EventType::NPCInvasion, "NPCInvasion"},
+                {EventType::Platoon, "Platoon"},
+                {EventType::PatrolRoute, "PatrolRoute"},
+                {EventType::Mount, "Mount"},
+                {EventType::SignPool, "SignPool"},
+                {EventType::RetryPoint, "RetryPoint"},
+                {EventType::AreaTeam, "AreaTeam"},
+                {EventType::Other, "Other"},
+            };
+            return data;
+        }
 
         explicit Event(const std::string& name) : Entry(name) {}
 
@@ -105,7 +93,10 @@ namespace GrimHookER::Maps::MapStudio
         virtual void DeserializeEntryReferences(const std::vector<Part*>& parts, const std::vector<Region*>& regions);
         virtual void SerializeEntryIndices(const std::vector<Part*>& parts, const std::vector<Region*>& regions);
 
-        explicit operator std::string() const { return eventTypeNames[GetType()] + " " + m_name; }
+        explicit operator std::string() const
+        {
+            return GetTypeNames().at(GetType()) + " " + m_name;
+        }
 
     protected:
         int subtypeIndexOverride = -1; // used for `Other` event type (unknown purpose)
@@ -603,19 +594,4 @@ namespace GrimHookER::Maps::MapStudio
         // No data.
         // Will probably use `subtypeIndexOverride`.
     };
-
-    using EventVariantType = std::variant<
-       std::vector<std::unique_ptr<TreasureEvent>>,
-       std::vector<std::unique_ptr<SpawnerEvent>>,
-       std::vector<std::unique_ptr<ObjActEvent>>,
-       std::vector<std::unique_ptr<NavigationEvent>>,
-       std::vector<std::unique_ptr<NPCInvasionEvent>>,
-       std::vector<std::unique_ptr<PlatoonEvent>>,
-       std::vector<std::unique_ptr<PatrolRouteEvent>>,
-       std::vector<std::unique_ptr<MountEvent>>,
-       std::vector<std::unique_ptr<SignPoolEvent>>,
-       std::vector<std::unique_ptr<RetryPointEvent>>,
-       std::vector<std::unique_ptr<AreaTeamEvent>>,
-       std::vector<std::unique_ptr<OtherEvent>>
-   >;
 }
