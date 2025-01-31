@@ -5,7 +5,6 @@
 #include <vector>
 
 #include "GrimHookER/Export.h"
-#include "Enums.h"
 
 
 namespace GrimHookER::Maps::MapStudio

@@ -26,7 +26,7 @@ namespace GrimHook
      * @tparam BIT_COUNT The number of bits in the bitset. Only 128, 256, and 1024 are permitted (game-dependent).
      */
     template <std::size_t BIT_COUNT>
-    class GroupBitSet
+    class GRIMHOOK_API GroupBitSet
     {
     public:
         /// @brief Default constructor (no enabled bits).
@@ -90,8 +90,8 @@ namespace GrimHook
         std::bitset<BIT_COUNT> bits;
     };
 
-    // Explicit specifications.
-    extern template class GRIMHOOK_API GroupBitSet<128>;
-    extern template class GRIMHOOK_API GroupBitSet<256>;
-    extern template class GRIMHOOK_API GroupBitSet<1024>;
+    // Explicit instantiations (defined uniquely in `Collections.cpp`).
+    extern template class GroupBitSet<128>;
+    extern template class GroupBitSet<256>;
+    extern template class GroupBitSet<1024>;
 }

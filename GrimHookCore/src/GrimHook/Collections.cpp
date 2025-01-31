@@ -236,7 +236,7 @@ GrimHook::GroupBitSet<BIT_COUNT>::operator std::basic_string<char>() const
     return oss.str();
 }
 
-// Explicit specifications.
+// Explicit instantiations.
 template class GrimHook::GroupBitSet<128>;
 template class GrimHook::GroupBitSet<256>;
 template class GrimHook::GroupBitSet<1024>;
