@@ -21,8 +21,13 @@ int main()
     msbPath = absolute(msbPath);
     if (!exists(msbPath))
     {
-        Error(format("MSB file not found: {}", msbPath.string()));
-        throw runtime_error("MSB file not found.");
+        msbPath = "../resources/elden_ring/m10_00_00_00.msb";
+        msbPath = absolute(msbPath);
+        if (!exists(msbPath))
+        {
+            Error(format("MSB file not found: {}", msbPath.string()));
+            throw runtime_error("MSB file not found.");
+        }
     }
 
     Info(format("Opening MSB file: {}", msbPath.string()));
