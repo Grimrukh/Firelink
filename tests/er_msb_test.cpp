@@ -21,7 +21,7 @@ int main()
     msbPath = absolute(msbPath);
     if (!exists(msbPath))
     {
-        msbPath = "../resources/elden_ring/m10_00_00_00.msb";
+        msbPath = "Release/resources/elden_ring/m10_00_00_00.msb";
         msbPath = absolute(msbPath);
         if (!exists(msbPath))
         {
