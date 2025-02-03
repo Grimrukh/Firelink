@@ -14,10 +14,10 @@
 
 namespace FirelinkER::Maps::MapStudio
 {
-    class FIRELINKER_API ModelParam final : public EntryParam<Model>
+    class FIRELINK_ER_API ModelParam final : public EntryParam<Model>
     {
     public:
-        ModelParam() : EntryParam(73, "MODEL_PARAM_ST") {}
+        ModelParam() : EntryParam(73, u"MODEL_PARAM_ST") {}
 
         /// @brief Create a new Model with no name.
         [[nodiscard]] Model* GetNewEntry(const int entrySubtype) override

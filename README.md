@@ -5,22 +5,26 @@ manipulation features (like Cheat Engine). This project is intended for educatio
 be used to cheat in online games or other malicious activities.
 
 Of course, the real value of Firelink is the `BaseHook` subclasses that target FromSoftware games. Currently, only
-***Dark Souls: Remastered*** is supported (`FirelinkDSR`). Elden Ring support will come in the future. These hook subclasses
-(like similar projects by others and myself in C# and Python) automatically expose valuable memory addresses in the
-running game application.
+***Dark Souls: Remastered*** (`FirelinkDSR`) and ***Elden Ring*** (`FirelinkER`) are supported. These hook subclasses,
+like similar projects by @JKAnderson (TKGP) and myself in C# and Python, automatically expose known valuable memory 
+addresses in the running game application (a la Cheat Engine). You can create a simple native DLL that creates a hook
+when the DLL is loaded by searching for the game process, or by assuming that the DLL is being loaded *into* the game
+process as a plugin (e.g. via `dinput8.dll` sideloading).
 
 ---
 
 ## Features
 - **FirelinkCore**: Core utilities and memory manipulation functions, centered around `ManagedProcess`.
 - **FirelinkDSR**: Extensions and hooks specific to ***Dark Souls: Remastered***, centered around `DSRHook`.
+- **FirelinkER**: Extensions and hooks specific to ***Elden Ring***, centered around `ERHook`.
+  - Bonus: includes a complete C++ implementation of the `MSB` format, which e.g. reads Stormveil Castle in ~100 ms.
 
 ---
 
 ## Prerequisites
 
 These libraries are **Windows only (64-bit)**, as they are currently only designed to support (64-bit) FromSoftware
-games on Steam. Linux (and Steam Deck) support may come in the future.
+games on Steam. Linux (and Steam Deck) support may come in the (very distant) future.
 
 Before building the project, ensure you have the following tools installed:
 
@@ -58,7 +62,7 @@ Using Ninja:
 cmake -S . -B build -G "Ninja" -DCMAKE_BUILD_TYPE=Release
 ```
 
-Or using your installed version of Visual Studio:
+Or using your installed version of Visual Studio (e.g. 2022):
 ```bash
 cmake -S . -B build -G "Visual Studio 17 2022" -A x64
 ```
@@ -155,7 +159,8 @@ void PrintHealthEverySecond()
 
 ## Continuous Integration
 
-The project includes a GitHub Actions workflow to automatically build and test the project on every commit.
+The project includes a GitHub Actions workflow to automatically build and test the project on every commit. The MSB
+file for Stormveil Castle in ***Elden Ring*** is included for testing the MSB format.
 
 ### Triggered Events:
 - Pushes to the `main` branch.

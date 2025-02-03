@@ -47,7 +47,7 @@ namespace FirelinkER::Maps::MapStudio
     // For ease of coding, we use a component approach to the structs. Only the subtype struct fields are defined as
     // direct members of each subtype.
 
-    struct FIRELINKER_API DrawInfo1
+    struct FIRELINK_ER_API DrawInfo1
     {
         GroupBitSet<256> displayGroups;
         GroupBitSet<256> drawGroups;
@@ -77,7 +77,7 @@ namespace FirelinkER::Maps::MapStudio
         void Write(std::ofstream& stream) const;
     };
 
-    struct FIRELINKER_API DrawInfo2
+    struct FIRELINK_ER_API DrawInfo2
     {
         int condition2;
         GroupBitSet<256> displayGroups2;
@@ -97,7 +97,7 @@ namespace FirelinkER::Maps::MapStudio
     };
 
     // Used by all Parts except Player Starts and Connect Collisions.
-    struct FIRELINKER_API GParam
+    struct FIRELINK_ER_API GParam
     {
         int lightSetId = -1;
         int fogId = -1;
@@ -109,7 +109,7 @@ namespace FirelinkER::Maps::MapStudio
     };
 
     // Only used by Collisions.
-    struct FIRELINKER_API SceneGParam
+    struct FIRELINK_ER_API SceneGParam
     {
         float transitionTime = -1.0f;
         int8_t unk18 = -1;
@@ -126,7 +126,7 @@ namespace FirelinkER::Maps::MapStudio
     };
 
     // Only used by Map Pieces and Assets.
-    struct FIRELINKER_API GrassConfig
+    struct FIRELINK_ER_API GrassConfig
     {
         int unk00 = 0;
         int unk04 = 0;
@@ -140,7 +140,7 @@ namespace FirelinkER::Maps::MapStudio
         void Write(std::ofstream& stream) const;
     };
 
-    struct FIRELINKER_API UnkPartStruct8
+    struct FIRELINK_ER_API UnkPartStruct8
     {
         int unk00 = 0;  // 0 or 1
 
@@ -149,7 +149,7 @@ namespace FirelinkER::Maps::MapStudio
     };
 
     // Only used by Map Pieces.
-    struct FIRELINKER_API UnkPartStruct9
+    struct FIRELINK_ER_API UnkPartStruct9
     {
         int unk00 = 0;
 
@@ -157,7 +157,7 @@ namespace FirelinkER::Maps::MapStudio
         void Write(std::ofstream& stream) const;
     };
 
-    struct FIRELINKER_API TileLoadConfig
+    struct FIRELINK_ER_API TileLoadConfig
     {
         int mapId = -1;
         int unk04 = 0;
@@ -170,7 +170,7 @@ namespace FirelinkER::Maps::MapStudio
     };
 
     // Only used by Map Pieces, Collisions, and Connect Collisions.
-    struct FIRELINKER_API UnkPartStruct11
+    struct FIRELINK_ER_API UnkPartStruct11
     {
         int unk00 = 0;
         int unk04 = 0;
@@ -179,7 +179,7 @@ namespace FirelinkER::Maps::MapStudio
         void Write(std::ofstream& stream) const;
     };
 
-    class FIRELINKER_API Part : public EntityEntry
+    class FIRELINK_ER_API Part : public EntityEntry
     {
     public:
         using EnumType = PartType;
@@ -203,7 +203,7 @@ namespace FirelinkER::Maps::MapStudio
 
         Part() = default;
 
-        explicit Part(const std::string& name) : EntityEntry(name) {}
+        explicit Part(const std::u16string& name) : EntityEntry(name) {}
 
         [[nodiscard]] virtual PartType GetType() const = 0;
 
@@ -213,8 +213,8 @@ namespace FirelinkER::Maps::MapStudio
         [[nodiscard]] Model* GetModel() const { return model.Get(); }
         void SetModel(Model* const model) { this->model.Set(model); }
         void SetModel(const std::unique_ptr<Model>& model) { this->model.Set(model); }
-        [[nodiscard]] std::string GetSibPath() const { return sibPath; }
-        void SetSibPath(const std::string& sibPath) { this->sibPath = sibPath; }
+        [[nodiscard]] std::u16string GetSibPath() const { return m_sibPath; }
+        void SetSibPath(const std::u16string& sibPath) { this->m_sibPath = sibPath; }
         [[nodiscard]] Vector3 GetTranslate() const { return translate; }
         void SetTranslate(const Vector3& translate) { this->translate = translate; }
         [[nodiscard]] Vector3 GetRotate() const { return rotate; }
@@ -225,6 +225,8 @@ namespace FirelinkER::Maps::MapStudio
         void SetUnk44(const int unk44) { this->unk44 = unk44; }
         [[nodiscard]] int GetEventLayer() const { return eventLayer; }
         void SetEventLayer(const int eventLayer) { this->eventLayer = eventLayer; }
+
+        [[nodiscard]] std::string GetSibPathUTF8() const { return Firelink::UTF16ToUTF8(m_sibPath); }
 
         // Part data:
         [[nodiscard]] uint8_t GetUnk04() const { return unk04; }
@@ -303,7 +305,7 @@ namespace FirelinkER::Maps::MapStudio
 
         explicit operator std::string() const
         {
-            return std::format("{}[\"{}\"]", GetTypeNames().at(GetType()), m_name);
+            return std::format("{}[\"{}\"]", GetTypeNames().at(GetType()), GetNameUTF8());
         }
 
     protected:
@@ -311,7 +313,7 @@ namespace FirelinkER::Maps::MapStudio
         int modelInstanceId = 0;  // still functions as a unique model instance, but starts at an offset like 9000
         EntryReference<Model> model;
         int modelIndex = -1;
-        std::string sibPath;
+        std::u16string m_sibPath;
         Vector3 translate{};
         Vector3 rotate{};
         Vector3 scale{1.0f, 1.0f, 1.0f};
@@ -367,14 +369,14 @@ namespace FirelinkER::Maps::MapStudio
         void OnReferencedEntryDestroy(const Entry* destroyedEntry) override;
     };
 
-    class FIRELINKER_API MapPiecePart final : public Part
+    class FIRELINK_ER_API MapPiecePart final : public Part
     {
     public:
         static constexpr auto Type = PartType::MapPiece;
 
         MapPiecePart() = default;
 
-        explicit MapPiecePart(const std::string& name) : Part(name) {}
+        explicit MapPiecePart(const std::u16string& name) : Part(name) {}
 
         [[nodiscard]] PartType GetType() const override { return Type; }
 
@@ -397,14 +399,14 @@ namespace FirelinkER::Maps::MapStudio
         bool SerializeSubtypeData(std::ofstream& stream, int supertypeIndex, int subtypeIndex) const override;
     };
 
-    class FIRELINKER_API CharacterPart : public Part
+    class FIRELINK_ER_API CharacterPart : public Part
     {
     public:
         static constexpr auto Type = PartType::Character;
 
         CharacterPart() = default;
 
-        explicit CharacterPart(const std::string& name) : Part(name) {}
+        explicit CharacterPart(const std::u16string& name) : Part(name) {}
 
         [[nodiscard]] PartType GetType() const override { return Type; }
 
@@ -493,7 +495,7 @@ namespace FirelinkER::Maps::MapStudio
         bool SerializeSubtypeData(std::ofstream& stream, int supertypeIndex, int subtypeIndex) const override;
     };
 
-    class FIRELINKER_API PlayerStartPart final : public Part
+    class FIRELINK_ER_API PlayerStartPart final : public Part
     {
     protected:
         int sUnk00 = 0;
@@ -510,7 +512,7 @@ namespace FirelinkER::Maps::MapStudio
 
         PlayerStartPart() = default;
 
-        explicit PlayerStartPart(const std::string& name) : Part(name) {}
+        explicit PlayerStartPart(const std::u16string& name) : Part(name) {}
 
         [[nodiscard]] PartType GetType() const override { return Type; }
 
@@ -522,7 +524,7 @@ namespace FirelinkER::Maps::MapStudio
         TileLoadConfig tileLoadConfig{};
     };
 
-    class FIRELINKER_API CollisionPart final : public Part
+    class FIRELINK_ER_API CollisionPart final : public Part
     {
     protected:
         // NOTE: We don't type this field as `CollisionHitFilter` in case the enum missed some valid values.
@@ -560,7 +562,7 @@ namespace FirelinkER::Maps::MapStudio
 
         CollisionPart() = default;
 
-        explicit CollisionPart(const std::string& name) : Part(name) {}
+        explicit CollisionPart(const std::u16string& name) : Part(name) {}
 
         [[nodiscard]] PartType GetType() const override { return Type; }
 
@@ -624,7 +626,7 @@ namespace FirelinkER::Maps::MapStudio
     // Unlike `DummyObject` in earlier games, almost all data has been nuked here, which prevents this from being a
     // convenient way to temporarily disable an Asset. Probably only the bare minimum for cutscenes (i.e. draw
     // settings) is left.
-    class FIRELINKER_API DummyAssetPart final : public Part
+    class FIRELINK_ER_API DummyAssetPart final : public Part
     {
         int32_t sUnk18 = -1;
 
@@ -633,7 +635,7 @@ namespace FirelinkER::Maps::MapStudio
 
         DummyAssetPart() = default;
 
-        explicit DummyAssetPart(const std::string& name) : Part(name) {}
+        explicit DummyAssetPart(const std::u16string& name) : Part(name) {}
 
         [[nodiscard]] PartType GetType() const override { return Type; }
 
@@ -655,19 +657,19 @@ namespace FirelinkER::Maps::MapStudio
 
     // May still be used in cutscenes.
     // Identical to `CharacterPart` (unlike nuked Assets) and inherits from that class for easy type conversion.
-    class FIRELINKER_API DummyCharacterPart final : public CharacterPart
+    class FIRELINK_ER_API DummyCharacterPart final : public CharacterPart
     {
     public:
         static constexpr auto Type = PartType::DummyCharacter;
 
         DummyCharacterPart() = default;
 
-        explicit DummyCharacterPart(const std::string& name) : CharacterPart(name) {}
+        explicit DummyCharacterPart(const std::u16string& name) : CharacterPart(name) {}
 
         [[nodiscard]] PartType GetType() const override { return Type; }
     };
 
-    class FIRELINKER_API ConnectCollisionPart final : public Part
+    class FIRELINK_ER_API ConnectCollisionPart final : public Part
     {
     protected:
         EntryReference<CollisionPart> collision;  // NOTE: `Collision` subtype
@@ -690,7 +692,7 @@ namespace FirelinkER::Maps::MapStudio
 
         ConnectCollisionPart() = default;
 
-        explicit ConnectCollisionPart(const std::string& name) : Part(name) {}
+        explicit ConnectCollisionPart(const std::u16string& name) : Part(name) {}
 
         [[nodiscard]] PartType GetType() const override { return Type; }
 
@@ -726,7 +728,7 @@ namespace FirelinkER::Maps::MapStudio
 
     // Four additional Asset sub-structs:
 
-    struct FIRELINKER_API ExtraAssetData1
+    struct FIRELINK_ER_API ExtraAssetData1
     {
         int16_t unk00 = 0;
         bool unk04 = false;
@@ -743,7 +745,7 @@ namespace FirelinkER::Maps::MapStudio
         void Write(std::ofstream& stream) const;
     };
 
-    struct FIRELINKER_API ExtraAssetData2
+    struct FIRELINK_ER_API ExtraAssetData2
     {
         int unk00 = 0;
         int unk04 = -1;
@@ -757,7 +759,7 @@ namespace FirelinkER::Maps::MapStudio
         void Write(std::ofstream& stream) const;
     };
 
-    struct FIRELINKER_API ExtraAssetData3
+    struct FIRELINK_ER_API ExtraAssetData3
     {
         int unk00 = 0;
         float unk04 = 0.0f;
@@ -778,7 +780,7 @@ namespace FirelinkER::Maps::MapStudio
         void Write(std::ofstream& stream) const;
     };
 
-    struct FIRELINKER_API ExtraAssetData4
+    struct FIRELINK_ER_API ExtraAssetData4
     {
         bool unk00 = false;
         uint8_t unk01 = 255;
@@ -789,14 +791,14 @@ namespace FirelinkER::Maps::MapStudio
         void Write(std::ofstream& stream) const;
     };
 
-    class FIRELINKER_API AssetPart final : public Part
+    class FIRELINK_ER_API AssetPart final : public Part
     {
     public:
         static constexpr auto Type = PartType::Asset;
 
         AssetPart() = default;
 
-        explicit AssetPart(const std::string& name) : Part(name)
+        explicit AssetPart(const std::u16string& name) : Part(name)
         {
             drawParentPartsIndices.fill(-1);
         }

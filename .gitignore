@@ -4,6 +4,9 @@ CMakeCache.txt
 cmake-build-*/
 compile_commands.json
 
+# Ignore build directory
+bin/
+
 # Ignore generated project files
 .idea/
 *.iml

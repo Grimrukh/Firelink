@@ -22,7 +22,7 @@ namespace FirelinkER::Maps::MapStudio
             return data;
         }
 
-        explicit Layer() : Entry("")
+        explicit Layer() : Entry(u"")
         {
             throw MSBFormatError("MSB `Layer` should never be instantiated.");
         }
@@ -31,5 +31,10 @@ namespace FirelinkER::Maps::MapStudio
 
         void Deserialize(std::ifstream& stream) override {}
         void Serialize(std::ofstream& stream, int supertypeIndex, int subtypeIndex) const override {}
+
+        explicit operator std::string() const
+        {
+            return "Layer[]";
+        }
     };
 }

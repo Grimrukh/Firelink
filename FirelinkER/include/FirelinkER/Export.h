@@ -1,11 +1,11 @@
 ﻿#pragma once
 
 #ifdef _WIN32
-    #ifdef FIRELINKER_EXPORTS
-        #define FIRELINKER_API __declspec(dllexport)
+    #ifdef FIRELINK_ER_EXPORTS
+        #define FIRELINK_ER_API __declspec(dllexport)
     #else
-        #define FIRELINKER_API __declspec(dllimport)
+        #define FIRELINK_ER_API __declspec(dllimport)
     #endif
 #else
-    #define FIRELINKER_API
+    #define FIRELINK_ER_API
 #endif

@@ -25,7 +25,7 @@ namespace FirelinkER::Maps::MapStudio
     };
 
     /// @brief Shape attached to an MSB `Region` entry.
-    class FIRELINKER_API Shape
+    class FIRELINK_ER_API Shape
     {
     public:
         [[nodiscard]] static const std::map<ShapeType, std::string>& GetTypeNames()
@@ -43,11 +43,6 @@ namespace FirelinkER::Maps::MapStudio
             return data;
         }
 
-        static const inline std::map<ShapeType, std::string> TypeNames =
-        {
-
-        };
-
         virtual ~Shape() = default;
 
         [[nodiscard]] virtual ShapeType GetType() const = 0;
@@ -58,10 +53,10 @@ namespace FirelinkER::Maps::MapStudio
         virtual void DeserializeShapeData(std::ifstream& stream) = 0;
         virtual void SerializeShapeData(std::ofstream& stream) = 0;
 
-        [[nodiscard]] std::string GetShapeTypeName() const { return TypeNames.at(GetType()); }
+        [[nodiscard]] std::string GetShapeTypeName() const { return GetTypeNames().at(GetType()); }
     };
 
-    class FIRELINKER_API Point final : public Shape
+    class FIRELINK_ER_API Point final : public Shape
     {
     public:
         static constexpr auto Type = ShapeType::PointShape;
@@ -78,7 +73,7 @@ namespace FirelinkER::Maps::MapStudio
         void SerializeShapeData(std::ofstream &stream) override;
     };
 
-    class FIRELINKER_API Circle final : public Shape
+    class FIRELINK_ER_API Circle final : public Shape
     {
     public:
         static constexpr auto Type = ShapeType::CircleShape;
@@ -101,7 +96,7 @@ namespace FirelinkER::Maps::MapStudio
         float m_radius;
     };
 
-    class FIRELINKER_API Sphere final : public Shape
+    class FIRELINK_ER_API Sphere final : public Shape
     {
     public:
         static constexpr auto Type = ShapeType::SphereShape;
@@ -124,7 +119,7 @@ namespace FirelinkER::Maps::MapStudio
         float m_radius;
     };
 
-    class FIRELINKER_API Cylinder final : public Shape
+    class FIRELINK_ER_API Cylinder final : public Shape
     {
     public:
         static constexpr auto Type = ShapeType::CylinderShape;
@@ -151,7 +146,7 @@ namespace FirelinkER::Maps::MapStudio
         float m_height;
     };
 
-    class FIRELINKER_API Rectangle final : public Shape
+    class FIRELINK_ER_API Rectangle final : public Shape
     {
     public:
         static constexpr auto Type = ShapeType::RectangleShape;
@@ -178,7 +173,7 @@ namespace FirelinkER::Maps::MapStudio
         float m_depth;  // Z axis
     };
 
-    class FIRELINKER_API Box final : public Shape
+    class FIRELINK_ER_API Box final : public Shape
     {
     public:
         static constexpr auto Type = ShapeType::BoxShape;
@@ -213,7 +208,7 @@ namespace FirelinkER::Maps::MapStudio
     /// Child references are stored in `Region` entries to make use of safe entry referencing system. This class stores
     /// nothing; the sixteen integers (child region indices and unknown values) de/serialized are handled as a special
     /// case by the caller.
-    class FIRELINKER_API Composite final : public Shape
+    class FIRELINK_ER_API Composite final : public Shape
     {
     public:
         static constexpr auto Type = ShapeType::CompositeShape;

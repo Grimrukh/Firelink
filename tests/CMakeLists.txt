@@ -44,21 +44,6 @@ target_link_libraries(EldenRingMSBTest
     PRIVATE FirelinkER
 )
 
-# Copy DLLs to the output directories.
-add_custom_command(TARGET LogTest POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        $<TARGET_FILE:FirelinkCore>
-        $<TARGET_FILE:FirelinkDSR>
-        $<TARGET_FILE:FirelinkER>
-        $<TARGET_FILE_DIR:LogTest>
-)
-
-add_custom_command(TARGET EldenRingMSBTest POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        $<TARGET_FILE:FirelinkCore>
-        $<TARGET_FILE:FirelinkER>
-        $<TARGET_FILE_DIR:EldenRingMSBTest>
-)
 add_custom_command(TARGET EldenRingMSBTest POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E make_directory
         $<TARGET_FILE_DIR:EldenRingMSBTest>/resources/elden_ring

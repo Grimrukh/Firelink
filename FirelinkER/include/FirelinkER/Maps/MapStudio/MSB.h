@@ -11,7 +11,7 @@
 
 namespace FirelinkER::Maps::MapStudio
 {
-    class FIRELINKER_API MSB
+    class FIRELINK_ER_API MSB
     {
     public:
         /// @brief Create an empty MSB. All entry lists will be initialized to empty.

@@ -46,7 +46,7 @@ using namespace FirelinkER::Maps::MapStudio;
     } \
     stream.seekg(entryStart + header.subtypeDataOffset); \
     if (!DeserializeSubtypeData(stream)) { \
-        throw MSBFormatError("Failed to read subtype data for part " + m_name); \
+        throw MSBFormatError("Failed to read subtype data for part " + GetNameUTF8()); \
     }
 
 // MACRO: Record struct offset in header, then write struct.
@@ -363,12 +363,10 @@ void Part::Deserialize(ifstream& stream)
     const auto header = ReadValidatedStruct<PartHeader>(stream);
 
     stream.seekg(start + header.nameOffset);
-    const u16string nameWide = ReadUTF16String(stream);
-    m_name = UTF16ToUTF8(nameWide);
+    m_name = ReadUTF16String(stream);
 
     stream.seekg(start + header.sibPathOffset);
-    const u16string sibPathWide = ReadUTF16String(stream);
-    sibPath = UTF16ToUTF8(sibPathWide);
+    m_sibPath = ReadUTF16String(stream);
 
     modelIndex = header.modelIndex;
     modelInstanceId = header.modelInstanceId;
@@ -406,7 +404,7 @@ void Part::Serialize(ofstream& stream, const int supertypeIndex, const int subty
     header.nameOffset = stream.tellp() - start;
     WriteUTF16String(stream, m_name);
     header.sibPathOffset = stream.tellp() - start;
-    WriteUTF16String(stream, sibPath);
+    WriteUTF16String(stream, m_sibPath);
     AlignStream(stream, 8);
 
     // No additional alignment necessary before or after structs.
@@ -934,7 +932,7 @@ void DummyAssetPart::SerializeStructs(ofstream& stream, PartHeader& header, cons
     header.drawInfo2Offset = 0;  // unused
     WRITE_SUPERTYPE_DATA();
     WRITE_SUBTYPE_DATA();
-    header.gparamOffset = 0;  // unused
+    WRITE_STRUCT(gparam);
     header.sceneGparamOffset = 0;  // unused
     header.grassConfigOffset = 0;  // unused
     WRITE_STRUCT(unkStruct8);
@@ -1005,7 +1003,7 @@ void ConnectCollisionPart::DeserializeStructs(ifstream& stream, const PartHeader
 void ConnectCollisionPart::SerializeStructs(ofstream& stream, PartHeader& header, const streampos& entryStart, const int& supertypeIndex, const int& subtypeIndex) const
 {
     WRITE_STRUCT(drawInfo1);
-    header.drawInfo2Offset = 0;  // unused
+    WRITE_STRUCT(drawInfo2);
     WRITE_SUPERTYPE_DATA();
     WRITE_SUBTYPE_DATA();
     header.gparamOffset = 0;  // unused

@@ -60,7 +60,7 @@ void MSB::ReadHeader(ifstream& stream)
 void MSB::WriteHeader(ofstream& stream)
 {
     // No variation in header.
-    constexpr MSBHeader header;
+    static constexpr MSBHeader header;
     stream.write(reinterpret_cast<const char*>(&header), sizeof(MSBHeader));
 }
 
@@ -96,12 +96,12 @@ void MSB::Deserialize(ifstream& stream)
 // NOTE: Not a `const` method  because it updates entry indices from current pointers (and model instance counts, etc.).
 void MSB::Serialize(ofstream& stream)
 {
-    vector<Model*> models = m_modelParam.GetAllEntries();
+    const vector<Model*> models = m_modelParam.GetAllEntries();
     const vector<Event*> events = m_eventParam.GetAllEntries();
     const vector<Region*> regions = m_regionParam.GetAllEntries();
     const vector<Route*> routes = m_routeParam.GetAllEntries();
     // No Layers.
-    vector<Part*> parts = m_partParam.GetAllEntries();
+    const vector<Part*> parts = m_partParam.GetAllEntries();
 
     SerializeEntryIndices(models, events, regions, parts);
 
@@ -110,35 +110,31 @@ void MSB::Serialize(ofstream& stream)
     for (const Part* part : parts)
     {
         if (Model* model = part->GetModel())
-        {
             modelInstanceCounts[model]++;
-        }
     }
     for (Model* model : models)
-    {
         model->SetInstanceCount(modelInstanceCounts[model]);
-    }
 
     WriteHeader(stream);
 
     // All Entry data is up to date (indices, instance counts). Supertype and subtype indices will be passed in by the
     // EntryParam write calls. We just have to write the final offsets ourselves.
-    streampos nextEntryParamOffset = m_modelParam.Serialize(stream, models);
+    streampos nextEntryParamOffset = m_modelParam.Serialize(stream);
     WriteValue(stream, nextEntryParamOffset, static_cast<int64_t>(stream.tellp()));
 
-    nextEntryParamOffset = m_eventParam.Serialize(stream, events);
+    nextEntryParamOffset = m_eventParam.Serialize(stream);
     WriteValue(stream, nextEntryParamOffset, static_cast<int64_t>(stream.tellp()));
 
-    nextEntryParamOffset = m_regionParam.Serialize(stream, regions);
+    nextEntryParamOffset = m_regionParam.Serialize(stream);
     WriteValue(stream, nextEntryParamOffset, static_cast<int64_t>(stream.tellp()));
 
-    nextEntryParamOffset = m_routeParam.Serialize(stream, routes);
+    nextEntryParamOffset = m_routeParam.Serialize(stream);
     WriteValue(stream, nextEntryParamOffset, static_cast<int64_t>(stream.tellp()));
 
-    nextEntryParamOffset = LayerParam().Serialize(stream, {});  // no Layers
+    nextEntryParamOffset = LayerParam().Serialize(stream);  // no Layers
     WriteValue(stream, nextEntryParamOffset, static_cast<int64_t>(stream.tellp()));
 
-    nextEntryParamOffset = m_partParam.Serialize(stream, parts);
+    nextEntryParamOffset = m_partParam.Serialize(stream);
     WriteValue(stream, nextEntryParamOffset, static_cast<int64_t>(0));  // last offset is 0
 
     // Nothing extra at the end of the MSB file.
@@ -218,7 +214,6 @@ void MSB::SerializeEntryIndices(
     const vector<Region*>& regions,
     const vector<Part*>& parts)
 {
-
     // Get CollisionParts and PatrolRouteEvents vectors for subtype-specific indexing by certain Parts.
     vector<CollisionPart*> collisionParts{};
     for (Part* part : parts)

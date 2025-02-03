@@ -464,8 +464,10 @@ bool ManagedProcess::FindProcessByName(const wstring& processName, ManagedProces
                 void* processHandle = OpenProcess(PROCESS_ALL_ACCESS, FALSE, entry.th32ProcessID);
                 if (processHandle == nullptr)
                 {
-                    const wstring lastError = to_wstring(GetLastError());
-                    Error(format(L"Failed to open process '{}'. Error code: {}", processName, lastError));
+                    const string lastError = to_string(GetLastError());
+                    Error(format(
+                        "Failed to open process '{}'. Error code: {}",
+                        UTF16ToUTF8(processName), lastError));
                     CloseHandle(snapshot);
                     return false;  // Error opening the process
                 }
@@ -484,7 +486,9 @@ bool ManagedProcess::FindProcessByName(const wstring& processName, ManagedProces
                 }
 
                 // Process found, is not terminated, and opened successfully
-                Info(L"Successfully found and opened process: " + processName);
+                Info(format(
+                    "Successfully found and opened process: {}",
+                    UTF16ToUTF8(processName)));
 
                 outProcess = new ManagedProcess(processHandle);
                 CloseHandle(snapshot);  // Clean up snapshot
@@ -512,7 +516,9 @@ bool ManagedProcess::FindProcessByWindowTitle(const wstring& windowTitle, Manage
     HWND hwnd = FindWindowW(nullptr, windowTitle.c_str());  // NOLINT
     if (!hwnd)
     {
-        Info(L"Could not find process with window title: " + windowTitle);
+        Info(format(
+            "Could not find process with window title: {}",
+            UTF16ToUTF8(windowTitle)));
         return true;  // No error occurred, but window not found
     }
 
@@ -524,12 +530,16 @@ bool ManagedProcess::FindProcessByWindowTitle(const wstring& windowTitle, Manage
     void* processHandle = OpenProcess(PROCESS_ALL_ACCESS, FALSE, processId);
     if (!processHandle)
     {
-        Error(L"Failed to open process with window title: " + windowTitle);
+        Error(format(
+            "Failed to open process with window title: {}",
+            UTF16ToUTF8(windowTitle)));
         return false;  // Error occurred when opening the process
     }
 
     // Successfully found the process and opened a handle
-    Info(L"Successfully found process with window title: " + windowTitle);
+    Info(format(
+        "Successfully found process with window title: {}",
+        UTF16ToUTF8(windowTitle)));
 
     outProcess = new ManagedProcess(processHandle);
     return true;  // Success
@@ -541,7 +551,9 @@ unique_ptr<ManagedProcess> ManagedProcess::WaitForProcess(
     const int refreshIntervalMs,
     const atomic<bool>& stopFlag)
 {
-    Info(format(L"Waiting to find for process with name '{}'.", processName));
+    Info(format(
+        "Waiting until process with name '{}' is found.",
+        UTF16ToUTF8(processName)));
 
     ManagedProcess* process;
     chrono::milliseconds timeout(timeoutMs);

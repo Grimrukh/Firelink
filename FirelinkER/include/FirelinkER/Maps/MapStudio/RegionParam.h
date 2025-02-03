@@ -7,16 +7,18 @@
 
 #define CASE_MAKE_UNIQUE(ENUM_TYPE) \
     case static_cast<int>(RegionType::ENUM_TYPE): \
+    { \
         newRegion = std::make_unique<ENUM_TYPE##Region>(); \
-        break;
+        break; \
+    }
 
 
 namespace FirelinkER::Maps::MapStudio
 {
-    class FIRELINKER_API RegionParam final : public EntryParam<Region>
+    class FIRELINK_ER_API RegionParam final : public EntryParam<Region>
     {
     public:
-        RegionParam() : EntryParam(73, "POINT_PARAM_ST") {}
+        RegionParam() : EntryParam(73, u"POINT_PARAM_ST") {}
 
         /// @brief Create a new Region with no name.
         [[nodiscard]] Region* GetNewEntry(const int entrySubtype) override

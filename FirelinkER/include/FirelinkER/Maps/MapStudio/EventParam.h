@@ -10,15 +10,17 @@
 
 #define CASE_MAKE_UNIQUE(ENUM_TYPE) \
     case static_cast<int>(EventType::ENUM_TYPE): \
+    { \
         newEvent = std::make_unique<ENUM_TYPE##Event>(); \
-        break;
+        break; \
+    }
 
 namespace FirelinkER::Maps::MapStudio
 {
-    class FIRELINKER_API EventParam final : public EntryParam<Event>
+    class FIRELINK_ER_API EventParam final : public EntryParam<Event>
     {
     public:
-        EventParam() : EntryParam(73, "EVENT_PARAM_ST") {}
+        EventParam() : EntryParam(73, u"EVENT_PARAM_ST") {}
 
         /// @brief Create a new Event with no name.
         [[nodiscard]] Event* GetNewEntry(const int entrySubtype) override

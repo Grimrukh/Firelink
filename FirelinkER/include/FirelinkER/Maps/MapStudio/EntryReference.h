@@ -25,7 +25,7 @@ namespace FirelinkER::Maps::MapStudio
     /// @brief Non-owning reference from one MSB `Entry` (of any subtype) to another (subtype of `T`).
     /// References are registered in the target entry so that they can be cleared when that entry is removed.
     template <typename T>
-    class FIRELINKER_API EntryReference final : public EntryReferenceBase
+    class FIRELINK_ER_API EntryReference final : public EntryReferenceBase
     {
     public:
         /// @brief Default constructor (empty reference).

@@ -4,7 +4,6 @@
 #include <string>
 
 #include "Firelink/BaseHook.h"
-#include "Firelink/Pointer.h"
 #include "Firelink/Process.h"
 
 #include "Export.h"
@@ -18,7 +17,7 @@ namespace FirelinkDSR
     /// @brief Name of DSR window title, for the user to find it.
     inline constexpr wchar_t DSR_WINDOW_TITLE[] = L"DARK SOULS™: REMASTERED";
 
-    class FIRELINKDSR_API DSRHook final : public Firelink::BaseHook
+    class FIRELINK_DSR_API DSRHook final : public Firelink::BaseHook
     {
     public:
         /// @brief Construct a DSRHook using a shared pointer to a `ManagedProcess`.

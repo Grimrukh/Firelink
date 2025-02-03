@@ -1,7 +1,6 @@
 ﻿#pragma once
 
 #include "EntryParam.h"
-#include "Enums.h"
 #include "Layer.h"
 
 namespace FirelinkER::Maps::MapStudio
@@ -10,7 +9,7 @@ namespace FirelinkER::Maps::MapStudio
     class LayerParam final : public EntryParam<Layer>
     {
     public:
-        LayerParam() : EntryParam(73, "LAYER_PARAM_ST") {}
+        LayerParam() : EntryParam(73, u"LAYER_PARAM_ST") {}
 
         /// @brief Implemented for completion; cannot be called.
         [[nodiscard]] Layer* GetNewEntry(const int entrySubtype) override

@@ -15,6 +15,9 @@ namespace Firelink
     /// @brief Convert a UTF-16 string to a standard UTF-8 string without warning about data loss.
     FIRELINK_API std::string UTF16ToUTF8(const std::u16string& utf16);
 
+    /// @brief Convert a Windows 'wide' string (UTF-16 on Windows) to a standard UTF-8 string without warning.
+    FIRELINK_API std::string UTF16ToUTF8(const std::wstring& utf16);
+
     /// @brief Get a pointer offset by a number of bytes.
     FIRELINK_API const void* GetOffsetPointer(const void* ptr, int offset);
 

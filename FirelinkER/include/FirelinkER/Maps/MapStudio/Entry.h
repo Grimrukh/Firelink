@@ -8,18 +8,19 @@
 
 #include "FirelinkER/Export.h"
 #include "EntryReference.h"
+#include "Firelink/MemoryUtils.h"
 
 namespace FirelinkER::Maps::MapStudio
 {
     /// @brief Base class for any entry in any MSB entry list. Only base field is `name`.
-    class FIRELINKER_API Entry
+    class FIRELINK_ER_API Entry
     {
     public:
         /// @brief Create a completely empty `Entry` with an empty name.
         Entry() = default;
 
         /// @brief Create an `Entry` with a given name.
-        explicit Entry(std::string name) : m_name(std::move(name)) {}
+        explicit Entry(std::u16string name) : m_name(std::move(name)) {}
 
         virtual ~Entry()
         {
@@ -32,8 +33,9 @@ namespace FirelinkER::Maps::MapStudio
             // on their destination `Entry`), so Entry destructors do not need to manually do this.
         }
 
-        [[nodiscard]] const std::string& GetName() const { return m_name; }
-        void SetName(const std::string& newName) { m_name = newName; }
+        [[nodiscard]] const std::u16string& GetName() const { return m_name; }
+        void SetName(const std::u16string& newName) { m_name = newName; }
+        [[nodiscard]] std::string GetNameUTF8() const { return Firelink::UTF16ToUTF8(m_name); }
 
         /// @brief Deserialize an entry from a filestream.
         virtual void Deserialize(std::ifstream& stream) = 0;
@@ -58,7 +60,7 @@ namespace FirelinkER::Maps::MapStudio
         }
 
     protected:
-        std::string m_name;
+        std::u16string m_name;
 
         /// @brief Virtual method to clear all references to this `Entry` by the referrer.
         /// Does nothing by default (though this base method will never feature in an incoming reference, by design).
@@ -76,7 +78,7 @@ namespace FirelinkER::Maps::MapStudio
     public:
         EntityEntry() = default;
 
-        explicit EntityEntry(std::string name) : Entry(std::move(name)) {}
+        explicit EntityEntry(std::u16string name) : Entry(std::move(name)) {}
 
         [[nodiscard]] uint32_t GetEntityId() const { return m_entityId; }
         void SetEntityId(const uint32_t entityId) { this->m_entityId = entityId; }

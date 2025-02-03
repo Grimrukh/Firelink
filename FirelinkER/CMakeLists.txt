@@ -49,7 +49,7 @@ if (WIN32)
 endif()
 
 # Enable DLL exports for FirelinkER.
-target_compile_definitions(FirelinkER PRIVATE FIRELINKER_EXPORTS)
+target_compile_definitions(FirelinkER PRIVATE FIRELINK_ER_EXPORTS)
 
 target_include_directories(FirelinkER
     PUBLIC include

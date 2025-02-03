@@ -2,6 +2,8 @@
 
 #include <chrono>
 #include <ctime>
+#include <filesystem>
+#include <format>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
@@ -14,15 +16,14 @@ using namespace std;
 
 namespace
 {
-    wstring LOG_FILE_PATH;
-    wofstream LOG_FILE;
-    once_flag LOG_MUTEX_INIT_FLAG;
+    filesystem::path LOG_FILE_PATH;
+    ofstream LOG_FILE;
     mutex LOG_MUTEX;
 
-    Firelink::LogLevel LOG_LEVEL = Firelink::LogLevel::INFO;
+    auto LOG_LEVEL = Firelink::LogLevel::INFO;
 
     // Helper function to get the current date and time as a wstring
-    wstring GetCurrentDateTimeWide()
+    string GetCurrentDateTime()
     {
         // Get current time
         const auto now = chrono::system_clock::now();
@@ -36,56 +37,46 @@ namespace
             const auto result = localtime_s(&timeInfo, &inTimeT);
             result != 0)
         {
-            wcerr << L"Error getting current logging time: " << result << '\n';
-            return L"";
+            cerr << "Error getting current logging time: " << result << '\n';
+            return "";
         }
 
         // Format the time into a string
-        wstringstream ss;
-        ss << put_time(&timeInfo, L"%Y-%m-%d %H:%M:%S");
+        stringstream ss;
+        ss << put_time(&timeInfo, "%Y-%m-%d %H:%M:%S");
         return ss.str();
     }
 
-    // Ensure logging mutex is initialized
-    void InitializeLogging()
-    {
-        std::call_once(LOG_MUTEX_INIT_FLAG, []
-        {
-            LOG_MUTEX.lock();
-            LOG_MUTEX.unlock();
-        });
-    }
-
     // Log a message with the given level.
-    void Log(const wstring& level, const wstring& message, const bool toStdErr = false)
+    void Log(const string& level, const string& message, const bool toStdErr = false)
     {
-        InitializeLogging();
         lock_guard lock(LOG_MUTEX);
 
-        const wstring logEntry = L"[" + GetCurrentDateTimeWide() + L"] " + level + message;
+        const string logEntry = format("[{}] {} {}", GetCurrentDateTime(), level, message);
 
         if (LOG_FILE.is_open())
         {
             LOG_FILE << logEntry << '\n';
             LOG_FILE.flush();
+            // cout << "LOGGED TO FILE: " << logEntry << '\n';
         }
         else
         {
-            (toStdErr ? wcerr : wcout) << logEntry << '\n';
+            (toStdErr ? cerr : cout) << logEntry << '\n';
         }
     }
 }
 
 
 // Enable logging to a file
-void Firelink::SetLogFile(const wstring& filePath)
+void Firelink::SetLogFile(const filesystem::path& filePath)
 {
-    InitializeLogging();
-    lock_guard lock(LOG_MUTEX);
+    unique_lock lock(LOG_MUTEX);
 
     if (LOG_FILE.is_open())
     {
-        if (LOG_FILE_PATH == filePath) return;  // same file already enabled
+        if (LOG_FILE_PATH == filePath)
+            return;  // same file already set as log file
         // Close previous log file so we can open the new one below.
         LOG_FILE.close();
     }
@@ -96,9 +87,12 @@ void Firelink::SetLogFile(const wstring& filePath)
     LOG_FILE.open(LOG_FILE_PATH.c_str(), ios::out);
     if (!LOG_FILE.is_open())
     {
-        wcerr << L"Failed to open log file: " << LOG_FILE_PATH << '\n';
+        cerr << format("Failed to open log file path: {}", LOG_FILE_PATH.string()) << '\n';
     }
-    // NOTE: We CANNOT call a logging function here because it would cause a mutex deadlock.
+
+    // Release mutex.
+    lock.unlock();
+    Debug(format("Log file opened: {}", LOG_FILE_PATH.string()));
 }
 
 // Disable logging to a file
@@ -107,9 +101,9 @@ void Firelink::ClearLogFile()
     lock_guard lock(LOG_MUTEX);
     if (LOG_FILE.is_open())
     {
-        Info(L"Log file closing: " + LOG_FILE_PATH);
+        Info(format("Log file closing: {}", LOG_FILE_PATH.string()));
         LOG_FILE.close();
-        Info(L"Log file closed.");
+        Info("Log file closed.");
     }
 }
 
@@ -119,63 +113,43 @@ void Firelink::SetLogLevel(const LogLevel& level)
     LOG_LEVEL = level;
 }
 
-// Debug log
-void Firelink::Debug(const wstring& message)
-{
-    if (LOG_LEVEL > DEBUG) return;
-    Log(L"  [DEBUG] ", message);
-}
 void Firelink::Debug(const string& message)
 {
-    return Debug(wstring(message.begin(), message.end()));
+    if (LOG_LEVEL > LogLevel::DEBUG)
+        return;
+    Log("  [DEBUG] ", message);
 }
 
-// Info log
-void Firelink::Info(const wstring& message)
-{
-    if (LOG_LEVEL > INFO) return;
-    Log(L"   [INFO] ", message);
-}
 void Firelink::Info(const string& message)
 {
-    return Info(wstring(message.begin(), message.end()));
+    if (LOG_LEVEL > LogLevel::INFO)
+        return;
+    Log("   [INFO] ", message);
 }
 
-// Warning log
-void Firelink::Warning(const wstring& message)
-{
-    if (LOG_LEVEL > WARNING) return;
-    Log(L"[WARNING] ", message);
-}
 void Firelink::Warning(const string& message)
 {
-    return Warning(wstring(message.begin(), message.end()));
+    if (LOG_LEVEL > LogLevel::WARNING)
+        return;
+    Log("[WARNING] ", message);
 }
 
-// Error log
-void Firelink::Error(const wstring& message)
-{
-    if (LOG_LEVEL > ERR) return;
-    Log(L"  [ERROR] ", message, true);
-}
 void Firelink::Error(const string& message)
 {
-    return Error(wstring(message.begin(), message.end()));
+    if (LOG_LEVEL > LogLevel::ERR)
+        return;
+    Log("  [ERROR] ", message, true);
 }
 
-// Windows error log
-void Firelink::WinError(const wstring& message)
-{
-    if (LOG_LEVEL > ERR) return;
-    const DWORD errorCode = GetLastError();
-    LPWSTR errorBuffer = nullptr;
-    FormatMessageW(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
-        nullptr, errorCode, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), reinterpret_cast<LPWSTR>(&errorBuffer), 0, nullptr);
-    const wstring errorMessage = message + L" (WinError " + to_wstring(errorCode) + L"): " + errorBuffer;
-    LocalFree(errorBuffer);
-    Error(errorMessage);
-}
 void Firelink::WinError(const string& message)
 {
-    return WinError(wstring(message.begin(), message.end()));
+    if (LOG_LEVEL > LogLevel::ERR)
+        return;
+    const DWORD errorCode = GetLastError();
+    LPSTR errorBuffer = nullptr;
+    FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+        nullptr, errorCode, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), reinterpret_cast<LPSTR>(&errorBuffer), 0, nullptr);
+    const string errorMessage = format("{} (WinError {}): {}", message, to_string(errorCode), errorBuffer);
+    LocalFree(errorBuffer);
+    Error(errorMessage);
 }

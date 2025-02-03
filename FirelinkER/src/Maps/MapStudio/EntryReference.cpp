@@ -91,8 +91,8 @@ int32_t EntryReference<T>::ToIndex(const Entry* sourceEntry, const vector<T*>& e
         i++;
     }
 
-    string sourceName = sourceEntry->GetName();
-    string destName = m_destEntry->GetName();
+    string sourceName = sourceEntry->GetNameUTF8();
+    string destName = m_destEntry->GetNameUTF8();
     Error(format("EntryReference '{}' references an invalid entry: '{}'", sourceName, destName));
     return -1;
 }
@@ -113,8 +113,8 @@ int16_t EntryReference<T>::ToIndex16(const Entry* sourceEntry, const vector<T*>&
                 return static_cast<int16_t>(i);
             } catch (const std::out_of_range& _)
             {
-                string sourceName = sourceEntry->GetName();
-                string destName = m_destEntry->GetName();
+                string sourceName = sourceEntry->GetNameUTF8();
+                string destName = m_destEntry->GetNameUTF8();
                 Error(format("EntryReference '{}' references entry '{}' with an index that is too large "
                              "(index field is 16-bit).", sourceName, destName));
                 return -1;
@@ -122,8 +122,8 @@ int16_t EntryReference<T>::ToIndex16(const Entry* sourceEntry, const vector<T*>&
         i++;
     }
 
-    string sourceName = sourceEntry->GetName();
-    string destName = m_destEntry->GetName();
+    string sourceName = sourceEntry->GetNameUTF8();
+    string destName = m_destEntry->GetNameUTF8();
     Error(format("EntryReference '{}' references an invalid entry: '{}'", sourceName, destName));
     return -1;
 }

@@ -20,7 +20,7 @@ namespace FirelinkER::Maps::MapStudio
 
     // MSB Event supertype. Does not inherit from `EntityEntry` because despite all having an `entityId` field, not all
     // events actually use it (i.e. not all are valid EMEVD variables).
-    class FIRELINKER_API Event : public Entry
+    class FIRELINK_ER_API Event : public Entry
     {
     public:
         using EnumType = EventType;
@@ -49,7 +49,7 @@ namespace FirelinkER::Maps::MapStudio
 
         Event() = default;
 
-        explicit Event(const std::string& name) : Entry(name) {}
+        explicit Event(const std::u16string& name) : Entry(name) {}
 
         /// @brief Returns `static constexpr EventType` defined in each subclass.
         [[nodiscard]] virtual EventType GetType() const = 0;
@@ -98,7 +98,7 @@ namespace FirelinkER::Maps::MapStudio
 
         explicit operator std::string() const
         {
-            return std::format("{}[\"{}\"]", GetTypeNames().at(GetType()), m_name);
+            return std::format("{}[\"{}\"]", GetTypeNames().at(GetType()), GetNameUTF8());
         }
 
     protected:
@@ -121,14 +121,14 @@ namespace FirelinkER::Maps::MapStudio
 
     };
 
-    class FIRELINKER_API TreasureEvent final : public Event
+    class FIRELINK_ER_API TreasureEvent final : public Event
     {
     public:
         static constexpr auto Type = EventType::Treasure;
 
         TreasureEvent() = default;
 
-        explicit TreasureEvent(const std::string& name) : Event(name) {}
+        explicit TreasureEvent(const std::u16string& name) : Event(name) {}
 
         [[nodiscard]] EventType GetType() const override { return Type; }
 
@@ -167,14 +167,14 @@ namespace FirelinkER::Maps::MapStudio
         bool SerializeSubtypeData(std::ofstream& stream) const override;
     };
 
-    class FIRELINKER_API SpawnerEvent final : public Event
+    class FIRELINK_ER_API SpawnerEvent final : public Event
     {
     public:
         static constexpr auto Type = EventType::Spawner;
 
         SpawnerEvent() = default;
 
-        explicit SpawnerEvent(const std::string& name) : Event(name)
+        explicit SpawnerEvent(const std::u16string& name) : Event(name)
         {
             spawnPartsIndices.fill(-1);
             spawnRegionsIndices.fill(-1);
@@ -245,7 +245,7 @@ namespace FirelinkER::Maps::MapStudio
     };
 
 
-    class FIRELINKER_API NavigationEvent final : public Event
+    class FIRELINK_ER_API NavigationEvent final : public Event
     {
     public:
         static constexpr auto Type = EventType::Navigation;
@@ -253,7 +253,7 @@ namespace FirelinkER::Maps::MapStudio
 
 NavigationEvent() = default;
 
-        explicit NavigationEvent(const std::string& name) : Event(name) {}
+        explicit NavigationEvent(const std::u16string& name) : Event(name) {}
 
         [[nodiscard]] EventType GetType() const override { return Type; }
 
@@ -271,14 +271,14 @@ NavigationEvent() = default;
         bool SerializeSubtypeData(std::ofstream& stream) const override;
     };
 
-    class FIRELINKER_API ObjActEvent final : public Event
+    class FIRELINK_ER_API ObjActEvent final : public Event
     {
     public:
         static constexpr auto Type = EventType::ObjAct;
 
         ObjActEvent() = default;
 
-        explicit ObjActEvent(const std::string& name) : Event(name) {}
+        explicit ObjActEvent(const std::u16string& name) : Event(name) {}
 
         [[nodiscard]] EventType GetType() const override { return Type; }
 
@@ -313,7 +313,7 @@ NavigationEvent() = default;
         bool SerializeSubtypeData(std::ofstream& stream) const override;
     };
 
-    class FIRELINKER_API NPCInvasionEvent final : public Event
+    class FIRELINK_ER_API NPCInvasionEvent final : public Event
     {
         int32_t hostEntityId = -1;
         int32_t invasionFlagId = -1;
@@ -332,7 +332,7 @@ NavigationEvent() = default;
 
         NPCInvasionEvent() = default;
 
-        explicit NPCInvasionEvent(const std::string& name) : Event(name) {}
+        explicit NPCInvasionEvent(const std::u16string& name) : Event(name) {}
 
         [[nodiscard]] EventType GetType() const override { return Type; }
 
@@ -361,14 +361,14 @@ NavigationEvent() = default;
         void SetUnk1c(const int32_t unk1c) { this->unk1c = unk1c; }
     };
 
-    class FIRELINKER_API PlatoonEvent final : public Event
+    class FIRELINK_ER_API PlatoonEvent final : public Event
     {
     public:
         static constexpr auto Type = EventType::Platoon;
 
         PlatoonEvent() = default;
 
-        explicit PlatoonEvent(const std::string& name) : Event(name)
+        explicit PlatoonEvent(const std::u16string& name) : Event(name)
         {
             platoonPartsIndices.fill(-1);
         }
@@ -401,14 +401,14 @@ NavigationEvent() = default;
         bool SerializeSubtypeData(std::ofstream& stream) const override;
     };
 
-    class FIRELINKER_API PatrolRouteEvent final : public Event
+    class FIRELINK_ER_API PatrolRouteEvent final : public Event
     {
     public:
         static constexpr auto Type = EventType::PatrolRoute;
 
         PatrolRouteEvent() = default;
 
-        explicit PatrolRouteEvent(const std::string& name) : Event(name)
+        explicit PatrolRouteEvent(const std::u16string& name) : Event(name)
         {
             patrolRegionsIndices.fill(-1);
         }
@@ -434,14 +434,14 @@ NavigationEvent() = default;
         bool SerializeSubtypeData(std::ofstream& stream) const override;
     };
 
-    class FIRELINKER_API MountEvent final : public Event
+    class FIRELINK_ER_API MountEvent final : public Event
     {
     public:
         static constexpr auto Type = EventType::Mount;
 
         MountEvent() = default;
 
-        explicit MountEvent(const std::string& name) : Event(name) {}
+        explicit MountEvent(const std::u16string& name) : Event(name) {}
 
         [[nodiscard]] EventType GetType() const override { return Type; }
 
@@ -466,14 +466,14 @@ NavigationEvent() = default;
         bool SerializeSubtypeData(std::ofstream& stream) const override;
     };
 
-    class FIRELINKER_API SignPoolEvent final : public Event
+    class FIRELINK_ER_API SignPoolEvent final : public Event
     {
     public:
         static constexpr auto Type = EventType::SignPool;
 
         SignPoolEvent() = default;
 
-        explicit SignPoolEvent(const std::string& name) : Event(name) {}
+        explicit SignPoolEvent(const std::u16string& name) : Event(name) {}
 
         [[nodiscard]] EventType GetType() const override { return Type; }
 
@@ -496,14 +496,14 @@ NavigationEvent() = default;
         bool SerializeSubtypeData(std::ofstream& stream) const override;
     };
 
-    class FIRELINKER_API RetryPointEvent final : public Event
+    class FIRELINK_ER_API RetryPointEvent final : public Event
     {
     public:
         static constexpr auto Type = EventType::RetryPoint;
 
         RetryPointEvent() = default;
 
-        explicit RetryPointEvent(const std::string& name) : Event(name) {}
+        explicit RetryPointEvent(const std::u16string& name) : Event(name) {}
 
         [[nodiscard]] EventType GetType() const override { return Type; }
 
@@ -536,14 +536,14 @@ NavigationEvent() = default;
         bool SerializeSubtypeData(std::ofstream& stream) const override;
     };
 
-    class FIRELINKER_API AreaTeamEvent final : public Event
+    class FIRELINK_ER_API AreaTeamEvent final : public Event
     {
     public:
         static constexpr auto Type = EventType::AreaTeam;
 
         AreaTeamEvent() = default;
 
-        explicit AreaTeamEvent(const std::string& name) : Event(name) {}
+        explicit AreaTeamEvent(const std::u16string& name) : Event(name) {}
 
         [[nodiscard]] EventType GetType() const override { return Type; }
 
@@ -606,14 +606,14 @@ NavigationEvent() = default;
         bool SerializeSubtypeData(std::ofstream& stream) const override;
     };
 
-    class FIRELINKER_API OtherEvent final : public Event
+    class FIRELINK_ER_API OtherEvent final : public Event
     {
     public:
         static constexpr auto Type = EventType::Other;
 
         OtherEvent() = default;
 
-        explicit OtherEvent(const std::string& name) : Event(name) {}
+        explicit OtherEvent(const std::u16string& name) : Event(name) {}
 
         [[nodiscard]] EventType GetType() const override { return Type; }
 

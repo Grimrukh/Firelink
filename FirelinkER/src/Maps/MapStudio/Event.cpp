@@ -2,7 +2,6 @@
 #include "FirelinkER/Maps/MapStudio/Event.h"
 #include "Firelink/BinaryReadWrite.h"
 #include "Firelink/BinaryValidation.h"
-#include "Firelink/MemoryUtils.h"
 #include "FirelinkER/Maps/MapStudio/MSBFormatError.h"
 
 using namespace std;
@@ -67,15 +66,15 @@ void Event::Deserialize(ifstream& stream)
 
     if (header.nameOffset == 0)
         throw MSBFormatError("Event name offset is zero.");
+
     stream.seekg(start + header.nameOffset);
-    const u16string nameWide = ReadUTF16String(stream);
-    m_name = Firelink::UTF16ToUTF8(nameWide);
+    m_name = ReadUTF16String(stream);
+
+    // Firelink::Info(format("Deserializing Event '{}' at offset 0x{:X}.", GetNameUTF8(), static_cast<int64_t>(start)));
 
     // Check type
     if (header.subtype != GetType())
-    {
-        throw MSBFormatError("Event " + m_name + " was loaded with incorrect subtype.");
-    }
+        throw MSBFormatError(format("Event '{}' was loaded with incorrect subtype.", GetNameUTF8()));
     if (header.supertypeDataOffset == 0)
         throw MSBFormatError("Event supertype data offset is zero.");
     stream.seekg(start + header.supertypeDataOffset);
@@ -89,13 +88,13 @@ void Event::Deserialize(ifstream& stream)
     {
         stream.seekg(start + header.subtypeDataOffset);
         if (!DeserializeSubtypeData(stream))
-        {
-            throw MSBFormatError("Event " + m_name + " has non-zero subtype data offset, but no data was expected.");
-        }
+            throw MSBFormatError(format(
+                "Event '{}' has non-zero subtype data offset, but no data was expected.", GetNameUTF8()));
     }
     else if (DeserializeSubtypeData(stream))
     {
-        throw MSBFormatError("Event " + m_name + " has no subtype data offset, but data was expected.");
+        throw MSBFormatError(format(
+        "Event '{}' has zero subtype data offset, but data was expected.", GetNameUTF8()));
     }
 
     // Extra data always present.
@@ -104,15 +103,17 @@ void Event::Deserialize(ifstream& stream)
     stream.seekg(start + header.extraDataOffset);
     const auto extraData = ReadValidatedStruct<EventExtraDataStruct>(stream);
     mapId = extraData.mapId;
-    this->eUnk04 = extraData.unk04;
-    this->eUnk08 = extraData.unk08;
-    this->eUnk0C = extraData.unk0C;
+    eUnk04 = extraData.unk04;
+    eUnk08 = extraData.unk08;
+    eUnk0C = extraData.unk0C;
 }
 
 
 void Event::Serialize(ofstream &stream, const int supertypeIndex, const int subtypeIndex) const
 {
     const streampos start = stream.tellp();
+
+    // Firelink::Info(format("Serializing Event '{}' at offset 0x{:X}.", GetNameUTF8(), static_cast<int64_t>(start)));
 
     Reserver reserver(stream, true);
 
@@ -604,7 +605,7 @@ struct MountEventData
     int32_t mountPartIndex;
 
     // Nothing to validate.
-    static  void Validate() {}
+    static void Validate() {}
 };
 
 bool MountEvent::DeserializeSubtypeData(ifstream& stream)
@@ -759,7 +760,7 @@ struct AreaTeamEventData
     int32_t sUnk28;
 
     // Nothing to validate.
-    static  void Validate() {}
+    static void Validate() {}
 };
 
 

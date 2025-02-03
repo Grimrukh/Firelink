@@ -8,7 +8,7 @@
 
 namespace FirelinkER::Maps::MapStudio
 {
-    class FIRELINKER_API MSBFormatError final : public std::exception
+    class FIRELINK_ER_API MSBFormatError final : public std::exception
     {
     public:
         explicit MSBFormatError(std::string msg) : message(std::move(msg)) {}

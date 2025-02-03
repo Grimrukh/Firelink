@@ -21,7 +21,7 @@ if (WIN32)
 endif()
 
 # Enable DLL exports for FirelinkDSR.
-target_compile_definitions(FirelinkDSR PRIVATE FIRELINKDSR_EXPORTS)
+target_compile_definitions(FirelinkDSR PRIVATE FIRELINK_DSR_EXPORTS)
 
 target_include_directories(FirelinkDSR
     PUBLIC include

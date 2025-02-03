@@ -14,10 +14,10 @@
 
 namespace FirelinkER::Maps::MapStudio
 {
-    class FIRELINKER_API RouteParam final : public EntryParam<Route>
+    class FIRELINK_ER_API RouteParam final : public EntryParam<Route>
     {
     public:
-        RouteParam() : EntryParam(73, "ROUTE_PARAM_ST") {}
+        RouteParam() : EntryParam(73, u"ROUTE_PARAM_ST") {}
 
         /// @brief Create a new Route with no name.
         [[nodiscard]] Route* GetNewEntry(const int entrySubtype) override

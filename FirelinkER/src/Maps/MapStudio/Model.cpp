@@ -5,7 +5,6 @@
 #include "FirelinkER/Maps/MapStudio/Model.h"
 #include "Firelink/BinaryReadWrite.h"
 #include "Firelink/BinaryValidation.h"
-#include "Firelink/MemoryUtils.h"
 #include "FirelinkER/Maps/MapStudio/MSBFormatError.h"
 
 using namespace std;
@@ -49,18 +48,16 @@ void Model::Deserialize(ifstream& stream)
     const auto header = ReadValidatedStruct<ModelHeader>(stream);
 
     stream.seekg(start + header.nameOffset);
-    const u16string nameWide = ReadUTF16String(stream);
-    m_name = Firelink::UTF16ToUTF8(nameWide);
+    m_name = ReadUTF16String(stream);
 
     if (header.modelDataType != GetType())
     {
         throw MSBFormatError("Model header/class subtype mismatch.");
     }
-    instanceCount = header.instanceCount;
+    m_instanceCount = header.instanceCount;
 
     stream.seekg(start + header.sibPathOffset);
-    const u16string sibPathWide = ReadUTF16String(stream);
-    sibPath = Firelink::UTF16ToUTF8(sibPathWide);
+    m_sibPath = ReadUTF16String(stream);
 
     // No subtype data for models.
 }
@@ -77,7 +74,7 @@ void Model::Serialize(ofstream& stream, int supertypeIndex, const int subtypeInd
     {
         .modelDataType = GetType(),
         .subtypeIndex = subtypeIndex,
-        .instanceCount = instanceCount,
+        .instanceCount = m_instanceCount,
         .unk1C = hUnk1C,
     };
     reserver.ReserveValidatedStruct("ModelHeader", sizeof(ModelHeader));
@@ -86,7 +83,7 @@ void Model::Serialize(ofstream& stream, int supertypeIndex, const int subtypeInd
     WriteUTF16String(stream, m_name);
 
     header.sibPathOffset = stream.tellp() - start;
-    WriteUTF16String(stream, sibPath);
+    WriteUTF16String(stream, m_sibPath);
 
     AlignStream(stream, 8);
 

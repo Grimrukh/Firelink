@@ -25,6 +25,9 @@ int main()
         throw runtime_error("MSB file not found.");
     }
 
+    // SetLogLevel(LogLevel::DEBUG);
+    // SetLogFile(filesystem::path("er_msb_test.log"));
+
     Info(format("Opening MSB file: {}", msbPath.string()));
     unique_ptr<MSB> msb;
     try
@@ -91,4 +94,32 @@ int main()
     }
     else
         Info("First character has no draw parent Part set.");
+
+    // Write MSB.
+    filesystem::path outPath = "m10_00_00_00_out.msb";
+    outPath = absolute(outPath);
+    Info(format("Writing MSB to: {}", outPath.string()));
+    msb->WriteToFilePath(outPath);
+    Info("MSB written successfully.");
+
+    Info("Re-reading MSB to verify.");
+    try
+    {
+        const auto startTime = chrono::high_resolution_clock::now();
+        MSB::NewFromFilePath(outPath);
+        const auto endTime = chrono::high_resolution_clock::now();
+        Info(format("MSB reloaded in {} ms.", chrono::duration_cast<chrono::milliseconds>(endTime - startTime).count()));
+    }
+    catch (const MSBFormatError& e)
+    {
+        Error(format("MSB format error on re-read: {}", e.what()));
+        throw;
+    }
+    catch (const exception& e)
+    {
+        Error(format("Error re-reading MSB: {}", e.what()));
+        throw;
+    }
+
+    Info("MSB read/write/re-read completed successfully.");
 }

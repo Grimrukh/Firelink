@@ -6,7 +6,6 @@
 #include "Firelink/BinaryReadWrite.h"
 #include "Firelink/BinaryValidation.h"
 #include "Firelink/Collections.h"
-#include "Firelink/MemoryUtils.h"
 #include "FirelinkER/Maps/MapStudio/MSBFormatError.h"
 #include "FirelinkER/Maps/MapStudio/Shape.h"
 
@@ -18,7 +17,7 @@ using namespace FirelinkER::Maps;
 using namespace FirelinkER::Maps::MapStudio;
 
 
-struct RegionHeaderStruct
+struct RegionHeader
 {
     int64_t nameOffset;
     RegionType subtype;
@@ -52,7 +51,7 @@ struct RegionDataStruct
 {
     int32_t attachedPartIndex;
     uint32_t entityId;
-    uint8_t unk08;
+    uint8_t unk08;  // usually 0xFF
     padding<7> _pad1;
 
     void Validate() const
@@ -64,10 +63,10 @@ struct RegionDataStruct
 
 struct RegionExtraDataStruct
 {
-    int32_t mapId;
+    int32_t mapId;  // usually 0xFFFFFFFF
     int32_t unk04;
     padding<4> _pad1;
-    int32_t unk0C;
+    int32_t unk0C;  // usually 0xFFFFFFFF
     padding<16> _pad2;
 
     void Validate() const
@@ -83,30 +82,30 @@ unique_ptr<Shape>& Region::SetShapeType(const ShapeType shapeType)
     {
         case ShapeType::NoShape:
             // Same effect as Point.
-            shape = nullptr;
-            return shape;
+            m_shape = nullptr;
+            return m_shape;
         case ShapeType::PointShape:
-            shape = make_unique<Point>();
-            return shape;
+            m_shape = make_unique<Point>();
+            return m_shape;
         case ShapeType::CircleShape:
-            shape = make_unique<Circle>();
-            return shape;
+            m_shape = make_unique<Circle>();
+            return m_shape;
         case ShapeType::SphereShape:
-            shape = make_unique<Sphere>();
-            return shape;
+            m_shape = make_unique<Sphere>();
+            return m_shape;
         case ShapeType::CylinderShape:
-            shape = make_unique<Cylinder>();
-            return shape;
+            m_shape = make_unique<Cylinder>();
+            return m_shape;
         case ShapeType::RectangleShape:
-            shape = make_unique<Rectangle>();
-            return shape;
+            m_shape = make_unique<Rectangle>();
+            return m_shape;
         case ShapeType::BoxShape:
-            shape = make_unique<Box>();
-            return shape;
+            m_shape = make_unique<Box>();
+            return m_shape;
         case ShapeType::CompositeShape:
-            shape = make_unique<Composite>();
-            compositeChildren = make_unique<CompositeShapeReferences>();
-            return shape;
+            m_shape = make_unique<Composite>();
+            m_compositeChildren = make_unique<CompositeShapeReferences>();
+            return m_shape;
     }
 
     throw invalid_argument("Invalid shape type.");
@@ -117,72 +116,84 @@ void Region::Deserialize(ifstream &stream)
 {
     const streampos start = stream.tellg();
 
-    const auto header = ReadValidatedStruct<RegionHeaderStruct>(stream);
+    const auto header = ReadValidatedStruct<RegionHeader>(stream);
     if (header.subtype != GetType())
         throw invalid_argument("Region header/class subtype mismatch.");
 
     SetShapeType(header.shapeType);
-    translate = header.translate;
-    rotate = header.rotate;
-    this->hUnk40 = header.unk40;
+    m_translate = header.translate;
+    m_rotate = header.rotate;
+    this->m_hUnk40 = header.unk40;
 
     stream.seekg(start + header.nameOffset);
-    const u16string nameWide = ReadUTF16String(stream);
-    m_name = Firelink::UTF16ToUTF8(nameWide);
+    m_name = ReadUTF16String(stream);
 
     stream.seekg(start + header.unkShortsAOffset);
     const auto unkShortsACount = ReadValue<int16_t>(stream);
     for (int i = 0; i < unkShortsACount; i++)
-        unkShortsA.push_back(ReadValue<int16_t>(stream));
+        m_unkShortsA.push_back(ReadValue<int16_t>(stream));
 
     stream.seekg(start + header.unkShortsBOffset);
     const auto unkShortsBCount = ReadValue<int16_t>(stream);
     for (int i = 0; i < unkShortsBCount; i++)
-        unkShortsB.push_back(ReadValue<int16_t>(stream));
+        m_unkShortsB.push_back(ReadValue<int16_t>(stream));
+
+    // Info(format("Region {} has name, unkA, unkB, supertype offsets at: 0x{:X}, 0x{:X}, 0x{:X}, 0x{:X}.", GetNameUTF8(), header.nameOffset, header.unkShortsAOffset, header.unkShortsBOffset, header.supertypeDataOffset));
 
     if (header.shapeDataOffset == 0)
     {
         if (header.shapeType != ShapeType::PointShape)
             throw MSBFormatError("Region shape data offset is zero.");
+        // Info(format("   No shape offset (point)."));
     }
     else if (header.shapeType == ShapeType::PointShape)
         throw MSBFormatError("Region shape data offset is non-zero for Point shape.");
     else
     {
         stream.seekg(start + header.shapeDataOffset);
-        shape->DeserializeShapeData(stream);
+        // Info(format("   Shape offset: 0x{:X}.", header.shapeDataOffset));
+        m_shape->DeserializeShapeData(stream);
 
         if (header.shapeType == ShapeType::CompositeShape)
         {
             // Region stores child references for composite shape. (Deserialize method above did nothing.)
             // The references are resolved along with all other MSB references.
-            compositeChildren = make_unique<CompositeShapeReferences>();
+            m_compositeChildren = make_unique<CompositeShapeReferences>();
             for (int i = 0; i < 8; i++)
             {
-                compositeChildren->regionIndices[i] = ReadValue<int32_t>(stream);
-                compositeChildren->unk04s[i] = ReadValue<int32_t>(stream);
+                m_compositeChildren->regionIndices[i] = ReadValue<int32_t>(stream);
+                m_compositeChildren->unk04s[i] = ReadValue<int32_t>(stream);
             }
         }
     }
 
     stream.seekg(start + header.supertypeDataOffset);
     const auto supertypeData = ReadValidatedStruct<RegionDataStruct>(stream);
-    attachedPartIndex = supertypeData.attachedPartIndex;
+    m_attachedPartIndex = supertypeData.attachedPartIndex;
     m_entityId = supertypeData.entityId;
-    dUnk08 = supertypeData.unk08;
+    m_dUnk08 = supertypeData.unk08;
 
     if (header.subtypeDataOffset > 0)
     {
         stream.seekg(start + header.subtypeDataOffset);
         if (!DeserializeSubtypeData(stream))
         {
-            throw MSBFormatError("Region " + m_name + " has non-zero subtype data offset, but no data was expected.");
+            throw MSBFormatError("Region " + GetNameUTF8() + " has non-zero subtype data offset, but no data was expected.");
         }
     }
     else if (DeserializeSubtypeData(stream))
     {
-        throw MSBFormatError("Region " + m_name + " has no subtype data offset, but data was expected.");
+        throw MSBFormatError("Region " + GetNameUTF8() + " has no subtype data offset, but data was expected.");
     }
+
+    if (header.extraDataOffset == 0)
+        throw MSBFormatError("Region " + GetNameUTF8() + " has zero extra data offset.");
+
+    stream.seekg(start + header.extraDataOffset);
+    const auto extraData = ReadValidatedStruct<RegionExtraDataStruct>(stream);
+    m_mapId = extraData.mapId;
+    m_eUnk04 = extraData.unk04;
+    m_eUnk0C = extraData.unk0C;
 }
 
 
@@ -191,18 +202,17 @@ void Region::Serialize(ofstream& stream, const int supertypeIndex, const int sub
     const streampos start = stream.tellp();
 
     Reserver reserver(stream, true);
-
-    reserver.ReserveValidatedStruct("RegionHeader", sizeof(RegionHeaderStruct));
-    auto header = RegionHeaderStruct
+    reserver.ReserveValidatedStruct("RegionHeader", sizeof(RegionHeader));
+    auto header = RegionHeader
     {
         .subtype = GetType(),
         .subtypeIndex = subtypeIndex,
         .shapeType = GetShapeType(),
-        .translate = translate,
-        .rotate = rotate,
+        .translate = m_translate,
+        .rotate = m_rotate,
         .supertypeIndex = supertypeIndex,
-        .unk40 = hUnk40,
-        .eventLayer = eventLayer,
+        .unk40 = m_hUnk40,
+        .eventLayer = m_eventLayer,
     };
 
     header.nameOffset = stream.tellp() - start;
@@ -210,26 +220,38 @@ void Region::Serialize(ofstream& stream, const int supertypeIndex, const int sub
     AlignStream(stream, 4);
 
     header.unkShortsAOffset = stream.tellp() - start;
-    WriteValue(stream, static_cast<int16_t>(unkShortsA.size()));
-    for (int16_t unkShort : unkShortsA)
-    {
+    WriteValue(stream, static_cast<int16_t>(m_unkShortsA.size()));
+    for (int16_t unkShort : m_unkShortsA)
         WriteValue(stream, unkShort);
-    }
     AlignStream(stream, 4);
 
     header.unkShortsBOffset = stream.tellp() - start;
-    WriteValue(stream, static_cast<int16_t>(unkShortsB.size()));
-    for (int16_t unkShort : unkShortsB)
-    {
+    WriteValue(stream, static_cast<int16_t>(m_unkShortsB.size()));
+    for (int16_t unkShort : m_unkShortsB)
         WriteValue(stream, unkShort);
-    }
     AlignStream(stream, 4);
 
+    // Align to 8 before next data (be it shape or supertype).
+    AlignStream(stream, 8);
+
     // Check if Shape is not `nullptr` and not a `Point`.
-    if (shape && shape->GetType() != ShapeType::PointShape)
+    if (m_shape && m_shape->GetType() != ShapeType::PointShape)
     {
         header.shapeDataOffset = stream.tellp() - start;
-        shape->SerializeShapeData(stream);
+        if (m_shape->GetType() == ShapeType::CompositeShape)
+        {
+            // Write composite child shape references/unknowns.
+            // (`Shape::SerializeShapeData()` does nothing for Composite shapes.)
+            for (int i = 0; i < 8; i++)
+            {
+                WriteValue(stream, m_compositeChildren->regionIndices[i]);
+                WriteValue(stream, m_compositeChildren->unk04s[i]);
+            }
+        }
+        else
+        {
+            m_shape->SerializeShapeData(stream);
+        }
     }
     else
     {
@@ -237,11 +259,12 @@ void Region::Serialize(ofstream& stream, const int supertypeIndex, const int sub
     }
 
     header.supertypeDataOffset = stream.tellp() - start;
+    // Info(format("Writing Region '{}' supertype data at offset 0x{:X}.", string(*this), static_cast<int64_t>(stream.tellp())));
     const RegionDataStruct supertypeData
     {
-        .attachedPartIndex = attachedPartIndex,
+        .attachedPartIndex = m_attachedPartIndex,
         .entityId = m_entityId,
-        .unk08 = dUnk08,
+        .unk08 = m_dUnk08,
     };
     WriteValidatedStruct(stream, supertypeData);
 
@@ -252,27 +275,24 @@ void Region::Serialize(ofstream& stream, const int supertypeIndex, const int sub
     }
 
     const streampos subtypeDataOffset = stream.tellp();
+    // Info(format("  Writing Region '{}' subtype data at offset 0x{:X}.", string(*this), static_cast<int64_t>(stream.tellp())));
     if (SerializeSubtypeData(stream))
-    {
         header.subtypeDataOffset = subtypeDataOffset - start;
-    }
     else
-    {
         header.subtypeDataOffset = 0;
-    }
 
     // Older region types align here instead.
     if (GetType() <= RegionType::BuddySummonPoint || GetType() == RegionType::Other)
-    {
         AlignStream(stream, 8);
-    }
 
     header.extraDataOffset = stream.tellp() - start;
+    // Info(format("  Writing Region '{}' extra data at offset 0x{:X}.", string(*this), static_cast<int64_t>(stream.tellp())));
+    // Info(format("  m_mapId = {}, m_eUnk04 = {}, m_eUnk0C = {}", m_mapId, m_eUnk04, m_eUnk0C));
     const RegionExtraDataStruct extraData
     {
-        .mapId = mapId,
-        .unk04 = eUnk04,
-        .unk0C = eUnk0C,
+        .mapId = m_mapId,
+        .unk04 = m_eUnk04,
+        .unk0C = m_eUnk0C,
     };
     WriteValidatedStruct(stream, extraData);
 
@@ -286,23 +306,23 @@ void Region::Serialize(ofstream& stream, const int supertypeIndex, const int sub
 
 void Region::DeserializeEntryReferences(const std::vector<Region*>& regions, const std::vector<Part*>& parts)
 {
-    if (compositeChildren)
-        compositeChildren->SetReferences(regions);
-    attachedPart.SetFromIndex(parts, attachedPartIndex);
+    if (m_compositeChildren)
+        m_compositeChildren->SetReferences(regions);
+    m_attachedPart.SetFromIndex(parts, m_attachedPartIndex);
 }
 
 void Region::SerializeEntryIndices(const std::vector<Region*>& regions, const std::vector<Part*>& parts)
 {
-    if (compositeChildren)
-        compositeChildren->SetIndices(this, regions);
-    attachedPartIndex = attachedPart.ToIndex(this, parts);
+    if (m_compositeChildren)
+        m_compositeChildren->SetIndices(this, regions);
+    m_attachedPartIndex = m_attachedPart.ToIndex(this, parts);
 }
 
 
 bool InvasionPointRegion::DeserializeSubtypeData(ifstream& stream)
 {
     // Not bothering with struct.
-    priority = ReadValue<int>(stream);
+    m_priority = ReadValue<int>(stream);
     return true;
 }
 
@@ -310,7 +330,7 @@ bool InvasionPointRegion::DeserializeSubtypeData(ifstream& stream)
 bool InvasionPointRegion::SerializeSubtypeData(ofstream& stream) const
 {
     // Not bothering with struct.
-    WriteValue(stream, priority);
+    WriteValue(stream, m_priority);
     return true;
 }
 
@@ -319,19 +339,28 @@ struct EnvironmentMapPointRegionData
 {
     float unk00;
     int unk04;
+    int _minusOne;
+    uint8_t _zero;
     bool unk0D;
     bool unk0E;
     bool unk0F;
     float unk10;
     float unk14;
     int mapId;
+    padding<4> _pad1;
     int unk20;
     int unk24;
     int unk28;
     uint8_t unk2C;
     uint8_t unk2D;
+    padding<2> _pad2;
 
-    static  void Validate() {}
+    void Validate() const
+    {
+        AssertValue("EnvironmentMapPointRegionData._minusOne", -1, _minusOne);
+        AssertValue("EnvironmentMapPointRegionData._zero", 0, _zero);
+        AssertPadding("EnvironmentMapPointRegionData", _pad1, _pad2);
+    }
 };
 
 
@@ -361,6 +390,7 @@ bool EnvironmentMapPointRegion::SerializeSubtypeData(ofstream& stream) const
     {
         .unk00 = sUnk00,
         .unk04 = sUnk04,
+        ._minusOne = -1,
         .unk0D = sUnk0D,
         .unk0E = sUnk0E,
         .unk0F = sUnk0F,
@@ -487,7 +517,7 @@ void WindVFXRegion::SerializeEntryIndices(const std::vector<Region*>& regions, c
 struct SpawnPointRegionData
 {
     int _minusOne;
-    padding<3> _pad1;
+    padding<12> _pad1;
 
     void Validate() const
     {

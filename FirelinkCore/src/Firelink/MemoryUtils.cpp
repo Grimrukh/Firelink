@@ -1,5 +1,4 @@
 ﻿#include <sstream>
-#include <iomanip>
 
 #include "Firelink/Logging.h"
 #include "Firelink/MemoryUtils.h"
@@ -29,6 +28,11 @@ string Firelink::UTF16ToUTF8(const u16string& utf16)
         }
     }
     return str;
+}
+
+std::string Firelink::UTF16ToUTF8(const std::wstring& utf16)
+{
+    return UTF16ToUTF8(u16string(utf16.begin(), utf16.end()));
 }
 
 const void* Firelink::GetOffsetPointer(const void* ptr, const int offset)

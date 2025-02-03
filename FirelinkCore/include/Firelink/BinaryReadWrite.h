@@ -298,6 +298,7 @@ namespace Firelink::BinaryReadWrite
     {
         std::ofstream& stream;
         std::map<std::string, std::streampos> reservedOffsetOffsets;
+        std::map<std::string, std::streampos> reservedInt32Offsets;
         std::map<std::string, std::pair<std::streampos, std::size_t>> reservedStructOffsetsSizes;
         bool finished = false;
         bool is64Bit = true;
@@ -315,23 +316,29 @@ namespace Firelink::BinaryReadWrite
             }
         }
 
-        // Reserves space for a 64-bit offset at the current position.
+        /// @brief Reserves space for a 64-bit (or 32-bit if specified in `Reserver`) offset at the current position.
         void ReserveOffset(const std::string& label);
-        // Reserves space for a struct of the given size. (Can only be filled with `ValidatedStruct` instances.)
+        /// @brief Reserves space for a 32-bit signed `int` at the current position.
+        void ReserveInt32(const std::string& label);
+        /// @brief Reserves space for a struct of the given size. (Can only be filled with `ValidatedStruct` instances.)
         void ReserveValidatedStruct(const std::string& label, const std::streamsize& size);
 
-        // Fills a previously reserved 64-bit offset in the output stream.
+        /// @brief Fills a previously reserved 64-bit offset in the output stream. 64-bit `Reserver` only.
         void FillOffset(const std::string& label, int64_t offset);
-        // Fills a previously reserved 32-bit offset in the output stream.
+        /// @brief Fills a previously reserved 32-bit offset in the output stream. 32-bit `Reserver` only.
         void FillOffset(const std::string& label, int32_t offset);
 
-        // Fills a previously reserved 64-bit offset in the output stream using the current stream offset.
+        /// @brief Fills a previously reserved offset in the output stream using the current stream offset.
         void FillOffsetWithPosition(const std::string& label);
-        // Fills a previously reserved 64-bit offset in the output stream using the current stream offset, relative to
-        // (i.e. after subtracting) the `relativePositionStart` set by `SetRelativePositionStart()`.
+
+        /// @brief Fills a previously reserved 64-bit offset in the output stream.
+        /// Uses the current stream offset, relative to the `relativePositionStart` set by `SetRelativePositionStart()`.
         void FillOffsetWithRelativePosition(const std::string& label);
 
-        // Fills a previously reserved `ValidatedStruct` in the output stream.
+        /// @brief Fills a previously reserved `int32_t` in the output stream.
+        void FillInt32(const std::string& label, int32_t value);
+
+        /// @brief Fills a previously reserved `ValidatedStruct` in the output stream.
         template <Validated T>
         void FillValidatedStruct(const std::string& label, const T& vStruct)
         {
@@ -350,14 +357,16 @@ namespace Firelink::BinaryReadWrite
             stream.seekp(offset);
             WriteValidatedStruct(stream, vStruct);
             stream.seekp(currentPos);
+
+            reservedStructOffsetsSizes.erase(label);
         }
 
-        // Set the relative position to use when filling offsets with relative positions.
+        /// @brief Set the relative position to use when filling offsets with relative positions.
         void SetRelativePositionStart(const std::streampos offset) { relativePositionStart = offset; }
-        // Clear the relative position start.
+        /// @brief Clear the relative position start.
         void ClearRelativePositionStart() { relativePositionStart = 0; }
 
-        // Prevent further reserving and validate that all offsets have been filled.
+        /// @brief Prevent further reserving and validate that all offsets have been filled.
         void Finish();
     };
 

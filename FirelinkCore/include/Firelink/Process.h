@@ -141,7 +141,7 @@ namespace Firelink
         {
             if (outData.empty())
             {
-                Warning(L"Tried to read array into an empty vector (no-op).");
+                Warning("Tried to read array into an empty vector (no-op).");
                 return false;
             }
             return ReadProcessBytes(address, outData.data(), sizeof(T) * outData.size());

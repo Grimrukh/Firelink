@@ -2,6 +2,7 @@
 #include <string>
 
 #include "Firelink/Logging.h"
+#include "Firelink/MemoryUtils.h"
 #include "FirelinkDSR/DSRHook.h"
 
 
@@ -9,7 +10,7 @@
 int main()
 {
     Firelink::Info("Firelink logging success.");
-    const std::wstring dsrMsg = std::format(L"DSR Process Name: '{}'", FirelinkDSR::DSR_PROCESS_NAME);
+    const std::string dsrMsg = std::format("DSR Process Name: '{}'", Firelink::UTF16ToUTF8(FirelinkDSR::DSR_PROCESS_NAME));
     Firelink::Info(dsrMsg);
     return 0;
 }

@@ -19,7 +19,7 @@ namespace FirelinkER::Maps::MapStudio
 
     using Firelink::Vector3;
 
-    class FIRELINKER_API Region : public EntityEntry
+    class FIRELINK_ER_API Region : public EntityEntry
     {
     public:
         using EnumType = RegionType;
@@ -72,68 +72,68 @@ namespace FirelinkER::Maps::MapStudio
 
         Region() = default;
 
-        explicit Region(const std::string& name) : EntityEntry(name) {}
+        explicit Region(const std::u16string& name) : EntityEntry(name) {}
 
         /// @brief Copy constructor that clones a new unique `Shape` (if present).
         Region(const Region& other) : EntityEntry(other.m_name)
         {
             // Copy shape if present.
-            shape = other.shape ? other.shape->Clone() : nullptr;
-            translate = other.translate;
-            rotate = other.rotate;
-            hUnk40 = other.hUnk40;
-            eventLayer = other.eventLayer;
-            unkShortsA = std::vector(other.unkShortsA);
-            unkShortsB = std::vector(other.unkShortsB);
-            attachedPart = other.attachedPart;
-            attachedPartIndex = other.attachedPartIndex;
+            m_shape = other.m_shape ? other.m_shape->Clone() : nullptr;
+            m_translate = other.m_translate;
+            m_rotate = other.m_rotate;
+            m_hUnk40 = other.m_hUnk40;
+            m_eventLayer = other.m_eventLayer;
+            m_unkShortsA = std::vector(other.m_unkShortsA);
+            m_unkShortsB = std::vector(other.m_unkShortsB);
+            m_attachedPart = other.m_attachedPart;
+            m_attachedPartIndex = other.m_attachedPartIndex;
             m_entityId = other.m_entityId;
-            dUnk08 = other.dUnk08;
-            mapId = other.mapId;
-            eUnk04 = other.eUnk04;
-            eUnk0C = other.eUnk0C;
+            m_dUnk08 = other.m_dUnk08;
+            m_mapId = other.m_mapId;
+            m_eUnk04 = other.m_eUnk04;
+            m_eUnk0C = other.m_eUnk0C;
         }
 
         [[nodiscard]] virtual RegionType GetType() const = 0;
 
         /// @brief Get type enum `ShapeType` of this Region's shape. `shape == nullptr` also means `PointShape`.
-        [[nodiscard]] ShapeType GetShapeType() const { return shape == nullptr ? ShapeType::PointShape : shape->GetType(); }
+        [[nodiscard]] ShapeType GetShapeType() const { return m_shape == nullptr ? ShapeType::PointShape : m_shape->GetType(); }
 
         /// @brief Set this region's shape to  Creates a new instance of given shape type, which is then returned for caller modification.
         // Previous shape will be discarded (as a unique_ptr).
         std::unique_ptr<Shape>& SetShapeType(ShapeType shapeType);
 
-        [[nodiscard]] std::string GetShapeTypeName() const { return Shape::TypeNames.at(GetShapeType()); }
+        [[nodiscard]] std::string GetShapeTypeName() const { return Shape::GetTypeNames().at(GetShapeType()); }
 
-        [[nodiscard]] std::unique_ptr<Shape>& GetShape() { return shape; }
+        [[nodiscard]] std::unique_ptr<Shape>& GetShape() { return m_shape; }
 
-        [[nodiscard]] Vector3 GetTranslate() const { return translate; }
-        void SetTranslate(const Vector3& translate) { this->translate = translate; }
+        [[nodiscard]] Vector3 GetTranslate() const { return m_translate; }
+        void SetTranslate(const Vector3& translate) { this->m_translate = translate; }
 
-        [[nodiscard]] Vector3 GetRotate() const { return rotate; }
-        void SetRotate(const Vector3& rotate) { this->rotate = rotate; }
+        [[nodiscard]] Vector3 GetRotate() const { return m_rotate; }
+        void SetRotate(const Vector3& rotate) { this->m_rotate = rotate; }
 
-        [[nodiscard]] int32_t GetHUnk40() const { return hUnk40; }
-        void SetHUnk40(const int32_t hUnk40) { this->hUnk40 = hUnk40; }
+        [[nodiscard]] int32_t GetHUnk40() const { return m_hUnk40; }
+        void SetHUnk40(const int32_t hUnk40) { this->m_hUnk40 = hUnk40; }
 
-        [[nodiscard]] int32_t GetEventLayer() const { return eventLayer; }
-        void SetEventLayer(const int32_t eventLayer) { this->eventLayer = eventLayer; }
+        [[nodiscard]] int32_t GetEventLayer() const { return m_eventLayer; }
+        void SetEventLayer(const int32_t eventLayer) { this->m_eventLayer = eventLayer; }
 
-        [[nodiscard]] Part* GetAttachedPart() const { return attachedPart.Get(); }
-        void SetAttachedPart(Part* const part) { this->attachedPart.Set(part); }
-        void SetAttachedPart(const std::unique_ptr<Part>& part) { this->attachedPart.Set(part); }
+        [[nodiscard]] Part* GetAttachedPart() const { return m_attachedPart.Get(); }
+        void SetAttachedPart(Part* const part) { this->m_attachedPart.Set(part); }
+        void SetAttachedPart(const std::unique_ptr<Part>& part) { this->m_attachedPart.Set(part); }
 
-        [[nodiscard]] uint8_t GetDUnk08() const { return dUnk08; }
-        void SetDUnk08(const uint8_t dUnk08) { this->dUnk08 = dUnk08; }
+        [[nodiscard]] uint8_t GetDUnk08() const { return m_dUnk08; }
+        void SetDUnk08(const uint8_t dUnk08) { this->m_dUnk08 = dUnk08; }
 
-        [[nodiscard]] int32_t GetMapId() const { return mapId; }
-        void SetMapId(const int32_t mapId) { this->mapId = mapId; }
+        [[nodiscard]] int32_t GetMapId() const { return m_mapId; }
+        void SetMapId(const int32_t mapId) { this->m_mapId = mapId; }
 
-        [[nodiscard]] int32_t GetEUnk04() const { return eUnk04; }
-        void SetEUnk04(const int32_t eUnk04) { this->eUnk04 = eUnk04; }
+        [[nodiscard]] int32_t GetEUnk04() const { return m_eUnk04; }
+        void SetEUnk04(const int32_t eUnk04) { this->m_eUnk04 = eUnk04; }
 
-        [[nodiscard]] int32_t GetEUnk0C() const { return eUnk0C; }
-        void SetEUnk0C(const int32_t eUnk0C) { this->eUnk0C = eUnk0C; }
+        [[nodiscard]] int32_t GetEUnk0C() const { return m_eUnk0C; }
+        void SetEUnk0C(const int32_t eUnk0C) { this->m_eUnk0C = eUnk0C; }
 
         void Deserialize(std::ifstream& stream) override;
         void Serialize(std::ofstream& stream, int supertypeIndex, int subtypeIndex) const override;
@@ -143,7 +143,8 @@ namespace FirelinkER::Maps::MapStudio
 
         explicit operator std::string() const
         {
-            return std::format("{}[\"{}\", <{}>]", GetTypeNames().at(GetType()), m_name, GetShapeTypeName());
+            return std::format(
+                "{}[\"{}\", <{}>]", GetTypeNames().at(GetType()), GetNameUTF8(), GetShapeTypeName());
         }
 
     protected:
@@ -175,61 +176,61 @@ namespace FirelinkER::Maps::MapStudio
         };
 
         /// @brief `Shape` of this region. Must be a pointer for polymorphism. `nullptr` means a `Point` shape.
-        std::unique_ptr<Shape> shape = nullptr;
+        std::unique_ptr<Shape> m_shape = nullptr;
 
         /// @brief Optional `CompositeShapeReferences` to store `Composite` type shape children and their `unk04` value.
         /// Stored here, rather than in `Composite`, to make use of safe entry referencing system.
-        std::unique_ptr<CompositeShapeReferences> compositeChildren = nullptr;
+        std::unique_ptr<CompositeShapeReferences> m_compositeChildren = nullptr;
 
-        Vector3 translate = Vector3{};
-        Vector3 rotate = Vector3{};  // Euler angles in radians
-        int32_t hUnk40 = 0;
-        int32_t eventLayer = -1;
-        std::vector<int16_t> unkShortsA{};
-        std::vector<int16_t> unkShortsB{};
+        Vector3 m_translate = Vector3{};
+        Vector3 m_rotate = Vector3{};  // Euler angles in radians
+        int32_t m_hUnk40 = 0;
+        int32_t m_eventLayer = -1;
+        std::vector<int16_t> m_unkShortsA{};
+        std::vector<int16_t> m_unkShortsB{};
 
-        EntryReference<Part> attachedPart;
-        int32_t attachedPartIndex = -1;
+        EntryReference<Part> m_attachedPart;
+        int32_t m_attachedPartIndex = -1;
         // `entityId` defined in parent class.
-        uint8_t dUnk08 = 0;
+        uint8_t m_dUnk08 = 0;
 
-        int32_t mapId = 0;
-        int32_t eUnk04 = 0;
-        int32_t eUnk0C = 0;
+        int32_t m_mapId = 0;
+        int32_t m_eUnk04 = 0;
+        int32_t m_eUnk0C = 0;
 
         virtual bool DeserializeSubtypeData(std::ifstream& stream) { return false; }
         virtual bool SerializeSubtypeData(std::ofstream& stream) const { return false; }
     };
 
-    class FIRELINKER_API InvasionPointRegion final : public Region
+    class FIRELINK_ER_API InvasionPointRegion final : public Region
     {
     public:
         static constexpr auto Type = RegionType::InvasionPoint;
 
         InvasionPointRegion() = default;
 
-        explicit InvasionPointRegion(const std::string& name) : Region(name) {}
+        explicit InvasionPointRegion(const std::u16string& name) : Region(name) {}
 
         [[nodiscard]] RegionType GetType() const override { return Type; }
 
-        [[nodiscard]] int GetPriority() const { return priority; }
-        void SetPriority(const int newPriority) { priority = newPriority; }
+        [[nodiscard]] int GetPriority() const { return m_priority; }
+        void SetPriority(const int priority) { m_priority = priority; }
 
     private:
-        int priority = 0;
+        int m_priority = 0;
 
         bool DeserializeSubtypeData(std::ifstream& stream) override;
         bool SerializeSubtypeData(std::ofstream& stream) const override;
     };
 
-    class FIRELINKER_API EnvironmentMapPointRegion final : public Region
+    class FIRELINK_ER_API EnvironmentMapPointRegion final : public Region
     {
     public:
         static constexpr auto Type = RegionType::EnvironmentMapPoint;
 
         EnvironmentMapPointRegion() = default;
 
-        explicit EnvironmentMapPointRegion(const std::string& name) : Region(name) {}
+        explicit EnvironmentMapPointRegion(const std::u16string& name) : Region(name) {}
 
         [[nodiscard]] RegionType GetType() const override { return Type; }
 
@@ -279,14 +280,14 @@ namespace FirelinkER::Maps::MapStudio
         bool SerializeSubtypeData(std::ofstream& stream) const override;
     };
 
-    class FIRELINKER_API SoundRegion final : public Region
+    class FIRELINK_ER_API SoundRegion final : public Region
     {
     public:
         static constexpr auto Type = RegionType::Sound;
 
         SoundRegion() = default;
 
-        explicit SoundRegion(const std::string& name) : Region(name)
+        explicit SoundRegion(const std::u16string& name) : Region(name)
         {
             childRegionsIndices.fill(-1);
         }
@@ -320,14 +321,14 @@ namespace FirelinkER::Maps::MapStudio
         bool SerializeSubtypeData(std::ofstream& stream) const override;
     };
 
-    class FIRELINKER_API VFXRegion final : public Region
+    class FIRELINK_ER_API VFXRegion final : public Region
     {
     public:
         static constexpr auto Type = RegionType::VFX;
 
         VFXRegion() = default;
 
-        explicit VFXRegion(const std::string& name) : Region(name) {}
+        explicit VFXRegion(const std::u16string& name) : Region(name) {}
 
         [[nodiscard]] RegionType GetType() const override { return Type; }
 
@@ -344,14 +345,14 @@ namespace FirelinkER::Maps::MapStudio
         bool DeserializeSubtypeData(std::ifstream& stream) override;
         bool SerializeSubtypeData(std::ofstream& stream) const override;};
 
-    class FIRELINKER_API WindVFXRegion final : public Region
+    class FIRELINK_ER_API WindVFXRegion final : public Region
     {
     public:
         static constexpr auto Type = RegionType::WindVFX;
 
         WindVFXRegion() = default;
 
-        explicit WindVFXRegion(const std::string& name) : Region(name) {}
+        explicit WindVFXRegion(const std::u16string& name) : Region(name) {}
 
         [[nodiscard]] RegionType GetType() const override { return Type; }
 
@@ -379,14 +380,14 @@ namespace FirelinkER::Maps::MapStudio
     };
 
 
-    class FIRELINKER_API SpawnPointRegion final : public Region
+    class FIRELINK_ER_API SpawnPointRegion final : public Region
     {
     public:
         static constexpr auto Type = RegionType::SpawnPoint;
 
         SpawnPointRegion() = default;
 
-        explicit SpawnPointRegion(const std::string& name) : Region(name) {}
+        explicit SpawnPointRegion(const std::u16string& name) : Region(name) {}
 
         [[nodiscard]] RegionType GetType() const override { return Type; }
 
@@ -397,14 +398,14 @@ namespace FirelinkER::Maps::MapStudio
         bool SerializeSubtypeData(std::ofstream& stream) const override;
     };
 
-    class FIRELINKER_API MessageRegion final : public Region
+    class FIRELINK_ER_API MessageRegion final : public Region
     {
     public:
         static constexpr auto Type = RegionType::Message;
 
         MessageRegion() = default;
 
-        explicit MessageRegion(const std::string& name) : Region(name) {}
+        explicit MessageRegion(const std::u16string& name) : Region(name) {}
 
         [[nodiscard]] RegionType GetType() const override { return Type; }
 
@@ -443,14 +444,14 @@ namespace FirelinkER::Maps::MapStudio
         bool DeserializeSubtypeData(std::ifstream& stream) override;
         bool SerializeSubtypeData(std::ofstream& stream) const override;  };
 
-    class FIRELINKER_API EnvironmentMapEffectBoxRegion final : public Region
+    class FIRELINK_ER_API EnvironmentMapEffectBoxRegion final : public Region
     {
     public:
         static constexpr auto Type = RegionType::EnvironmentMapEffectBox;
 
         EnvironmentMapEffectBoxRegion() = default;
 
-        explicit EnvironmentMapEffectBoxRegion(const std::string& name) : Region(name) {}
+        explicit EnvironmentMapEffectBoxRegion(const std::u16string& name) : Region(name) {}
 
         [[nodiscard]] RegionType GetType() const override { return Type; }
 
@@ -503,28 +504,28 @@ namespace FirelinkER::Maps::MapStudio
         bool SerializeSubtypeData(std::ofstream& stream) const override;
     };
 
-    class FIRELINKER_API WindAreaRegion final : public Region
+    class FIRELINK_ER_API WindAreaRegion final : public Region
     {
     public:
         static constexpr auto Type = RegionType::WindArea;
 
         WindAreaRegion() = default;
 
-        explicit WindAreaRegion(const std::string& name) : Region(name) {}
+        explicit WindAreaRegion(const std::u16string& name) : Region(name) {}
 
         [[nodiscard]] RegionType GetType() const override { return Type; }
 
         // No subtype data read/write, not even pads.
     };
 
-    class FIRELINKER_API ConnectionRegion final : public Region
+    class FIRELINK_ER_API ConnectionRegion final : public Region
     {
     public:
         static constexpr auto Type = RegionType::Connection;
 
         ConnectionRegion() = default;
 
-        explicit ConnectionRegion(const std::string& name) : Region(name) {}
+        explicit ConnectionRegion(const std::u16string& name) : Region(name) {}
 
         [[nodiscard]] RegionType GetType() const override { return Type; }
 
@@ -538,14 +539,14 @@ namespace FirelinkER::Maps::MapStudio
         bool SerializeSubtypeData(std::ofstream& stream) const override;
     };
 
-    class FIRELINKER_API PatrolRoute22Region final : public Region
+    class FIRELINK_ER_API PatrolRoute22Region final : public Region
     {
     public:
         static constexpr auto Type = RegionType::PatrolRoute22;
 
         PatrolRoute22Region() = default;
 
-        explicit PatrolRoute22Region(const std::string& name) : Region(name) {}
+        explicit PatrolRoute22Region(const std::u16string& name) : Region(name) {}
 
         [[nodiscard]] RegionType GetType() const override { return Type; }
     private:
@@ -555,14 +556,14 @@ namespace FirelinkER::Maps::MapStudio
 
     };
 
-    class FIRELINKER_API BuddySummonPointRegion final : public Region
+    class FIRELINK_ER_API BuddySummonPointRegion final : public Region
     {
     public:
         static constexpr auto Type = RegionType::BuddySummonPoint;
 
         BuddySummonPointRegion() = default;
 
-        explicit BuddySummonPointRegion(const std::string& name) : Region(name) {}
+        explicit BuddySummonPointRegion(const std::u16string& name) : Region(name) {}
 
         [[nodiscard]] RegionType GetType() const override { return Type; }
     private:
@@ -571,14 +572,14 @@ namespace FirelinkER::Maps::MapStudio
         bool SerializeSubtypeData(std::ofstream& stream) const override;
     };
 
-    class FIRELINKER_API MufflingBoxRegion final : public Region
+    class FIRELINK_ER_API MufflingBoxRegion final : public Region
     {
     public:
         static constexpr auto Type = RegionType::MufflingBox;
 
         MufflingBoxRegion() = default;
 
-        explicit MufflingBoxRegion(const std::string& name) : Region(name) {}
+        explicit MufflingBoxRegion(const std::u16string& name) : Region(name) {}
 
         [[nodiscard]] RegionType GetType() const override { return Type; }
 
@@ -607,14 +608,14 @@ namespace FirelinkER::Maps::MapStudio
         bool SerializeSubtypeData(std::ofstream& stream) const override;
     };
 
-    class FIRELINKER_API MufflingPortalRegion final : public Region
+    class FIRELINK_ER_API MufflingPortalRegion final : public Region
     {
     public:
         static constexpr auto Type = RegionType::MufflingPortal;
 
         MufflingPortalRegion() = default;
 
-        explicit MufflingPortalRegion(const std::string& name) : Region(name) {}
+        explicit MufflingPortalRegion(const std::u16string& name) : Region(name) {}
 
         [[nodiscard]] RegionType GetType() const override { return Type; }
 
@@ -628,14 +629,14 @@ namespace FirelinkER::Maps::MapStudio
         bool SerializeSubtypeData(std::ofstream& stream) const override;
     };
 
-    class FIRELINKER_API OtherSoundRegion final : public Region
+    class FIRELINK_ER_API OtherSoundRegion final : public Region
     {
     public:
         static constexpr auto Type = RegionType::OtherSound;
 
         OtherSoundRegion() = default;
 
-        explicit OtherSoundRegion(const std::string& name) : Region(name) {}
+        explicit OtherSoundRegion(const std::u16string& name) : Region(name) {}
 
         [[nodiscard]] RegionType GetType() const override { return Type; }
 
@@ -670,7 +671,7 @@ namespace FirelinkER::Maps::MapStudio
         bool SerializeSubtypeData(std::ofstream& stream) const override;
     };
 
-    class FIRELINKER_API MufflingPlaneRegion final : public Region
+    class FIRELINK_ER_API MufflingPlaneRegion final : public Region
     {
         // No subtype data at all.
     public:
@@ -678,19 +679,19 @@ namespace FirelinkER::Maps::MapStudio
 
         MufflingPlaneRegion() = default;
 
-        explicit MufflingPlaneRegion(const std::string& name) : Region(name) {}
+        explicit MufflingPlaneRegion(const std::u16string& name) : Region(name) {}
 
         [[nodiscard]] RegionType GetType() const override { return Type; }
     };
 
-    class FIRELINKER_API PatrolRouteRegion final : public Region
+    class FIRELINK_ER_API PatrolRouteRegion final : public Region
     {
     public:
         static constexpr auto Type = RegionType::PatrolRoute;
 
         PatrolRouteRegion() = default;
 
-        explicit PatrolRouteRegion(const std::string& name) : Region(name) {}
+        explicit PatrolRouteRegion(const std::u16string& name) : Region(name) {}
 
         [[nodiscard]] RegionType GetType() const override { return Type; }
 
@@ -704,14 +705,14 @@ namespace FirelinkER::Maps::MapStudio
         bool SerializeSubtypeData(std::ofstream& stream) const override;
     };
 
-    class FIRELINKER_API MapPointRegion final : public Region
+    class FIRELINK_ER_API MapPointRegion final : public Region
     {
     public:
         static constexpr auto Type = RegionType::MapPoint;
 
         MapPointRegion() = default;
 
-        explicit MapPointRegion(const std::string& name) : Region(name) {}
+        explicit MapPointRegion(const std::u16string& name) : Region(name) {}
 
         [[nodiscard]] RegionType GetType() const override { return Type; }
 
@@ -739,14 +740,14 @@ namespace FirelinkER::Maps::MapStudio
         bool DeserializeSubtypeData(std::ifstream& stream) override;
         bool SerializeSubtypeData(std::ofstream& stream) const override;    };
 
-    class FIRELINKER_API WeatherOverrideRegion final : public Region
+    class FIRELINK_ER_API WeatherOverrideRegion final : public Region
     {
     public:
         static constexpr auto Type = RegionType::WeatherOverride;
 
         WeatherOverrideRegion() = default;
 
-        explicit WeatherOverrideRegion(const std::string& name) : Region(name) {}
+        explicit WeatherOverrideRegion(const std::u16string& name) : Region(name) {}
 
         [[nodiscard]] RegionType GetType() const override { return Type; }
 
@@ -760,14 +761,14 @@ namespace FirelinkER::Maps::MapStudio
         bool SerializeSubtypeData(std::ofstream& stream) const override;
     };
 
-    class FIRELINKER_API AutoDrawGroupPointRegion final : public Region
+    class FIRELINK_ER_API AutoDrawGroupPointRegion final : public Region
     {
     public:
         static constexpr auto Type = RegionType::AutoDrawGroupPoint;
 
         AutoDrawGroupPointRegion() = default;
 
-        explicit AutoDrawGroupPointRegion(const std::string& name) : Region(name) {}
+        explicit AutoDrawGroupPointRegion(const std::u16string& name) : Region(name) {}
 
         [[nodiscard]] RegionType GetType() const override { return Type; }
 
@@ -781,14 +782,14 @@ namespace FirelinkER::Maps::MapStudio
         bool SerializeSubtypeData(std::ofstream& stream) const override;
     };
 
-    class FIRELINKER_API GroupDefeatRewardRegion final : public Region
+    class FIRELINK_ER_API GroupDefeatRewardRegion final : public Region
     {
     public:
         static constexpr auto Type = RegionType::GroupDefeatReward;
 
         GroupDefeatRewardRegion() = default;
 
-        explicit GroupDefeatRewardRegion(const std::string& name) : Region(name)
+        explicit GroupDefeatRewardRegion(const std::u16string& name) : Region(name)
         {
             groupPartsIndices.fill(-1);
         }
@@ -830,7 +831,7 @@ namespace FirelinkER::Maps::MapStudio
         bool SerializeSubtypeData(std::ofstream& stream) const override;
     };
 
-    class FIRELINKER_API MapPointDiscoveryOverrideRegion final : public Region
+    class FIRELINK_ER_API MapPointDiscoveryOverrideRegion final : public Region
     {
         // No data at all.
     public:
@@ -838,12 +839,12 @@ namespace FirelinkER::Maps::MapStudio
 
         MapPointDiscoveryOverrideRegion() = default;
 
-        explicit MapPointDiscoveryOverrideRegion(const std::string& name) : Region(name) {}
+        explicit MapPointDiscoveryOverrideRegion(const std::u16string& name) : Region(name) {}
 
         [[nodiscard]] RegionType GetType() const override { return Type; }
     };
 
-    class FIRELINKER_API MapPointParticipationOverrideRegion final : public Region
+    class FIRELINK_ER_API MapPointParticipationOverrideRegion final : public Region
     {
         // No data at all.
     public:
@@ -851,19 +852,19 @@ namespace FirelinkER::Maps::MapStudio
 
         MapPointParticipationOverrideRegion() = default;
 
-        explicit MapPointParticipationOverrideRegion(const std::string& name) : Region(name) {}
+        explicit MapPointParticipationOverrideRegion(const std::u16string& name) : Region(name) {}
         
         [[nodiscard]] RegionType GetType() const override { return Type; }
     };
     
-    class FIRELINKER_API HitsetRegion final : public Region
+    class FIRELINK_ER_API HitsetRegion final : public Region
     {
     public:
         static constexpr auto Type = RegionType::Hitset;
 
         HitsetRegion() = default;
 
-        explicit HitsetRegion(const std::string& name) : Region(name) {}
+        explicit HitsetRegion(const std::u16string& name) : Region(name) {}
         
         [[nodiscard]] RegionType GetType() const override { return Type; }
 
@@ -876,14 +877,14 @@ namespace FirelinkER::Maps::MapStudio
         bool DeserializeSubtypeData(std::ifstream& stream) override;
         bool SerializeSubtypeData(std::ofstream& stream) const override;};
     
-    class FIRELINKER_API FastTravelRestrictionRegion final : public Region
+    class FIRELINK_ER_API FastTravelRestrictionRegion final : public Region
     {
     public:
         static constexpr auto Type = RegionType::FastTravelRestriction;
 
         FastTravelRestrictionRegion() = default;
 
-        explicit FastTravelRestrictionRegion(const std::string& name) : Region(name) {}
+        explicit FastTravelRestrictionRegion(const std::u16string& name) : Region(name) {}
         
         [[nodiscard]] RegionType GetType() const override { return Type; }
 
@@ -897,14 +898,14 @@ namespace FirelinkER::Maps::MapStudio
         bool SerializeSubtypeData(std::ofstream& stream) const override;
     };
     
-    class FIRELINKER_API WeatherCreateAssetPointRegion final : public Region
+    class FIRELINK_ER_API WeatherCreateAssetPointRegion final : public Region
     {
     public:
         static constexpr auto Type = RegionType::WeatherCreateAssetPoint;
 
         WeatherCreateAssetPointRegion() = default;
 
-        explicit WeatherCreateAssetPointRegion(const std::string& name) : Region(name) {}
+        explicit WeatherCreateAssetPointRegion(const std::u16string& name) : Region(name) {}
         
         [[nodiscard]] RegionType GetType() const override { return Type; }
     private:
@@ -913,14 +914,14 @@ namespace FirelinkER::Maps::MapStudio
         bool SerializeSubtypeData(std::ofstream& stream) const override;
     };
     
-    class FIRELINKER_API PlayAreaRegion final : public Region
+    class FIRELINK_ER_API PlayAreaRegion final : public Region
     {
     public:
         static constexpr auto Type = RegionType::PlayArea;
 
         PlayAreaRegion() = default;
 
-        explicit PlayAreaRegion(const std::string& name) : Region(name) {}
+        explicit PlayAreaRegion(const std::u16string& name) : Region(name) {}
         
         [[nodiscard]] RegionType GetType() const override { return Type; }
 
@@ -937,28 +938,28 @@ namespace FirelinkER::Maps::MapStudio
         bool SerializeSubtypeData(std::ofstream& stream) const override;
     };
     
-    class FIRELINKER_API EnvironmentMapOutputRegion final : public Region
+    class FIRELINK_ER_API EnvironmentMapOutputRegion final : public Region
     {
     public:
         static constexpr auto Type = RegionType::EnvironmentMapOutput;
 
         EnvironmentMapOutputRegion() = default;
 
-        explicit EnvironmentMapOutputRegion(const std::string& name) : Region(name) {}
+        explicit EnvironmentMapOutputRegion(const std::u16string& name) : Region(name) {}
         
         [[nodiscard]] RegionType GetType() const override { return Type; }
 
         // No subtype data at all (not even pads).
     };
     
-    class FIRELINKER_API MountJumpRegion final : public Region
+    class FIRELINK_ER_API MountJumpRegion final : public Region
     {
     public:
         static constexpr auto Type = RegionType::MountJump;
 
         MountJumpRegion() = default;
 
-        explicit MountJumpRegion(const std::string& name) : Region(name) {}
+        explicit MountJumpRegion(const std::u16string& name) : Region(name) {}
         
         [[nodiscard]] RegionType GetType() const override { return Type; }
 
@@ -975,14 +976,14 @@ namespace FirelinkER::Maps::MapStudio
         bool SerializeSubtypeData(std::ofstream& stream) const override;
     };
     
-    class FIRELINKER_API DummyRegion final : public Region
+    class FIRELINK_ER_API DummyRegion final : public Region
     {
     public:
         static constexpr auto Type = RegionType::Dummy;
 
         DummyRegion() = default;
 
-        explicit DummyRegion(const std::string& name) : Region(name) {}
+        explicit DummyRegion(const std::u16string& name) : Region(name) {}
         
         [[nodiscard]] RegionType GetType() const override { return Type; }
 
@@ -996,14 +997,14 @@ namespace FirelinkER::Maps::MapStudio
         bool SerializeSubtypeData(std::ofstream& stream) const override;
     };
     
-    class FIRELINKER_API FallPreventionRemovalRegion final : public Region
+    class FIRELINK_ER_API FallPreventionRemovalRegion final : public Region
     {
     public:
         static constexpr auto Type = RegionType::FallPreventionRemoval;
 
         FallPreventionRemovalRegion() = default;
 
-        explicit FallPreventionRemovalRegion(const std::string& name) : Region(name) {}
+        explicit FallPreventionRemovalRegion(const std::u16string& name) : Region(name) {}
         
         [[nodiscard]] RegionType GetType() const override { return Type; }
     private:
@@ -1012,14 +1013,14 @@ namespace FirelinkER::Maps::MapStudio
         bool SerializeSubtypeData(std::ofstream& stream) const override;
     };
     
-    class FIRELINKER_API NavmeshCuttingRegion final : public Region
+    class FIRELINK_ER_API NavmeshCuttingRegion final : public Region
     {
     public:
         static constexpr auto Type = RegionType::NavmeshCutting;
 
         NavmeshCuttingRegion() = default;
 
-        explicit NavmeshCuttingRegion(const std::string& name) : Region(name) {}
+        explicit NavmeshCuttingRegion(const std::u16string& name) : Region(name) {}
         
         [[nodiscard]] RegionType GetType() const override { return Type; }
     private:
@@ -1028,14 +1029,14 @@ namespace FirelinkER::Maps::MapStudio
         bool SerializeSubtypeData(std::ofstream& stream) const override;
     };
     
-    class FIRELINKER_API MapNameOverrideRegion final : public Region
+    class FIRELINK_ER_API MapNameOverrideRegion final : public Region
     {
     public:
         static constexpr auto Type = RegionType::MapNameOverride;
 
         MapNameOverrideRegion() = default;
 
-        explicit MapNameOverrideRegion(const std::string& name) : Region(name) {}
+        explicit MapNameOverrideRegion(const std::u16string& name) : Region(name) {}
         
         [[nodiscard]] RegionType GetType() const override { return Type; }
 
@@ -1049,14 +1050,14 @@ namespace FirelinkER::Maps::MapStudio
         bool SerializeSubtypeData(std::ofstream& stream) const override;
     };
     
-    class FIRELINKER_API MountJumpFallRegion final : public Region
+    class FIRELINK_ER_API MountJumpFallRegion final : public Region
     {
     public:
         static constexpr auto Type = RegionType::MountJumpFall;
 
         MountJumpFallRegion() = default;
 
-        explicit MountJumpFallRegion(const std::string& name) : Region(name) {}
+        explicit MountJumpFallRegion(const std::u16string& name) : Region(name) {}
         
         [[nodiscard]] RegionType GetType() const override { return Type; }
 
@@ -1066,7 +1067,7 @@ namespace FirelinkER::Maps::MapStudio
         bool SerializeSubtypeData(std::ofstream& stream) const override;
     };
     
-    class FIRELINKER_API HorseRideOverrideRegion final : public Region
+    class FIRELINK_ER_API HorseRideOverrideRegion final : public Region
     {
     public:
 
@@ -1082,7 +1083,7 @@ namespace FirelinkER::Maps::MapStudio
 
         HorseRideOverrideRegion() = default;
 
-        explicit HorseRideOverrideRegion(const std::string& name) : Region(name) {}
+        explicit HorseRideOverrideRegion(const std::u16string& name) : Region(name) {}
         
         [[nodiscard]] RegionType GetType() const override { return Type; }
 
@@ -1096,14 +1097,15 @@ namespace FirelinkER::Maps::MapStudio
         bool SerializeSubtypeData(std::ofstream& stream) const override;
     };
     
-    class FIRELINKER_API OtherRegion final : public Region
+    /// @brief `OtherRegion`s are used frequently as generic EMEVD triggers, etc.
+    class FIRELINK_ER_API OtherRegion final : public Region
     {
     public:
         static constexpr auto Type = RegionType::Other;
 
         OtherRegion() = default;
 
-        explicit OtherRegion(const std::string& name) : Region(name) {}
+        explicit OtherRegion(const std::u16string& name) : Region(name) {}
         
         [[nodiscard]] RegionType GetType() const override { return Type; }
 

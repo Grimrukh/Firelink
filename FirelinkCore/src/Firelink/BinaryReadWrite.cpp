@@ -186,6 +186,21 @@ void BinaryReadWrite::Reserver::ReserveOffset(const string& label)
         WriteValue<uint32_t>(stream, 0);
 }
 
+void BinaryReadWrite::Reserver::ReserveInt32(const std::string& label)
+{
+    if (finished)
+        throw runtime_error("Cannot reserve offset after calling Finish().");
+
+    const streampos pos = stream.tellp();
+    if (reservedInt32Offsets.contains(label))
+        throw runtime_error("`int32_t` label already reserved: " + label);
+
+    reservedInt32Offsets[label] = pos;
+
+    // Write a zero.
+    WriteValue<int32_t>(stream, 0);
+}
+
 
 void BinaryReadWrite::Reserver::ReserveValidatedStruct(const string& label, const streamsize& size)
 {
@@ -260,22 +275,54 @@ void BinaryReadWrite::Reserver::FillOffsetWithRelativePosition(const string& lab
     : FillOffset(label, static_cast<int32_t>(relativePosition));
 }
 
+void BinaryReadWrite::Reserver::FillInt32(const std::string& label, const int32_t value)
+{
+    if (finished)
+        throw runtime_error("Cannot fill `int32_t` after calling Finish().");
+
+    if (!reservedInt32Offsets.contains(label))
+        throw runtime_error("`int32_t` label not reserved: " + label);
+
+    const streampos currentPos = stream.tellp();
+    stream.seekp(reservedInt32Offsets[label]);
+    WriteValue<int32_t>(stream, value);
+    stream.seekp(currentPos);
+    reservedInt32Offsets.erase(label);
+}
+
 
 void BinaryReadWrite::Reserver::Finish()
 {
     if (finished)
         throw runtime_error("Cannot call Finish() twice on Reserver.");
 
-    if (reservedOffsetOffsets.empty())
+    if (!reservedOffsetOffsets.empty())
     {
-        // No offsets reserved, so we're done.
-        finished = true;
-        return;
+        string unfilledOffsets;
+        for (const auto& label : std::views::keys(reservedOffsetOffsets))
+            unfilledOffsets += label + ", ";
+
+        throw runtime_error("Unfilled Reserver offsets: " + unfilledOffsets);
     }
 
-    string unfilledOffsets;
-    for (const auto& label : std::views::keys(reservedOffsetOffsets))
-        unfilledOffsets += label + ", ";
+    if (!reservedInt32Offsets.empty())
+    {
+        string unfilledInt32s;
+        for (const auto& label : std::views::keys(reservedInt32Offsets))
+            unfilledInt32s += label + ", ";
 
-    throw runtime_error("Unfilled Reserver offsets: " + unfilledOffsets);
+        throw runtime_error("Unfilled Reserver `int32_t` values: " + unfilledInt32s);
+    }
+
+    if (!reservedStructOffsetsSizes.empty())
+    {
+        string unfilledStructs;
+        for (const auto& label : std::views::keys(reservedStructOffsetsSizes))
+            unfilledStructs += label + ", ";
+
+        throw runtime_error("Unfilled Reserver structs: " + unfilledStructs);
+    }
+
+    // No offsets still reserved, so we're done.
+    finished = true;
 }

@@ -17,7 +17,7 @@ namespace FirelinkER
     /// @brief Name of ER window title, for the user to find it.
     inline constexpr wchar_t ER_WINDOW_TITLE[] = L"ELDEN RING™";
 
-    class FIRELINKER_API ERHook final : public Firelink::BaseHook
+    class FIRELINK_ER_API ERHook final : public Firelink::BaseHook
     {
     public:
         /// @brief Construct a ERHook using a shared pointer to a `ManagedProcess`.

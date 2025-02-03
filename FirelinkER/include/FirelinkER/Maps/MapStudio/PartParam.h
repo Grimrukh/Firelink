@@ -15,10 +15,10 @@
 
 namespace FirelinkER::Maps::MapStudio
 {
-    class FIRELINKER_API PartParam final : public EntryParam<Part>
+    class FIRELINK_ER_API PartParam final : public EntryParam<Part>
     {
     public:
-        PartParam() : EntryParam(73, "PARTS_PARAM_ST") {}
+        PartParam() : EntryParam(73, u"PARTS_PARAM_ST") {}
 
         /// @brief Create a new Part with no name.
         [[nodiscard]] Part* GetNewEntry(const int entrySubtype) override
