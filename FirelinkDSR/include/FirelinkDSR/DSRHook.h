@@ -46,6 +46,9 @@ namespace FirelinkDSR
 
         // --- EQUIPPED WEAPONS ---
 
+        /// @brief Get the current equipped weapon slot type (PRIMARY or SECONDARY) for the given hand.
+        [[nodiscard]] WeaponSlot GetWeaponSlot(bool isLeftHand = false) const;
+
         /// @brief Get the player's weapon in the given `slot` and given hand.
         [[nodiscard]] int GetWeapon(WeaponSlot slot, bool isLeftHand = false) const;
 

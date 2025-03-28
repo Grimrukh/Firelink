@@ -98,6 +98,13 @@ bool FirelinkDSR::DSRHook::PlayerHasSpEffect(const int spEffectId) const
 
 // --- EQUIPPED WEAPONS ---
 
+WeaponSlot FirelinkDSR::DSRHook::GetWeaponSlot(const bool isLeftHand) const
+{
+    const BasePointer* chrAsm = (*this)["ChrAsm"];
+    return chrAsm->Read<WeaponSlot>(
+        isLeftHand ? chr_asm_offsets::CURRENT_LEFT_WEAPON_SLOT : chr_asm_offsets::CURRENT_RIGHT_WEAPON_SLOT);
+}
+
 int FirelinkDSR::DSRHook::GetWeapon(WeaponSlot slot, const bool isLeftHand) const
 {
     const BasePointer* chrAsm = (*this)["ChrAsm"];
