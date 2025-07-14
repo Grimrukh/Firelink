@@ -1,13 +1,9 @@
 ﻿#pragma once
 
-#include <vector>
-#include <string>
-
 #include "Firelink/BaseHook.h"
 #include "Firelink/Process.h"
 
 #include "Export.h"
-#include "DSREnums.h"
 
 
 namespace FirelinkDSR
@@ -32,50 +28,22 @@ namespace FirelinkDSR
         /// @brief Check if the game is loaded by checking if the WorldChrMan pointer is valid.
         [[nodiscard]] bool IsGameLoaded() const;
 
-        /// @brief Get the player model name from the game. (Should always be "c0000".)
-        [[nodiscard]] std::u16string GetPlayerModelName() const;
+        /// POINTER GETTERS
 
-        /// @brief Get the player's current and maximum HP in-game.
-        [[nodiscard]] std::pair<int, int> GetPlayerHp() const;
+        [[nodiscard]] const Firelink::BasePointer* WorldChrMan() const { return m_WorldChrMan; }
+        [[nodiscard]] const Firelink::BasePointer* ChrClassBase() const { return m_ChrClassBase; }
+        [[nodiscard]] const Firelink::ChildPointer* PlayerIns() const { return m_PlayerIns; }
+        [[nodiscard]] const Firelink::ChildPointer* PlayerGameData() const { return m_PlayerGameData; }
+        [[nodiscard]] const Firelink::ChildPointer* ClientPlayerIns() const { return m_ClientPlayerIns; }
 
-        /// @brief Get a vector of the player's active SpEffects in-game.
-        [[nodiscard]] std::vector<int> GetPlayerActiveSpEffects() const;
+    protected:
 
-        /// @brief Check if player currently has a specific SpEffect active.
-        [[nodiscard]] bool PlayerHasSpEffect(int spEffectId) const;
+        Firelink::BasePointer* m_WorldChrMan = nullptr;
+        Firelink::BasePointer* m_ChrClassBase = nullptr;
+        Firelink::ChildPointer* m_PlayerIns = nullptr;
+        Firelink::ChildPointer* m_PlayerGameData = nullptr;
+        Firelink::ChildPointer* m_ClientPlayerIns = nullptr;
 
-        // --- EQUIPPED WEAPONS ---
-
-        /// @brief Get the current equipped weapon slot type (PRIMARY or SECONDARY) for the given hand.
-        [[nodiscard]] WeaponSlot GetWeaponSlot(bool isLeftHand = false) const;
-
-        /// @brief Get the player's weapon in the given `slot` and given hand.
-        [[nodiscard]] int GetWeapon(WeaponSlot slot, bool isLeftHand = false) const;
-
-        /// @brief Set the player's weapon in the given `slot` and given hand.
-        [[nodiscard]] bool SetWeapon(WeaponSlot slot, int weaponId, bool isLeftHand = false) const;
-
-        /// @brief Convenient method for getting the player's right-hand weapon in the given `slot`.
-        [[nodiscard]] int GetRightHandWeapon(const WeaponSlot slot) const
-        {
-            return GetWeapon(slot, false);
-        }
-        /// @brief Convenient method for setting the player's right-hand weapon in the given `slot`.
-        [[nodiscard]] bool SetRightHandWeapon(const WeaponSlot slot, const int weaponId) const
-        {
-            return SetWeapon(slot, weaponId, false);
-        }
-
-        /// @brief Convenient method for getting the player's left-hand weapon in the given `slot`.
-        [[nodiscard]] int GetLeftHandWeapon(const WeaponSlot slot) const
-        {
-            return GetWeapon(slot, true);
-        }
-        /// @brief Convenient method for setting the player's left-hand weapon in the given `slot`.
-        [[nodiscard]] bool SetLeftHandWeapon(const WeaponSlot slot, const int weaponId) const
-        {
-            return SetWeapon(slot, weaponId, true);
-        }
 };
 
 }

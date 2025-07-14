@@ -76,6 +76,18 @@ namespace Firelink
             return m_process.Write(address, value);
         }
 
+        /// @brief Read an address value into a temporary new `BasePointer` instance.
+        /// There is no write equivalent for pointers, as they are not intended to be written to.
+        [[nodiscard]] BasePointer ReadPointer(const std::string& name, const int32_t offset) const
+        {
+            const void* address = ResolveWithOffset(offset);
+            if (address == nullptr)
+                return {m_process, nullptr, name};
+
+            auto ptr = m_process.Read<void*>(address);
+            return {m_process, ptr, name};
+        }
+
         /// @brief Reads an array of data from owning process at the pointer's resolved address plus `offset`.
         /// Returns `true` if the read was successful.
         template <MemReadWriteType T>
@@ -197,6 +209,10 @@ namespace Firelink
             const std::string& aobPattern,
             int jumpRelativeOffset,
             const std::vector<int>& offsets);
+
+        friend BasePointer ManagedProcess::CreateTempPointer(
+            const std::string& name,
+            const void* baseAddress) const;
     };
 
     /// @brief EXPORT: Child pointer class whose base address is taken from the resolved address of a parent pointer.

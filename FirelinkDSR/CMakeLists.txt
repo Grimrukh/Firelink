@@ -8,9 +8,11 @@ set(PROJECT_SOURCES
     include/FirelinkDSR/DSREnums.h
     include/FirelinkDSR/DSRHook.h
     include/FirelinkDSR/DSROffsets.h
+    include/FirelinkDSR/DSRPlayer.h
     include/FirelinkDSR/Export.h
 
     src/DSRHook.cpp
+    src/DSRPlayer.cpp
 )
 
 add_library(FirelinkDSR SHARED ${PROJECT_SOURCES})

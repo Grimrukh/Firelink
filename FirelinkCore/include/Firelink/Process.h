@@ -91,6 +91,12 @@ namespace Firelink
             int jumpRelativeOffset,
             const std::vector<int>& offsets = {});
 
+        /// @brief Create an anonymous, unsaved pointer that simply resolves to the given base address.
+        /// Name is still used for debugging and logging purposes, but does not have to be unique to the process.
+        BasePointer CreateTempPointer(
+            const std::string& name,
+            const void* baseAddress) const;
+
         /// @brief Create a child pointer that dynamically starts at the resolved address of a parent pointer.
         ChildPointer* CreateChildPointer(
             const BasePointer& parent,

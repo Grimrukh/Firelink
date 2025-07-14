@@ -246,7 +246,14 @@ BasePointer* ManagedProcess::CreatePointerToAobWithJumpInstruction(
     return CreatePointerWithJumpInstruction(name, aobAddress, jumpRelativeOffset, offsets);
 }
 
-ChildPointer* ManagedProcess::CreateChildPointer(const BasePointer& parent, const string& name,
+BasePointer ManagedProcess::CreateTempPointer(const std::string& name, const void* baseAddress) const
+{
+    return {*this, baseAddress, name};
+}
+
+ChildPointer* ManagedProcess::CreateChildPointer(
+    const BasePointer& parent,
+    const string& name,
     const vector<int>& offsets)
 {
     if (!allowPointerOverwrite && m_pointers.contains(name))

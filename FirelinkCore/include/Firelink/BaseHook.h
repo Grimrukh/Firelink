@@ -31,6 +31,9 @@ namespace Firelink
             return m_process->GetPointer(name);
         }
 
+        /// @brief Get a temporary pointer that resolves to the given base address.
+        [[nodiscard]] BasePointer TempPointer(const std::string& name, const void* address) const;
+
         /// @brief Refresh ALL pointers in the hook, including slow AoB-based pointers and all child pointers.
         virtual void RefreshAllPointers() = 0;
 
@@ -46,6 +49,6 @@ namespace Firelink
         ///
         /// @param pointerName Name of the pointer to create.
         /// @param aobPattern AOB pattern to search for.
-        void CreatePointerFromAobWithJump3(const std::string& pointerName, const std::string& aobPattern) const;
+        BasePointer* CreatePointerFromAobWithJump3(const std::string& pointerName, const std::string& aobPattern) const;
     };
 }
