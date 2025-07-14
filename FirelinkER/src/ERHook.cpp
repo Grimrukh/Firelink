@@ -20,32 +20,35 @@ FirelinkER::ERHook::ERHook(shared_ptr<Firelink::ManagedProcess> process) : BaseH
 
 void FirelinkER::ERHook::RefreshAllPointers()
 {
-    CreatePointerFromAobWithJump3("WorldChrMan", worldChrManAob);
-    CreatePointerFromAobWithJump3("GameDataMan", gameDataManAob);
-    CreatePointerFromAobWithJump3("SoloParamRepository", soloParamRepositoryAob);
-    CreatePointerFromAobWithJump3("EventFlagMan", eventFlagManAob);
+    m_WorldChrMan = CreatePointerFromAobWithJump3("WorldChrMan", worldChrManAob);
+    m_GameDataMan = CreatePointerFromAobWithJump3("GameDataMan", gameDataManAob);
+    m_SoloParamRepository = CreatePointerFromAobWithJump3("SoloParamRepository", soloParamRepositoryAob);
+    m_EventFlagMan = CreatePointerFromAobWithJump3("EventFlagMan", eventFlagManAob);
 }
 
 void FirelinkER::ERHook::RefreshChildPointers()
 {
-    m_process->CreateChildPointer("WorldChrMan", "PlayerIns", { world_chr_man_offsets::PLAYER_INS });
+    m_PlayerIns = m_process->CreateChildPointer(
+        "WorldChrMan",
+        "PlayerIns",
+        { WORLD_CHR_MAN::PLAYER_INS });
 }
 
 bool FirelinkER::ERHook::IsGameLoaded() const
 {
     // WorldChrMan only resolves to non-null if game is loaded.
     // TODO: True for DSR; still true for ER?
-    return !(*this)["WorldChrMan"]->IsNull();
+    return !m_WorldChrMan->IsNull();
 }
 
 uint32_t FirelinkER::ERHook::GetNGPlusLevel() const
 {
-    return (*this)["GameDataMan"]->Read<uint32_t>(game_data_man_offsets::NG_PLUS_LEVEL);
+    return m_GameDataMan->Read<uint32_t>(GAME_DATA_MAN::NG_PLUS_LEVEL);
 }
 
 void FirelinkER::ERHook::SetNGPlusLevel(uint32_t level) const
 {
-    if (!(*this)["GameDataMan"]->Write<uint32_t>(game_data_man_offsets::NG_PLUS_LEVEL, level))
+    if (!m_GameDataMan->Write<uint32_t>(GAME_DATA_MAN::NG_PLUS_LEVEL, level))
         Firelink::Error(format("Failed to set NG+ level to {}.", level));
 }
 

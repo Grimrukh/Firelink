@@ -27,7 +27,6 @@ target_compile_definitions(FirelinkDSR PRIVATE FIRELINK_DSR_EXPORTS)
 
 target_include_directories(FirelinkDSR
     PUBLIC include
-    PRIVATE src/private
 )
 
 target_link_libraries(FirelinkDSR

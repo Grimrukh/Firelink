@@ -39,7 +39,7 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
 endif()
 
 # Enable DLL exports for FirelinkCore.
-target_compile_definitions(FirelinkCore PRIVATE FIRELINKCORE_EXPORTS)
+target_compile_definitions(FirelinkCore PRIVATE FIRELINK_CORE_EXPORTS)
 
 target_precompile_headers(FirelinkCore
     PRIVATE src/pch.h
@@ -47,5 +47,4 @@ target_precompile_headers(FirelinkCore
 
 target_include_directories(FirelinkCore
     PUBLIC include
-    PRIVATE src/private
 )

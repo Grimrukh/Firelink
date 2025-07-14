@@ -1,8 +1,5 @@
 ﻿#pragma once
 
-#include <vector>
-#include <string>
-
 #include "Firelink/BaseHook.h"
 #include "Firelink/Pointer.h"
 #include "Firelink/Process.h"
@@ -32,23 +29,20 @@ namespace FirelinkER
         /// @brief Check if the game is loaded by checking if the WorldChrMan pointer is valid.
         [[nodiscard]] bool IsGameLoaded() const;
 
-        /// @brief Get the player model name from the game. (Should always be "c0000".)
-        [[nodiscard]] std::u16string GetPlayerModelName() const;
-
-        /// @brief Get the player's current and maximum HP in-game.
-        [[nodiscard]] std::pair<int, int> GetPlayerHp() const;
-
-        /// @brief Get a vector of the player's active SpEffects in-game.
-        [[nodiscard]] std::vector<int> GetPlayerActiveSpEffects() const;
-
-        /// @brief Check if player currently has a specific SpEffect active.
-        [[nodiscard]] bool PlayerHasSpEffect(int spEffectId) const;
-
         /// @brief Get current NG+ level.
         [[nodiscard]] uint32_t GetNGPlusLevel() const;
 
         /// @brief Set current NG+ level.
         void SetNGPlusLevel(uint32_t level) const;
+
+    protected:
+
+        const Firelink::BasePointer* m_WorldChrMan = nullptr;
+        const Firelink::BasePointer* m_GameDataMan = nullptr;
+        const Firelink::BasePointer* m_SoloParamRepository = nullptr;
+        const Firelink::BasePointer* m_EventFlagMan = nullptr;
+
+        const Firelink::BasePointer* m_PlayerIns = nullptr;
 };
 
 }

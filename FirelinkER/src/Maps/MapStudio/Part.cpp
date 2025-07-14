@@ -4,7 +4,6 @@
 #include "Firelink/BinaryReadWrite.h"
 #include "Firelink/BinaryValidation.h"
 #include "Firelink/Collections.h"
-#include "Firelink/MemoryUtils.h"
 #include "FirelinkER/Maps/MapStudio/Model.h"
 #include "FirelinkER/Maps/MapStudio/MSB.h"
 #include "FirelinkER/Maps/MapStudio/MSBFormatError.h"

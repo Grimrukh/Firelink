@@ -1,5 +1,4 @@
 ﻿#include <cstdint>
-#include <cstring>
 #include <filesystem>
 #include <ranges>
 #include <string>
