@@ -51,8 +51,6 @@ vector<int> FirelinkDSR::DSRPlayer::GetPlayerActiveSpEffects() const
         nextEntryNode = process->Read<void*>(nextNodePtrOffset);
     }
 
-    Info("Got player active SpEffects.");
-
     return spEffectIDs;
 }
 
