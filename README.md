@@ -98,7 +98,7 @@ application that links against `FirelinkCore` (and optionally `FirelinkDSR`) and
 gain access to classes such as `Firelink::BaseHook` and `FirelinkDSR::DSRHook`.
 
 Here's a simple example loop that prints the player's health in ***Dark Souls: Remastered***. See other projects, such
-as [DSRWeaponSwap](https://github.com/Grimrukh/DSRWeaponSwap), for more complex examples.
+as [DSREquipmentSwap](https://github.com/Grimrukh/DSREquipmentSwap), for more complex examples.
 
 ```cpp
 #include <atomic>
