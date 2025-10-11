@@ -1,13 +1,12 @@
-﻿#include <set>
+﻿#include <Firelink/BinaryReadWrite.h>
+#include <Firelink/Collections.h>
+#include <Firelink/Export.h>
+
+#include <set>
 #include <sstream>
 #include <stdexcept>
 
-#include "Firelink/Export.h"
-#include "Firelink/BinaryReadWrite.h"
-#include "Firelink/Collections.h"
-
 using namespace Firelink::BinaryReadWrite;
-
 
 template <std::size_t BIT_COUNT>
 Firelink::GroupBitSet<BIT_COUNT>::GroupBitSet() = default;
@@ -25,14 +24,13 @@ Firelink::GroupBitSet<BIT_COUNT>::GroupBitSet(const std::set<int>& bitSet)
     }
 }
 
-
 // Constructor from the appropriate number of `uint32_t`s in a filestream
-template<std::size_t BIT_COUNT>
+template <std::size_t BIT_COUNT>
 Firelink::GroupBitSet<BIT_COUNT>::GroupBitSet(std::ifstream& stream)
 {
     const size_t uintCount = BIT_COUNT / 32;
     for (std::size_t i = 0; i < uintCount; ++i)
-        {
+    {
         const auto uint = ReadValue<uint32_t>(stream);
         for (int j = 0; j < 32; ++j)
         {
@@ -41,8 +39,6 @@ Firelink::GroupBitSet<BIT_COUNT>::GroupBitSet(std::ifstream& stream)
         }
     }
 }
-
-
 
 // Constructor from array<uint32_t, BIT_COUNT / 32> (i.e. from serialized data)
 template <std::size_t BIT_COUNT>
@@ -140,7 +136,7 @@ std::vector<uint32_t> Firelink::GroupBitSet<BIT_COUNT>::ToUintList() const
 }
 
 // Write to filestream (appropriate number of `uint32_t`s)
-template<std::size_t BIT_COUNT>
+template <std::size_t BIT_COUNT>
 void Firelink::GroupBitSet<BIT_COUNT>::Write(std::ofstream& stream) const
 {
     for (uint32_t value : ToUintList())
@@ -219,7 +215,7 @@ bool Firelink::GroupBitSet<BIT_COUNT>::operator!=(const GroupBitSet& other) cons
     return bits != other.bits;
 }
 
-template<std::size_t BIT_COUNT>
+template <std::size_t BIT_COUNT>
 Firelink::GroupBitSet<BIT_COUNT>::operator std::basic_string<char>() const
 {
     const auto sortedBits = ToSortedBitList();
@@ -238,6 +234,6 @@ Firelink::GroupBitSet<BIT_COUNT>::operator std::basic_string<char>() const
 }
 
 // Explicit instantiations.
-template class FIRELINK_API Firelink::GroupBitSet<128>;
-template class FIRELINK_API Firelink::GroupBitSet<256>;
-template class FIRELINK_API Firelink::GroupBitSet<1024>;
+template class FIRELINK_CORE_API Firelink::GroupBitSet<128>;
+template class FIRELINK_CORE_API Firelink::GroupBitSet<256>;
+template class FIRELINK_CORE_API Firelink::GroupBitSet<1024>;

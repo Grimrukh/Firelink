@@ -101,23 +101,22 @@ Here's a simple example loop that prints the player's health in ***Dark Souls: R
 as [DSREquipmentSwap](https://github.com/Grimrukh/DSREquipmentSwap), for more complex examples.
 
 ```cpp
+#include <FirelinkDSRHook/DSRHook.h>
+
 #include <atomic>
 #include <format>
 #include <iostream>
 #include <thread>
 
-#include "FirelinkDSR/DSRHook.h"
-
 void PrintHealthEverySecond()
 {
-    using namespace std;
     using namespace Firelink;
     using namespace FirelinkDSR;
 
     // We need an atomic flag to pass to `WaitForProcess` to stop the search if needed.
     // It's not used in this example, but the caller could pass it in and set it to `true` in another thread to
     // stop the search or our main loop below.
-    atomic<bool> stopFlag = false;
+    std::atomic<bool> stopFlag = false;
 
     // Do initial DSR process search. We are the sole owner of the found `ManagedProcess`.
     auto newProcess = ManagedProcess::WaitForProcess(
@@ -129,29 +128,29 @@ void PrintHealthEverySecond()
     // Check if we found the process (as opposed to timing out).
     if (!newProcess)
     {
-        cout << "WARNING: Failed to find DSR process." << endl;
+        std::cout << "WARNING: Failed to find DSR process.\n";
         return;
     }
     
     // We create a `DSRHook` and transfer ownership of the `ManagedProcess` to it.
-    auto dsrHook = make_unique<DSRHook>(std::move(newProcess));
+    auto dsrHook = std::make_unique<DSRHook>(std::move(newProcess));
     
     // Main loop. We can reuse the same atomic stop flag.
     while (!stopFlag.load())
     {
         // Get the player's current and max health.
-        pair<int, int> currentAndMaxHealth = dsrHook->GetPlayerHp();
+        std::pair<int, int> currentAndMaxHealth = dsrHook->GetPlayerHp();
         
         // Print health.
-        string msg = format("Player health: {} / {}", currentAndMaxHealth.first, currentAndMaxHealth.second);
-        cout << msg << endl;
+        std::string msg = std::format("Player health: {} / {}\n", currentAndMaxHealth.first, currentAndMaxHealth.second);
+        std::cout << msg;
         
         // Sleep for a second.
-        this_thread::sleep_for(chrono::milliseconds(1000));
+        std::this_thread::sleep_for(std::chrono::milliseconds(1000));
     }
     
     // Exited loop.
-    cout << "Stopped printing player health." << endl;
+    std::cout << "Stopped printing player health.\n";
 }
 ```
 

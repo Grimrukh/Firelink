@@ -1,13 +1,10 @@
-﻿cmake_minimum_required(VERSION 3.21)
+﻿# NOTE: This CML project can be used to build all Firelink modules as well as tests.
+# You can also `add_subdirectory` the individual modules in your own CMake project.
 
-project(Firelink LANGUAGES CXX)
+cmake_minimum_required(VERSION 3.27)
+project(Firelink VERSION 0.1.0 LANGUAGES CXX)
 
-# Enable ctest.
-enable_testing()
-
-set(CMAKE_VERBOSE_MAKEFILE ON)
-
-# Set Debug/Release output directories for all subprojects.
+# Unify Debug/Release output directories for all subprojects.
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG "${CMAKE_CURRENT_SOURCE_DIR}/bin/Debug")
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY_DEBUG "${CMAKE_CURRENT_SOURCE_DIR}/bin/Debug")
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY_DEBUG "${CMAKE_CURRENT_SOURCE_DIR}/bin/Debug")
@@ -15,13 +12,19 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE "${CMAKE_CURRENT_SOURCE_DIR}/bin/Rele
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY_RELEASE "${CMAKE_CURRENT_SOURCE_DIR}/bin/Release")
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY_RELEASE "${CMAKE_CURRENT_SOURCE_DIR}/bin/Release")
 
-if (MSVC)
+if(MSVC)
     set(CMAKE_EXE_LINKER_FLAGS_DEBUG "${CMAKE_EXE_LINKER_FLAGS_DEBUG} /DEBUG")
     set(CMAKE_SHARED_LINKER_FLAGS_DEBUG "${CMAKE_SHARED_LINKER_FLAGS_DEBUG} /DEBUG")
 endif()
 
-# Add subdirectories for modules and tests.
+# Add subdirectories for all modules.
 add_subdirectory(FirelinkCore)
 add_subdirectory(FirelinkDSR)
 add_subdirectory(FirelinkER)
-add_subdirectory(tests)
+
+# TODO: Put tests into appropriate subdirectories.
+option(FIRELINK_WITH_TESTS "Build Firelink tests" ON)
+if (FIRELINK_WITH_TESTS)
+    enable_testing()
+    add_subdirectory(tests)
+endif()

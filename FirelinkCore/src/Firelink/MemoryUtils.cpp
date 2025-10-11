@@ -1,13 +1,11 @@
-﻿#include <sstream>
+﻿#include <Firelink/Logging.h>
+#include <Firelink/MemoryUtils.h>
 
-#include "Firelink/Logging.h"
-#include "Firelink/MemoryUtils.h"
+#include <sstream>
 
-using namespace std;
-
-string Firelink::UTF16ToUTF8(const u16string& utf16)
+std::string Firelink::UTF16ToUTF8(const std::u16string& utf16)
 {
-    string str;
+    std::string str;
     str.reserve(utf16.size());
     for (const char16_t c : utf16)
     {
@@ -32,7 +30,7 @@ string Firelink::UTF16ToUTF8(const u16string& utf16)
 
 std::string Firelink::UTF16ToUTF8(const std::wstring& utf16)
 {
-    return UTF16ToUTF8(u16string(utf16.begin(), utf16.end()));
+    return UTF16ToUTF8(std::u16string(utf16.begin(), utf16.end()));
 }
 
 const void* Firelink::GetOffsetPointer(const void* ptr, const int offset)
@@ -40,13 +38,12 @@ const void* Firelink::GetOffsetPointer(const void* ptr, const int offset)
     return static_cast<const char*>(ptr) + offset;
 }
 
-
-bool Firelink::ParsePatternString(const string& patternString, vector<BYTE>& pattern, vector<bool>& wildcardMask)
+bool Firelink::ParsePatternString(const std::string& patternString, std::vector<BYTE>& pattern, std::vector<bool>& wildcardMask)
 {
-    istringstream stream(patternString);
-    string token;
+    std::istringstream stream(patternString);
+    std::string token;
 
-    // Clear output vectors
+    // Clear output std::vectors
     pattern.clear();
     wildcardMask.clear();
 
@@ -55,7 +52,7 @@ bool Firelink::ParsePatternString(const string& patternString, vector<BYTE>& pat
         if (token == "?")
         {
             // Wildcard detected
-            pattern.push_back(0x00);  // Placeholder value (doesn't matter, as mask will ignore it)
+            pattern.push_back(0x00); // Placeholder value (doesn't matter, as mask will ignore it)
             wildcardMask.push_back(true);
         }
         else
@@ -69,12 +66,12 @@ bool Firelink::ParsePatternString(const string& patternString, vector<BYTE>& pat
             }
             catch (...)
             {
-                Error("Invalid token in pattern string: " + token);
-                return false;  // Parsing error
+                Error("Invalid token in pattern std::string: " + token);
+                return false; // Parsing error
             }
         }
     }
 
-    // Ensure both vectors have the same size, and return true for successful parsing
+    // Ensure both std::vectors have the same size, and return true for successful parsing
     return pattern.size() == wildcardMask.size();
 }

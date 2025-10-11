@@ -1,5 +1,5 @@
 ﻿# tests/CMakeLists.txt
-cmake_minimum_required(VERSION 3.21)
+cmake_minimum_required(VERSION 3.27)
 
 # C++20
 set(CMAKE_CXX_STANDARD 20)

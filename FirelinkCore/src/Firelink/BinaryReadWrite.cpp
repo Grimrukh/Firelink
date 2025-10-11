@@ -1,20 +1,19 @@
 ﻿
+#include <Firelink/BinaryReadWrite.h>
+
 #include <fstream>
 #include <functional>
 #include <ranges>
 #include <vector>
 
-#include "Firelink/BinaryReadWrite.h"
-
-using namespace std;
 using namespace Firelink;
 
-
-void BinaryReadWrite::AssertReadPadBytes(ifstream& stream, const int& padSize, const string& fieldName, const uint8_t& padValue)
+void BinaryReadWrite::AssertReadPadBytes(
+    std::ifstream& stream, const int& padSize, const std::string& fieldName, const uint8_t& padValue)
 {
     if (!stream)
     {
-        throw runtime_error("Failed to read value from stream.");
+        throw std::runtime_error("Failed to read value from stream.");
     }
     for (size_t i = 0; i < padSize; ++i)
     {
@@ -22,14 +21,14 @@ void BinaryReadWrite::AssertReadPadBytes(ifstream& stream, const int& padSize, c
         stream.read(reinterpret_cast<char*>(&value), sizeof(uint8_t));
         if (value != padValue)
         {
-            throw runtime_error(
-                fieldName + ": Read value " + to_string(value) + " does not match expected pad value "
-                + to_string(padValue));
+            throw std::runtime_error(
+                fieldName + ": Read value " + std::to_string(value) + " does not match expected pad value "
+                + std::to_string(padValue));
         }
     }
 }
 
-void BinaryReadWrite::WritePadBytes(ofstream& stream, const int& padSize, const uint8_t& padValue)
+void BinaryReadWrite::WritePadBytes(std::ofstream& stream, const int& padSize, const uint8_t& padValue)
 {
     for (int i = 0; i < padSize; ++i)
     {
@@ -37,60 +36,60 @@ void BinaryReadWrite::WritePadBytes(ofstream& stream, const int& padSize, const 
     }
 }
 
-string BinaryReadWrite::ReadString(ifstream& stream)
+std::string BinaryReadWrite::ReadString(std::ifstream& stream)
 {
-    string str;
+    std::string str;
     char ch;
     while (stream.read(&ch, sizeof(char)) && ch != '\0')
         str.push_back(ch);
     return str;
 }
 
-string BinaryReadWrite::ReadString(ifstream& stream, const streampos& offset)
+std::string BinaryReadWrite::ReadString(std::ifstream& stream, const std::streampos& offset)
 {
-    const streampos currentOffset = stream.tellg();
+    const std::streampos currentOffset = stream.tellg();
     stream.seekg(offset);
-    string result = ReadString(stream);
+    std::string result = ReadString(stream);
     stream.seekg(currentOffset);
     return result;
 }
 
-void BinaryReadWrite::WriteString(ofstream& stream, const string& str)
+void BinaryReadWrite::WriteString(std::ofstream& stream, const std::string& str)
 {
-    stream.write(str.c_str(), static_cast<streamsize>(str.size()));
+    stream.write(str.c_str(), static_cast<std::streamsize>(str.size()));
     constexpr char nullTerminator = '\0';
     stream.write(&nullTerminator, sizeof(char));
 }
 
-void BinaryReadWrite::WriteString(ofstream& stream, const streampos& offset, const string& str)
+void BinaryReadWrite::WriteString(std::ofstream& stream, const std::streampos& offset, const std::string& str)
 {
-    const streampos currentOffset = stream.tellp();
+    const std::streampos currentOffset = stream.tellp();
     stream.seekp(offset);
     WriteString(stream, str);
     stream.seekp(currentOffset);
 }
 
-// Reads a null-terminated UTF-16 string from the stream
-u16string BinaryReadWrite::ReadUTF16String(ifstream& stream)
+// Reads a null-terminated UTF-16 std::string from the stream
+std::u16string BinaryReadWrite::ReadUTF16String(std::ifstream& stream)
 {
-    u16string u16str;
+    std::u16string u16str;
     char16_t ch;
     while (stream.read(reinterpret_cast<char*>(&ch), sizeof(char16_t)) && ch != u'\0')
         u16str.push_back(ch);
     return u16str;
 }
 
-u16string BinaryReadWrite::ReadUTF16String(ifstream& stream, const streampos& offset)
+std::u16string BinaryReadWrite::ReadUTF16String(std::ifstream& stream, const std::streampos& offset)
 {
-    const streampos currentOffset = stream.tellg();
+    const std::streampos currentOffset = stream.tellg();
     stream.seekg(offset);
-    u16string result = ReadUTF16String(stream);
+    std::u16string result = ReadUTF16String(stream);
     stream.seekg(currentOffset);
     return result;
 }
 
-// Writes a null-terminated UTF-16 string to the stream
-void BinaryReadWrite::WriteUTF16String(ofstream& stream, const u16string& str)
+// Writes a null-terminated UTF-16 std::string to the stream
+void BinaryReadWrite::WriteUTF16String(std::ofstream& stream, const std::u16string& str)
 {
     for (char16_t ch : str)
         stream.write(reinterpret_cast<const char*>(&ch), sizeof(char16_t));
@@ -98,49 +97,48 @@ void BinaryReadWrite::WriteUTF16String(ofstream& stream, const u16string& str)
     stream.write(reinterpret_cast<const char*>(&nullTerminator), sizeof(char16_t));
 }
 
-void BinaryReadWrite::WriteUTF16String(ofstream& stream, const streampos& offset, const u16string& str)
+void BinaryReadWrite::WriteUTF16String(std::ofstream& stream, const std::streampos& offset, const std::u16string& str)
 {
-    const streampos currentOffset = stream.tellp();
+    const std::streampos currentOffset = stream.tellp();
     stream.seekp(offset);
     WriteUTF16String(stream, str);
     stream.seekp(currentOffset);
 }
 
-void BinaryReadWrite::WriteUTF16String(ofstream& stream, const string& str)
+void BinaryReadWrite::WriteUTF16String(std::ofstream& stream, const std::string& str)
 {
-    for (const auto u16str = u16string(str.begin(), str.end()); char16_t ch : u16str)
+    for (const auto u16str = std::u16string(str.begin(), str.end()); char16_t ch : u16str)
         stream.write(reinterpret_cast<const char*>(&ch), sizeof(char16_t));
     constexpr char16_t nullTerminator = u'\0';
     stream.write(reinterpret_cast<const char*>(&nullTerminator), sizeof(char16_t));
 }
 
-void BinaryReadWrite::WriteUTF16String(ofstream& stream, const streampos& offset, const string& str)
+void BinaryReadWrite::WriteUTF16String(std::ofstream& stream, const std::streampos& offset, const std::string& str)
 {
-    const streampos currentOffset = stream.tellp();
+    const std::streampos currentOffset = stream.tellp();
     stream.seekp(offset);
     WriteUTF16String(stream, str);
     stream.seekp(currentOffset);
 }
 
 // Aligns the input stream to the specified boundary
-void BinaryReadWrite::AlignStream(ifstream& stream, const streamsize& alignment)
+void BinaryReadWrite::AlignStream(std::ifstream& stream, const std::streamsize& alignment)
 {
-    const streampos currentPosition = stream.tellg();
-    const streamsize padding = (alignment - (currentPosition % alignment)) % alignment;
+    const std::streampos currentPosition = stream.tellg();
+    const std::streamsize padding = (alignment - (currentPosition % alignment)) % alignment;
     stream.ignore(padding);
 }
 
 // Aligns the output stream to the specified boundary
-void BinaryReadWrite::AlignStream(ofstream& stream, const streamsize& alignment)
+void BinaryReadWrite::AlignStream(std::ofstream& stream, const std::streamsize& alignment)
 {
-    const streampos currentPosition = stream.tellp();
-    const streamsize padding = (alignment - (currentPosition % alignment)) % alignment;
-    const vector<char> paddingBytes(padding, 0);
+    const std::streampos currentPosition = stream.tellp();
+    const std::streamsize padding = (alignment - (currentPosition % alignment)) % alignment;
+    const std::vector<char> paddingBytes(padding, 0);
     stream.write(paddingBytes.data(), padding);
 }
 
-
-/**
+/*!
  * Temporarily seek to a specific position in the stream, execute the provided function,
  * and then restore the stream's original position.
  *
@@ -148,10 +146,11 @@ void BinaryReadWrite::AlignStream(ofstream& stream, const streamsize& alignment)
  * @param position The temporary position to seek to.
  * @param func A function or lambda to execute while at the specified position.
  */
-void BinaryReadWrite::WithStreamPosition(iostream& stream, const streampos& position, const function<void()>& func)
+void BinaryReadWrite::WithStreamPosition(
+    std::iostream& stream, const std::streampos& position, const std::function<void()>& func)
 {
     // Save the current position
-    const streampos originalPosition = stream.tellg();
+    const std::streampos originalPosition = stream.tellg();
 
     // Seek to the desired position
     stream.seekg(position);
@@ -165,164 +164,154 @@ void BinaryReadWrite::WithStreamPosition(iostream& stream, const streampos& posi
     stream.seekp(originalPosition);
 }
 
-
 // Stores reserved offsets, under labels, for later filling. Call `Finish()` to prevent further reserving and
 // validate that no offsets remain unfilled.
-void BinaryReadWrite::Reserver::ReserveOffset(const string& label)
+void BinaryReadWrite::Reserver::ReserveOffset(const std::string& label)
 {
-    if (finished)
-        throw runtime_error("Cannot reserve offset after calling Finish().");
+    if (m_finished)
+        throw std::runtime_error("Cannot reserve offset after calling Finish().");
 
-    const streampos pos = stream.tellp();
-    if (reservedOffsetOffsets.contains(label))
-        throw runtime_error("Offset label already reserved: " + label);
+    const std::streampos pos = m_stream.tellp();
+    if (m_reservedOffsetOffsets.contains(label))
+        throw std::runtime_error("Offset label already reserved: " + label);
 
-    reservedOffsetOffsets[label] = pos;
+    m_reservedOffsetOffsets[label] = pos;
 
     // Write a zero.
-    if (is64Bit)
-        WriteValue<uint64_t>(stream, 0);
+    if (m_is64Bit)
+        WriteValue<uint64_t>(m_stream, 0);
     else
-        WriteValue<uint32_t>(stream, 0);
+        WriteValue<uint32_t>(m_stream, 0);
 }
 
 void BinaryReadWrite::Reserver::ReserveInt32(const std::string& label)
 {
-    if (finished)
-        throw runtime_error("Cannot reserve offset after calling Finish().");
+    if (m_finished)
+        throw std::runtime_error("Cannot reserve offset after calling Finish().");
 
-    const streampos pos = stream.tellp();
-    if (reservedInt32Offsets.contains(label))
-        throw runtime_error("`int32_t` label already reserved: " + label);
+    const std::streampos pos = m_stream.tellp();
+    if (m_reservedInt32Offsets.contains(label))
+        throw std::runtime_error("`int32_t` label already reserved: " + label);
 
-    reservedInt32Offsets[label] = pos;
+    m_reservedInt32Offsets[label] = pos;
 
     // Write a zero.
-    WriteValue<int32_t>(stream, 0);
+    WriteValue<int32_t>(m_stream, 0);
 }
 
-
-void BinaryReadWrite::Reserver::ReserveValidatedStruct(const string& label, const streamsize& size)
+void BinaryReadWrite::Reserver::ReserveValidatedStruct(const std::string& label, const std::streamsize& size)
 {
-    if (finished)
-        throw runtime_error("Cannot reserve struct after calling Finish().");
+    if (m_finished)
+        throw std::runtime_error("Cannot reserve struct after calling Finish().");
 
-    streampos pos = stream.tellp();
-    if (reservedStructOffsetsSizes.contains(label))
-        throw runtime_error("Struct label already reserved: " + label);
+    std::streampos pos = m_stream.tellp();
+    if (m_reservedStructOffsetsSizes.contains(label))
+        throw std::runtime_error("Struct label already reserved: " + label);
 
-    reservedStructOffsetsSizes[label] = pair(pos, size);
+    m_reservedStructOffsetsSizes[label] = std::pair(pos, size);
 
     // Write `size` zeroes.
-    const vector<uint8_t> zeroes(size, 0);
-    stream.write(reinterpret_cast<const char*>(zeroes.data()), size);
+    const std::vector<uint8_t> zeroes(size, 0);
+    m_stream.write(reinterpret_cast<const char*>(zeroes.data()), size);
 }
 
-
-void BinaryReadWrite::Reserver::FillOffset(const string& label, const int64_t offset)
+void BinaryReadWrite::Reserver::FillOffset(const std::string& label, const int64_t offset)
 {
-    if (finished)
-        throw runtime_error("Cannot fill offset after calling Finish().");
+    if (m_finished)
+        throw std::runtime_error("Cannot fill offset after calling Finish().");
 
-    if (!is64Bit)
-        throw runtime_error("Cannot fill 64-bit offset in 32-bit reserve mode.");
+    if (!m_is64Bit)
+        throw std::runtime_error("Cannot fill 64-bit offset in 32-bit reserve mode.");
 
-    if (!reservedOffsetOffsets.contains(label))
-        throw runtime_error("Offset label not reserved: " + label);
+    if (!m_reservedOffsetOffsets.contains(label))
+        throw std::runtime_error("Offset label not reserved: " + label);
 
-    const streampos currentPos = stream.tellp();
-    stream.seekp(reservedOffsetOffsets[label]);
-    WriteValue<int64_t>(stream, offset);
-    stream.seekp(currentPos);
-    reservedOffsetOffsets.erase(label);
+    const std::streampos currentPos = m_stream.tellp();
+    m_stream.seekp(m_reservedOffsetOffsets[label]);
+    WriteValue<int64_t>(m_stream, offset);
+    m_stream.seekp(currentPos);
+    m_reservedOffsetOffsets.erase(label);
 }
 
-
-void BinaryReadWrite::Reserver::FillOffset(const string& label, const int32_t offset)
+void BinaryReadWrite::Reserver::FillOffset(const std::string& label, const int32_t offset)
 {
-    if (finished)
-        throw runtime_error("Cannot fill offset after calling Finish().");
+    if (m_finished)
+        throw std::runtime_error("Cannot fill offset after calling Finish().");
 
-    if (is64Bit)
-        throw runtime_error("Cannot fill 32-bit offset in 64-bit reserve mode.");
+    if (m_is64Bit)
+        throw std::runtime_error("Cannot fill 32-bit offset in 64-bit reserve mode.");
 
-    if (!reservedOffsetOffsets.contains(label))
-        throw runtime_error("Offset label not reserved: " + label);
+    if (!m_reservedOffsetOffsets.contains(label))
+        throw std::runtime_error("Offset label not reserved: " + label);
 
-    const streampos currentPos = stream.tellp();
-    stream.seekp(reservedOffsetOffsets[label]);
-    WriteValue<int32_t>(stream, offset);
-    stream.seekp(currentPos);
-    reservedOffsetOffsets.erase(label);
+    const std::streampos currentPos = m_stream.tellp();
+    m_stream.seekp(m_reservedOffsetOffsets[label]);
+    WriteValue<int32_t>(m_stream, offset);
+    m_stream.seekp(currentPos);
+    m_reservedOffsetOffsets.erase(label);
 }
 
-
-void BinaryReadWrite::Reserver::FillOffsetWithPosition(const string& label)
+void BinaryReadWrite::Reserver::FillOffsetWithPosition(const std::string& label)
 {
-    return is64Bit
-    ? FillOffset(label, stream.tellp())
-    : FillOffset(label, static_cast<int32_t>(stream.tellp()));
+    return m_is64Bit ? FillOffset(label, m_stream.tellp()) : FillOffset(label, static_cast<int32_t>(m_stream.tellp()));
 }
 
-void BinaryReadWrite::Reserver::FillOffsetWithRelativePosition(const string& label)
+void BinaryReadWrite::Reserver::FillOffsetWithRelativePosition(const std::string& label)
 {
-    if (relativePositionStart == 0)
-        throw runtime_error("Cannot fill relative offset without setting relative position start.");
+    if (m_relativePositionStart == 0)
+        throw std::runtime_error("Cannot fill relative offset without setting relative position start.");
 
-    const streampos relativePosition = stream.tellp() - relativePositionStart;
-    return is64Bit
-    ? FillOffset(label, relativePosition)
-    : FillOffset(label, static_cast<int32_t>(relativePosition));
+    const std::streampos relativePosition = m_stream.tellp() - m_relativePositionStart;
+    return m_is64Bit ? FillOffset(label, relativePosition) : FillOffset(label, static_cast<int32_t>(relativePosition));
 }
 
 void BinaryReadWrite::Reserver::FillInt32(const std::string& label, const int32_t value)
 {
-    if (finished)
-        throw runtime_error("Cannot fill `int32_t` after calling Finish().");
+    if (m_finished)
+        throw std::runtime_error("Cannot fill `int32_t` after calling Finish().");
 
-    if (!reservedInt32Offsets.contains(label))
-        throw runtime_error("`int32_t` label not reserved: " + label);
+    if (!m_reservedInt32Offsets.contains(label))
+        throw std::runtime_error("`int32_t` label not reserved: " + label);
 
-    const streampos currentPos = stream.tellp();
-    stream.seekp(reservedInt32Offsets[label]);
-    WriteValue<int32_t>(stream, value);
-    stream.seekp(currentPos);
-    reservedInt32Offsets.erase(label);
+    const std::streampos currentPos = m_stream.tellp();
+    m_stream.seekp(m_reservedInt32Offsets[label]);
+    WriteValue<int32_t>(m_stream, value);
+    m_stream.seekp(currentPos);
+    m_reservedInt32Offsets.erase(label);
 }
-
 
 void BinaryReadWrite::Reserver::Finish()
 {
-    if (finished)
-        throw runtime_error("Cannot call Finish() twice on Reserver.");
+    if (m_finished)
+        throw std::runtime_error("Cannot call Finish() twice on Reserver.");
 
-    if (!reservedOffsetOffsets.empty())
+    if (!m_reservedOffsetOffsets.empty())
     {
-        string unfilledOffsets;
-        for (const auto& label : std::views::keys(reservedOffsetOffsets))
+        std::string unfilledOffsets;
+        for (const auto& label : std::views::keys(m_reservedOffsetOffsets))
             unfilledOffsets += label + ", ";
 
-        throw runtime_error("Unfilled Reserver offsets: " + unfilledOffsets);
+        throw std::runtime_error("Unfilled Reserver offsets: " + unfilledOffsets);
     }
 
-    if (!reservedInt32Offsets.empty())
+    if (!m_reservedInt32Offsets.empty())
     {
-        string unfilledInt32s;
-        for (const auto& label : std::views::keys(reservedInt32Offsets))
+        std::string unfilledInt32s;
+        for (const auto& label : std::views::keys(m_reservedInt32Offsets))
             unfilledInt32s += label + ", ";
 
-        throw runtime_error("Unfilled Reserver `int32_t` values: " + unfilledInt32s);
+        throw std::runtime_error("Unfilled Reserver `int32_t` values: " + unfilledInt32s);
     }
 
-    if (!reservedStructOffsetsSizes.empty())
+    if (!m_reservedStructOffsetsSizes.empty())
     {
-        string unfilledStructs;
-        for (const auto& label : std::views::keys(reservedStructOffsetsSizes))
+        std::string unfilledStructs;
+        for (const auto& label : std::views::keys(m_reservedStructOffsetsSizes))
             unfilledStructs += label + ", ";
 
-        throw runtime_error("Unfilled Reserver structs: " + unfilledStructs);
+        throw std::runtime_error("Unfilled Reserver structs: " + unfilledStructs);
     }
 
     // No offsets still reserved, so we're done.
-    finished = true;
+    m_finished = true;
 }
