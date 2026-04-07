@@ -1,8 +1,8 @@
-﻿#include <../FirelinkCore/src/FirelinkCore/Firelink/Logging.h>
-#include <../FirelinkER/src/Maps/MapStudio/EntryParam.h>
-#include <../FirelinkER/src/Maps/MapStudio/MSB.h>
-#include <FirelinkER/Maps/MapStudio/MSBFormatError.h>
-#include <../FirelinkER/src/Maps/MapStudio/Part.h>
+﻿#include <Firelink/Logging.h>
+#include <FirelinkERMaps/MapStudio/EntryParam.h>
+#include <FirelinkERMaps/MapStudio/MSB.h>
+#include <FirelinkERMaps/MapStudio/MSBFormatError.h>
+#include <FirelinkERMaps/MapStudio/Part.h>
 
 #include <chrono>
 #include <filesystem>
