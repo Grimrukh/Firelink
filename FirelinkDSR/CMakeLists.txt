@@ -1,6 +1,9 @@
 cmake_minimum_required(VERSION 3.27)
 project(FirelinkDSR)
 
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
 add_subdirectory(src)
 
 # Interface target for all FirelinkDSR component targets.
