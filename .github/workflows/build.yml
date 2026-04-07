@@ -15,15 +15,11 @@ jobs:
     steps:
       # Checkout the code.
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v6
 
       # CMake 3.31 is already installed on the Windows runner.
       - name: Verify CMake version
         run: cmake --version
-
-      # Install ninja-build tool (currently 1.11.1).
-      - name: Install ninja-build tool
-        uses: seanmiddleditch/gha-setup-ninja@v5
 
       # Configure with CMake (Release) to `build` subdirectory.
       # The GHA Windows 2022 runner has Visual Studio 17 2022 installed.
