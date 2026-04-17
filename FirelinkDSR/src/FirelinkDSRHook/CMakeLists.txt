@@ -3,23 +3,28 @@ add_library(FirelinkDSRHook SHARED)
 
 target_sources(FirelinkDSRHook
     PRIVATE
-        DSRHook.cpp
-        DSRPlayer.cpp
+        src/DSRHook.cpp
+        src/DSRPlayer.cpp
 )
 target_sources(FirelinkDSRHook
     PUBLIC
     FILE_SET HEADERS
-        BASE_DIRS
-            "${PROJECT_SOURCE_DIR}/src"
-        FILES
-            DSREnums.h
-            DSRHook.h
-            DSROffsets.h
-            DSRPlayer.h
+    BASE_DIRS
+        "${CMAKE_CURRENT_SOURCE_DIR}/include"
+    FILES
+        include/FirelinkDSRHook/DSREnums.h
+        include/FirelinkDSRHook/DSRHook.h
+        include/FirelinkDSRHook/DSROffsets.h
+        include/FirelinkDSRHook/DSRPlayer.h
 )
 
 generate_firelink_export_header(FirelinkDSRHook FIRELINK_DSR_HOOK_API)
 
 target_link_libraries(FirelinkDSRHook
     PUBLIC FirelinkCore
+)
+
+install(TARGETS FirelinkDSRHook
+        EXPORT FirelinkDSRTargets
+        FILE_SET HEADERS
 )

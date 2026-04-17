@@ -1,0 +1,176 @@
+﻿#pragma once
+
+#include <FirelinkCore/Export.h>
+
+#include <array>
+#include <cstdint>
+#include <bitset>
+#include <limits>
+#include <set>
+#include <vector>
+
+namespace Firelink
+{
+    /// @brief Vector2 struct.
+    struct FIRELINK_CORE_API Vector2
+    {
+        float x{0.f};
+        float y{0.f};
+
+        constexpr bool operator==(const Vector2&) const noexcept = default;
+    };
+
+    /// @brief Vector3 struct.
+    /// Note that Y is "up" in FromSoftware games and rotation is left-handed.
+    struct FIRELINK_CORE_API Vector3
+    {
+        float x{0.f};
+        float y{0.f};
+        float z{0.f};
+
+        constexpr bool operator==(const Vector3&) const noexcept = default;
+
+        static constexpr Vector3 Zero() { return {0.f, 0.f, 0.f}; }
+        static constexpr Vector3 One() { return {1.f, 1.f, 1.f}; }
+
+        static Vector3 SingleMin()
+        {
+            constexpr float m = std::numeric_limits<float>::lowest();
+            return {m, m, m};
+        }
+
+        static Vector3 SingleMax()
+        {
+            constexpr float m = std::numeric_limits<float>::max();
+            return {m, m, m};
+        }
+    };
+
+    /// @brief Vector4 struct.
+    struct Vector4
+    {
+        float x{0.f};
+        float y{0.f};
+        float z{0.f};
+        float w{0.f};
+
+        constexpr bool operator==(const Vector4&) const noexcept = default;
+    };
+
+    /// @brief Euler rotation in radians.
+    /// 
+    /// @note Ordering is a semantic detail for callers that need to convert to matrices.
+    ///       Standard FromSoft order is XZY.
+    struct EulerRad
+    {
+        float x{0.f};
+        float y{0.f};
+        float z{0.f};
+
+        constexpr bool operator==(const EulerRad&) const noexcept = default;
+
+        static constexpr EulerRad Zero() { return {0.f, 0.f, 0.f}; }
+    };
+
+    /// @brief 4-byte RGBA color used by FLVER structures.
+    ///
+    /// @detail Byte order on disk varies by FLVER version: modern FLVER2 uses BGRA while
+    //          some FLVER0 variants use RGBA. The reader/writer handles swizzle; this is
+    //          always logical RGBA in memory.
+    struct Color4b
+    {
+        std::uint8_t r{0};
+        std::uint8_t g{0};
+        std::uint8_t b{0};
+        std::uint8_t a{255};
+
+        constexpr bool operator==(const Color4b&) const noexcept = default;
+    };
+
+    /// @brief Axis-aligned bounding box.
+    struct AABB
+    {
+        Vector3 min{};
+        Vector3 max{};
+
+        constexpr bool operator==(const AABB&) const noexcept = default;
+    };
+
+    /*!
+     * @brief A bitset with a fixed number of bits, used for grouping and filtering.
+     *
+     * This data is written to MSB fields as bit flags over the required number of `uint32_t` values, but is more
+     * convenient to store here as a collection of enabled bits. Constructors are provided for both (`set<int>` enabled
+     * bits or `vector<uint32_t>` serialized data).
+     *
+     * @tparam BIT_COUNT The number of bits in the bitset. Only 128, 256, and 1024 are permitted (game-dependent).
+     */
+    template <std::size_t BIT_COUNT>
+    class GroupBitSet
+    {
+    public:
+        /// @brief Default constructor (no enabled bits).
+        GroupBitSet();
+
+        /// @brief Construct by enabling all bits in `bitSet`.
+        explicit GroupBitSet(const std::set<int>& bitSet);
+
+        /// @brief Read the appropriate number of `uint32_t`s from `stream` and enable all bits.
+        explicit GroupBitSet(std::ifstream& stream);
+
+        /// @brief Construct from a vector of serialized `uint32_t` values. Size of vector must be correct.
+        explicit GroupBitSet(const std::vector<uint32_t>& uintList);
+
+        /// @brief Construct from array<uint32_t, BIT_COUNT / 32> (i.e. from serialized data).
+        explicit GroupBitSet(const std::array<uint32_t, BIT_COUNT / 32>& uintArray);
+
+        /// @brief Create by enabling inclusive range `[firstBit, lastBit]`.
+        static GroupBitSet FromRange(int firstBit, int lastBit);
+
+        /// @brief Create by disabling all bits.
+        static GroupBitSet AllOff();
+
+        /// @brief Create by enabling all bits.
+        static GroupBitSet AllOn();
+
+        /// @brief Construct a vector of enabled bits in ascending order.
+        [[nodiscard]] std::vector<int> ToSortedBitList() const;
+
+        /// @brief Construct a vector of the appropriate number of `uint32_t`s to hold all bits (for serialization).
+        [[nodiscard]] std::vector<uint32_t> ToUintList() const;
+
+        /// @brief Write the appropriate number of `uint32_t`s to `stream` (for serialization).
+        ///
+        /// Calls `ToUintList()` and writes each `uint32_t` to the stream.
+        void Write(std::ofstream& stream) const;
+
+        bool operator[](std::size_t index) const;
+
+        /// @brief Enable group bit `index`.
+        void Enable(int index);
+
+        /// @brief Disable group bit `index`.
+        void Disable(int index);
+
+        [[nodiscard]] GroupBitSet Intersection(const GroupBitSet& other) const;
+
+        [[nodiscard]] GroupBitSet UnionWith(const GroupBitSet& other) const;
+
+        [[nodiscard]] GroupBitSet Difference(const GroupBitSet& other) const;
+
+        bool operator==(const GroupBitSet& other) const;
+
+        bool operator!=(const GroupBitSet& other) const;
+
+        explicit operator std::string() const;
+
+    private:
+        /// @brief Underlying bitset that records which bits are enabled.
+        std::bitset<BIT_COUNT> bits;
+    };
+
+    // Explicit instantiations (defined uniquely in `Collections.cpp`).
+    // extern template class GroupBitSet<128>;
+    // extern template class GroupBitSet<256>;
+    // extern template class GroupBitSet<1024>;
+} // namespace Firelink

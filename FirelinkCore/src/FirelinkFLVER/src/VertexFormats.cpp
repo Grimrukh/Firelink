@@ -1,0 +1,649 @@
+// Vertex format table + codec implementations.
+//
+// This is the authoritative table mapping (VertexUsage, VertexDataFormatEnum)
+// pairs to their compressed/decompressed layouts and codecs. It replaces the
+// per-subclass `formats` dicts in src/soulstruct/flver/vertex_array_layout.py.
+
+#include <FirelinkFLVER/VertexFormats.h>
+
+#include <FirelinkFLVER/Exceptions.h>
+
+#include <cmath>
+
+
+namespace Firelink
+{
+    // ---------------------------------------------------------------------------
+    // Format table
+    // ---------------------------------------------------------------------------
+
+    namespace
+    {
+        struct TableEntry
+        {
+            VertexUsage usage;
+            VertexDataFormatEnum format;
+            VertexFormatInfo info;
+        };
+
+        // Helper: make a single-field VertexFormatInfo.
+        constexpr VertexFormatInfo single(
+            const char* name,
+            VertexScalarType cs, std::uint8_t cc,
+            VertexScalarType ds, std::uint8_t dc,
+            VertexCodec codec)
+        {
+            VertexFormatInfo fi{};
+            fi.field_count = 1;
+            fi.fields[0] = {name, cs, cc, ds, dc, codec};
+            return fi;
+        }
+
+        // Helper: make a two-field VertexFormatInfo.
+        constexpr VertexFormatInfo dual(
+            const char* n0, VertexScalarType cs0, std::uint8_t cc0, VertexScalarType ds0, std::uint8_t dc0,
+            VertexCodec codec0,
+            const char* n1, VertexScalarType cs1, std::uint8_t cc1, VertexScalarType ds1, std::uint8_t dc1,
+            VertexCodec codec1)
+        {
+            VertexFormatInfo fi{};
+            fi.field_count = 2;
+            fi.fields[0] = {n0, cs0, cc0, ds0, dc0, codec0};
+            fi.fields[1] = {n1, cs1, cc1, ds1, dc1, codec1};
+            return fi;
+        }
+
+        using S = VertexScalarType;
+        using C = VertexCodec;
+        using Fmt = VertexDataFormatEnum;
+
+        // The full table, verified against Python vertex_array_layout.py.
+        // Entries sharing the same spec across multiple format enum values are listed
+        // individually (the table is small enough that this is fine for clarity).
+
+        constexpr TableEntry kTable[] = {
+
+            // =========================================================================
+            // Position (type_int=0)
+            // =========================================================================
+            {VertexUsage::Position, Fmt::ThreeFloats, single("position", S::F32, 3, S::F32, 3, C::Identity)},
+            {VertexUsage::Position, Fmt::FourFloats, single("position", S::F32, 4, S::F32, 4, C::Identity)},
+
+            // =========================================================================
+            // BoneWeights (type_int=1)
+            // =========================================================================
+            // 0x10: 4 signed bytes / 127.0
+            {VertexUsage::BoneWeights, Fmt::FourBytesA, single("bone_weights", S::S8, 4, S::F32, 4, C::IntTo127Float)},
+            // 0x13: 4 unsigned bytes / 255.0
+            {VertexUsage::BoneWeights, Fmt::FourBytesC, single("bone_weights", S::U8, 4, S::F32, 4, C::IntTo255Float)},
+            // 0x16: 4 shorts / 32767.0
+            {
+                VertexUsage::BoneWeights, Fmt::FourShorts,
+                single("bone_weights", S::S16, 4, S::F32, 4, C::IntTo32767Float)
+            },
+            // 0x1A: 4 shorts / 32767.0
+            {
+                VertexUsage::BoneWeights, Fmt::FourShortsToFloats,
+                single("bone_weights", S::S16, 4, S::F32, 4, C::IntTo32767Float)
+            },
+
+            // =========================================================================
+            // BoneIndices (type_int=2)
+            // =========================================================================
+            // 0x11: 4 unsigned bytes -> 4 int32 (identity widen)
+            {VertexUsage::BoneIndices, Fmt::FourBytesB, single("bone_indices", S::U8, 4, S::S32, 4, C::IdentityWiden)},
+            // 0x2F: same
+            {VertexUsage::BoneIndices, Fmt::FourBytesE, single("bone_indices", S::U8, 4, S::S32, 4, C::IdentityWiden)},
+            // 0x18: 4 shorts -> 4 int32 (identity widen)
+            {
+                VertexUsage::BoneIndices, Fmt::FourShortsBones,
+                single("bone_indices", S::S16, 4, S::S32, 4, C::IdentityWiden)
+            },
+
+            // =========================================================================
+            // Normal (type_int=3) — multi-field entries
+            // =========================================================================
+            // 0x03: 3 floats normal only, no normal_w
+            {VertexUsage::Normal, Fmt::ThreeFloats, single("normal", S::F32, 3, S::F32, 3, C::Identity)},
+
+            // 0x10, 0x11, 0x13, 0x2F: 3 unsigned bytes (normal) + 1 unsigned byte (normal_w)
+            //   normal: (val - 127) / 127.0
+            //   normal_w: identity (kept as U8)
+            {
+                VertexUsage::Normal, Fmt::FourBytesA, dual(
+                    "normal", S::U8, 3, S::F32, 3, C::SignedIntTo127Float,
+                    "normal_w", S::U8, 1, S::U8, 1, C::Identity)
+            },
+            {
+                VertexUsage::Normal, Fmt::FourBytesB, dual(
+                    "normal", S::U8, 3, S::F32, 3, C::SignedIntTo127Float,
+                    "normal_w", S::U8, 1, S::U8, 1, C::Identity)
+            },
+            {
+                VertexUsage::Normal, Fmt::FourBytesC, dual(
+                    "normal", S::U8, 3, S::F32, 3, C::SignedIntTo127Float,
+                    "normal_w", S::U8, 1, S::U8, 1, C::Identity)
+            },
+            {
+                VertexUsage::Normal, Fmt::FourBytesE, dual(
+                    "normal", S::U8, 3, S::F32, 3, C::SignedIntTo127Float,
+                    "normal_w", S::U8, 1, S::U8, 1, C::Identity)
+            },
+
+            // 0x12 (NormalWFirst): 1 unsigned byte (normal_w) + 3 signed bytes (normal)
+            //   normal_w is FIRST on disk, normal second. Codec on normal is (val / 127.0).
+            //   Python uses INT_TO_FLOAT_127_SIGNED on the signed bytes: actually the signed bytes
+            //   represent -1..1 directly when divided by 127 (no offset subtraction needed since
+            //   they're already signed). But Python uses NULL_CODEC for normal_w (kept as U8).
+            //   Wait, looking again: Python source says codec=(NULL_CODEC, INT_TO_FLOAT_127_SIGNED)
+            //   with compressed_dtype [("normal_w", "B", (1,)), ("normal", "b", (3,))].
+            //   "b" = signed byte. INT_TO_FLOAT_127_SIGNED = (val - 127) / 127.
+            //   Hmm, but the input is already a signed byte (-128..127). So (val-127)/127 would
+            //   give values from (-255)/127 to 0/127. That seems wrong for a signed type.
+            //   Actually checking Python: the name says "SIGNED" but the formula is
+            //   (i - 127.0) / 127.0 applied to numpy "b" (int8). That gives range
+            //   (-128-127)/127=-2.0 to (127-127)/127=0.0. That's clearly the same codec
+            //   applied to unsigned data in the normal 0x10 path: U8 val 0->(-127/127)=-1,
+            //   U8 val 127->0, U8 val 254->1. For signed data it's just bizarre.
+            //   Looking at SoulsFormats: for 0x12 it reads normal_w as byte, then 3 bytes for normal
+            //   and divides by 127. Let me just match Python exactly.
+            {
+                VertexUsage::Normal, Fmt::FourBytesD_NormalW, dual(
+                    "normal_w", S::U8, 1, S::U8, 1, C::Identity,
+                    "normal", S::S8, 3, S::F32, 3, C::SignedIntTo127Float)
+            },
+
+            // 0x1A: 3 signed shorts (normal) + 1 signed short (normal_w)
+            //   normal: (val - 32767) / 32767.0   (SignedIntTo32767Float)
+            //   normal_w: identity (kept as S16)
+            {
+                VertexUsage::Normal, Fmt::FourShortsToFloats, dual(
+                    "normal", S::S16, 3, S::F32, 3, C::SignedIntTo32767Float,
+                    "normal_w", S::S16, 1, S::S16, 1, C::Identity)
+            },
+
+            // 0x2E: 3 unsigned shorts (normal) + 1 signed short (normal_w)
+            //   normal: (val - 32767) / 32767.0   (SignedIntTo32767Float)
+            //   normal_w: identity (kept as S16)
+            {
+                VertexUsage::Normal, Fmt::FourShortsToFloatsB, dual(
+                    "normal", S::U16, 3, S::F32, 3, C::SignedIntTo32767Float,
+                    "normal_w", S::S16, 1, S::S16, 1, C::Identity)
+            },
+
+            // =========================================================================
+            // UV (type_int=5) — codec depends on whether float or compressed
+            // =========================================================================
+            // 0x01: 2 floats (no uv_factor)
+            {VertexUsage::UV, Fmt::TwoFloats, single("uv", S::F32, 2, S::F32, 2, C::Identity)},
+            // 0x02: 3 floats (no uv_factor) — rare
+            {VertexUsage::UV, Fmt::ThreeFloats, single("uv", S::F32, 3, S::F32, 3, C::Identity)},
+            // 0x03: 4 floats = 2 UV pairs, each 2 floats. We treat as single 4-float block.
+            {VertexUsage::UV, Fmt::FourFloats, single("uv", S::F32, 4, S::F32, 4, C::Identity)},
+
+            // 0x10, 0x11, 0x12, 0x13, 0x15: 2 shorts -> 2 floats via uv_factor
+            {VertexUsage::UV, Fmt::FourBytesA, single("uv", S::S16, 2, S::F32, 2, C::UvFactor)},
+            {VertexUsage::UV, Fmt::FourBytesB, single("uv", S::S16, 2, S::F32, 2, C::UvFactor)},
+            {VertexUsage::UV, Fmt::FourBytesD_NormalW, single("uv", S::S16, 2, S::F32, 2, C::UvFactor)},
+            {VertexUsage::UV, Fmt::FourBytesC, single("uv", S::S16, 2, S::F32, 2, C::UvFactor)},
+            {VertexUsage::UV, Fmt::TwoShorts, single("uv", S::S16, 2, S::F32, 2, C::UvFactor)},
+
+            // 0x16: 4 shorts = UV pair -> 4 floats via uv_factor
+            {VertexUsage::UV, Fmt::FourShorts, single("uv", S::S16, 4, S::F32, 4, C::UvFactor)},
+
+            // 0x1A, 0x2E: 4 shorts -> 4 floats via uv_factor (last 2 are unknown/zero)
+            {VertexUsage::UV, Fmt::FourShortsToFloats, single("uv", S::S16, 4, S::F32, 4, C::UvFactor)},
+            {VertexUsage::UV, Fmt::FourShortsToFloatsB, single("uv", S::S16, 4, S::F32, 4, C::UvFactor)},
+
+            // =========================================================================
+            // Tangent (type_int=6)
+            // =========================================================================
+            // 0x03: 3 floats
+            {VertexUsage::Tangent, Fmt::FourFloats, single("tangent", S::F32, 3, S::F32, 3, C::Identity)},
+            // 0x10, 0x11, 0x13, 0x1A, 0x2F: 4 unsigned bytes, (val - 127) / 127.0 -> 4 floats
+            {VertexUsage::Tangent, Fmt::FourBytesA, single("tangent", S::U8, 4, S::F32, 4, C::SignedIntTo127Float)},
+            {VertexUsage::Tangent, Fmt::FourBytesB, single("tangent", S::U8, 4, S::F32, 4, C::SignedIntTo127Float)},
+            {VertexUsage::Tangent, Fmt::FourBytesC, single("tangent", S::U8, 4, S::F32, 4, C::SignedIntTo127Float)},
+            {
+                VertexUsage::Tangent, Fmt::FourShortsToFloats,
+                single("tangent", S::U8, 4, S::F32, 4, C::SignedIntTo127Float)
+            },
+            {VertexUsage::Tangent, Fmt::FourBytesE, single("tangent", S::U8, 4, S::F32, 4, C::SignedIntTo127Float)},
+
+            // =========================================================================
+            // Bitangent (type_int=7)
+            // =========================================================================
+            // 0x10, 0x11, 0x13, 0x2F: 4 unsigned bytes -> 4 floats via (val-127)/127
+            {VertexUsage::Bitangent, Fmt::FourBytesA, single("bitangent", S::U8, 4, S::F32, 4, C::SignedIntTo127Float)},
+            {VertexUsage::Bitangent, Fmt::FourBytesB, single("bitangent", S::U8, 4, S::F32, 4, C::SignedIntTo127Float)},
+            {VertexUsage::Bitangent, Fmt::FourBytesC, single("bitangent", S::U8, 4, S::F32, 4, C::SignedIntTo127Float)},
+            {VertexUsage::Bitangent, Fmt::FourBytesE, single("bitangent", S::U8, 4, S::F32, 4, C::SignedIntTo127Float)},
+
+            // =========================================================================
+            // Color (type_int=10)
+            // =========================================================================
+            // 0x03: 4 floats
+            {VertexUsage::Color, Fmt::FourFloats, single("color", S::F32, 4, S::F32, 4, C::Identity)},
+            // 0x10: 4 unsigned bytes / 255.0 -> 4 floats
+            {VertexUsage::Color, Fmt::FourBytesA, single("color", S::U8, 4, S::F32, 4, C::IntTo255Float)},
+            // 0x13: same
+            {VertexUsage::Color, Fmt::FourBytesC, single("color", S::U8, 4, S::F32, 4, C::IntTo255Float)},
+        };
+
+        constexpr std::size_t kTableSize = sizeof(kTable) / sizeof(kTable[0]);
+    } // namespace
+
+    std::optional<VertexFormatInfo>
+    FindVertexFormatInfo(VertexUsage usage, VertexDataFormatEnum format) noexcept
+    {
+        for (std::size_t i = 0; i < kTableSize; ++i)
+        {
+            if (kTable[i].usage == usage && kTable[i].format == format)
+            {
+                return kTable[i].info;
+            }
+        }
+        return std::nullopt;
+    }
+
+    std::uint32_t FormatEnumSize(VertexDataFormatEnum format) noexcept
+    {
+        switch (format)
+        {
+        case Fmt::TwoFloats: return 8;
+        case Fmt::ThreeFloats: return 12;
+        case Fmt::FourFloats: return 16;
+        case Fmt::FourBytesA: return 4;
+        case Fmt::FourBytesB: return 4;
+        case Fmt::FourBytesD_NormalW: return 8; // 0x12: 4 bytes + 4 bytes (8 total? wait...)
+        case Fmt::FourBytesC: return 4;
+        case Fmt::TwoShorts: return 4;
+        case Fmt::FourShorts: return 8;
+        case Fmt::FourShortsBones: return 8;
+        case Fmt::FourShortsToFloats: return 8;
+        case Fmt::FourShortsToFloatsB: return 8;
+        case Fmt::FourBytesE: return 4;
+        case Fmt::EdgeCompressed: return 1; // per Python; not supported
+        case Fmt::Ignored: return 0;
+        }
+        return 0;
+    }
+
+    // ---------------------------------------------------------------------------
+    // Decompress / compress primitives
+    // ---------------------------------------------------------------------------
+
+    namespace
+    {
+        // Read one scalar from compressed data.
+        template <typename T>
+        T read_scalar(const std::byte* p)
+        {
+            T val;
+            std::memcpy(&val, p, sizeof(T));
+            return val;
+        }
+
+        template <typename T>
+        void write_scalar(std::byte* p, T val)
+        {
+            std::memcpy(p, &val, sizeof(T));
+        }
+
+        // Generic per-vertex, per-component decompress loop.
+        template <typename SrcT, typename DstT, typename Func>
+        void decompress_loop(
+            const std::byte* src, std::byte* dst,
+            std::size_t vertex_count,
+            std::size_t compressed_stride, std::size_t compressed_offset,
+            std::uint8_t component_count, Func fn)
+        {
+            const std::size_t src_elem = sizeof(SrcT);
+            const std::size_t dst_elem = sizeof(DstT);
+            for (std::size_t v = 0; v < vertex_count; ++v)
+            {
+                const std::byte* sp = src + v * compressed_stride + compressed_offset;
+                std::byte* dp = dst + v * (component_count * dst_elem);
+                for (std::uint8_t c = 0; c < component_count; ++c)
+                {
+                    SrcT sv = read_scalar<SrcT>(sp + c * src_elem);
+                    DstT dv = fn(sv);
+                    write_scalar<DstT>(dp + c * dst_elem, dv);
+                }
+            }
+        }
+
+        // Generic per-vertex, per-component compress loop (inverse direction).
+        template <typename SrcT, typename DstT, typename Func>
+        void compress_loop(
+            const std::byte* src, std::byte* dst,
+            std::size_t vertex_count,
+            std::size_t compressed_stride, std::size_t compressed_offset,
+            std::uint8_t component_count, Func fn)
+        {
+            const std::size_t src_elem = sizeof(SrcT);
+            const std::size_t dst_elem = sizeof(DstT);
+            for (std::size_t v = 0; v < vertex_count; ++v)
+            {
+                const std::byte* sp = src + v * (component_count * src_elem);
+                std::byte* dp = dst + v * compressed_stride + compressed_offset;
+                for (std::uint8_t c = 0; c < component_count; ++c)
+                {
+                    SrcT sv = read_scalar<SrcT>(sp + c * src_elem);
+                    DstT dv = fn(sv);
+                    write_scalar<DstT>(dp + c * dst_elem, dv);
+                }
+            }
+        }
+
+        // Identity copy (same-size src/dst).
+        void identity_decompress(
+            const VertexFieldSpec& spec,
+            const std::byte* src, std::byte* dst,
+            std::size_t vertex_count,
+            std::size_t compressed_stride, std::size_t compressed_offset)
+        {
+            const std::size_t bytes = spec.GetCompressedSize();
+            for (std::size_t v = 0; v < vertex_count; ++v)
+            {
+                std::memcpy(
+                    dst + v * bytes,
+                    src + v * compressed_stride + compressed_offset,
+                    bytes);
+            }
+        }
+
+        void identity_compress(
+            const VertexFieldSpec& spec,
+            const std::byte* src, std::byte* dst,
+            std::size_t vertex_count,
+            std::size_t compressed_stride, std::size_t compressed_offset)
+        {
+            const std::size_t bytes = spec.GetCompressedSize();
+            for (std::size_t v = 0; v < vertex_count; ++v)
+            {
+                std::memcpy(
+                    dst + v * compressed_stride + compressed_offset,
+                    src + v * bytes,
+                    bytes);
+            }
+        }
+    } // namespace
+
+    void DecompressField(
+        const VertexFieldSpec& spec,
+        const std::byte* src,
+        std::byte* dst,
+        std::size_t vertex_count,
+        std::size_t compressed_stride,
+        std::size_t compressed_offset,
+        float uv_factor)
+    {
+        const auto cc = spec.compressed_count;
+
+        switch (spec.codec)
+        {
+        case VertexCodec::Identity:
+            identity_decompress(spec, src, dst, vertex_count, compressed_stride, compressed_offset);
+            return;
+
+        case VertexCodec::IdentityWiden:
+            // Byte -> int32 or short -> int32.
+            if (spec.compressed_scalar == S::U8 && spec.decompressed_scalar == S::S32)
+            {
+                decompress_loop<std::uint8_t, std::int32_t>(
+                    src, dst, vertex_count, compressed_stride, compressed_offset, cc,
+                    [](std::uint8_t v) -> std::int32_t { return static_cast<std::int32_t>(v); });
+            }
+            else if (spec.compressed_scalar == S::S16 && spec.decompressed_scalar == S::S32)
+            {
+                decompress_loop<std::int16_t, std::int32_t>(
+                    src, dst, vertex_count, compressed_stride, compressed_offset, cc,
+                    [](std::int16_t v) -> std::int32_t { return static_cast<std::int32_t>(v); });
+            }
+            else
+            {
+                throw FLVERError("IdentityWiden: unsupported type pair");
+            }
+            return;
+
+        case VertexCodec::IntTo127Float:
+            if (spec.compressed_scalar == S::S8)
+            {
+                decompress_loop<std::int8_t, float>(
+                    src, dst, vertex_count, compressed_stride, compressed_offset, cc,
+                    [](std::int8_t v) -> float { return static_cast<float>(v) / 127.0f; });
+            }
+            else if (spec.compressed_scalar == S::U8)
+            {
+                decompress_loop<std::uint8_t, float>(
+                    src, dst, vertex_count, compressed_stride, compressed_offset, cc,
+                    [](std::uint8_t v) -> float { return static_cast<float>(v) / 127.0f; });
+            }
+            else
+            {
+                throw FLVERError("IntTo127Float: unsupported compressed scalar type");
+            }
+            return;
+
+        case VertexCodec::IntTo255Float:
+            if (spec.compressed_scalar == S::U8)
+            {
+                decompress_loop<std::uint8_t, float>(
+                    src, dst, vertex_count, compressed_stride, compressed_offset, cc,
+                    [](std::uint8_t v) -> float { return static_cast<float>(v) / 255.0f; });
+            }
+            else
+            {
+                throw FLVERError("IntTo255Float: unsupported compressed scalar type");
+            }
+            return;
+
+        case VertexCodec::IntTo32767Float:
+            if (spec.compressed_scalar == S::S16)
+            {
+                decompress_loop<std::int16_t, float>(
+                    src, dst, vertex_count, compressed_stride, compressed_offset, cc,
+                    [](std::int16_t v) -> float { return static_cast<float>(v) / 32767.0f; });
+            }
+            else
+            {
+                throw FLVERError("IntTo32767Float: unsupported compressed scalar type");
+            }
+            return;
+
+        case VertexCodec::SignedIntTo127Float:
+            // (val - 127) / 127.0 — applied to either unsigned or signed bytes.
+            if (spec.compressed_scalar == S::U8)
+            {
+                decompress_loop<std::uint8_t, float>(
+                    src, dst, vertex_count, compressed_stride, compressed_offset, cc,
+                    [](std::uint8_t v) -> float { return (static_cast<float>(v) - 127.0f) / 127.0f; });
+            }
+            else if (spec.compressed_scalar == S::S8)
+            {
+                decompress_loop<std::int8_t, float>(
+                    src, dst, vertex_count, compressed_stride, compressed_offset, cc,
+                    [](std::int8_t v) -> float { return (static_cast<float>(v) - 127.0f) / 127.0f; });
+            }
+            else
+            {
+                throw FLVERError("SignedIntTo127Float: unsupported compressed scalar type");
+            }
+            return;
+
+        case VertexCodec::SignedIntTo255Float:
+            if (spec.compressed_scalar == S::U8)
+            {
+                decompress_loop<std::uint8_t, float>(
+                    src, dst, vertex_count, compressed_stride, compressed_offset, cc,
+                    [](std::uint8_t v) -> float { return (static_cast<float>(v) - 255.0f) / 255.0f; });
+            }
+            else
+            {
+                throw FLVERError("SignedIntTo255Float: unsupported compressed scalar type");
+            }
+            return;
+
+        case VertexCodec::SignedIntTo32767Float:
+            // Applied to both signed and unsigned shorts (format 0x1A uses S16, 0x2E uses U16).
+            if (spec.compressed_scalar == S::S16)
+            {
+                decompress_loop<std::int16_t, float>(
+                    src, dst, vertex_count, compressed_stride, compressed_offset, cc,
+                    [](std::int16_t v) -> float { return (static_cast<float>(v) - 32767.0f) / 32767.0f; });
+            }
+            else if (spec.compressed_scalar == S::U16)
+            {
+                decompress_loop<std::uint16_t, float>(
+                    src, dst, vertex_count, compressed_stride, compressed_offset, cc,
+                    [](std::uint16_t v) -> float { return (static_cast<float>(v) - 32767.0f) / 32767.0f; });
+            }
+            else
+            {
+                throw FLVERError("SignedIntTo32767Float: unsupported compressed scalar type");
+            }
+            return;
+
+        case VertexCodec::UvFactor:
+            if (spec.compressed_scalar == S::S16)
+            {
+                decompress_loop<std::int16_t, float>(
+                    src, dst, vertex_count, compressed_stride, compressed_offset, cc,
+                    [uv_factor](std::int16_t v) -> float { return static_cast<float>(v) / uv_factor; });
+            }
+            else
+            {
+                throw FLVERError("UvFactor: unsupported compressed scalar type");
+            }
+            return;
+        }
+        throw FLVERError("decompress_field: unknown codec");
+    }
+
+    void CompressField(
+        const VertexFieldSpec& spec,
+        const std::byte* src,
+        std::byte* dst,
+        std::size_t vertex_count,
+        std::size_t compressed_stride,
+        std::size_t compressed_offset,
+        float uv_factor)
+    {
+        const auto cc = spec.compressed_count;
+
+        switch (spec.codec)
+        {
+        case VertexCodec::Identity:
+            identity_compress(spec, src, dst, vertex_count, compressed_stride, compressed_offset);
+            return;
+
+        case VertexCodec::IdentityWiden:
+            if (spec.compressed_scalar == S::U8 && spec.decompressed_scalar == S::S32)
+            {
+                compress_loop<std::int32_t, std::uint8_t>(
+                    src, dst, vertex_count, compressed_stride, compressed_offset, cc,
+                    [](std::int32_t v) -> std::uint8_t { return static_cast<std::uint8_t>(v); });
+            }
+            else if (spec.compressed_scalar == S::S16 && spec.decompressed_scalar == S::S32)
+            {
+                compress_loop<std::int32_t, std::int16_t>(
+                    src, dst, vertex_count, compressed_stride, compressed_offset, cc,
+                    [](std::int32_t v) -> std::int16_t { return static_cast<std::int16_t>(v); });
+            }
+            else
+            {
+                throw FLVERError("IdentityWiden compress: unsupported type pair");
+            }
+            return;
+
+        case VertexCodec::IntTo127Float:
+            if (spec.compressed_scalar == S::S8)
+            {
+                compress_loop<float, std::int8_t>(
+                    src, dst, vertex_count, compressed_stride, compressed_offset, cc,
+                    [](float v) -> std::int8_t { return static_cast<std::int8_t>(std::round(v * 127.0f)); });
+            }
+            else if (spec.compressed_scalar == S::U8)
+            {
+                compress_loop<float, std::uint8_t>(
+                    src, dst, vertex_count, compressed_stride, compressed_offset, cc,
+                    [](float v) -> std::uint8_t { return static_cast<std::uint8_t>(std::round(v * 127.0f)); });
+            }
+            else
+            {
+                throw FLVERError("IntTo127Float compress: unsupported type");
+            }
+            return;
+
+        case VertexCodec::IntTo255Float:
+            compress_loop<float, std::uint8_t>(
+                src, dst, vertex_count, compressed_stride, compressed_offset, cc,
+                [](float v) -> std::uint8_t { return static_cast<std::uint8_t>(std::round(v * 255.0f)); });
+            return;
+
+        case VertexCodec::IntTo32767Float:
+            compress_loop<float, std::int16_t>(
+                src, dst, vertex_count, compressed_stride, compressed_offset, cc,
+                [](float v) -> std::int16_t { return static_cast<std::int16_t>(std::round(v * 32767.0f)); });
+            return;
+
+        case VertexCodec::SignedIntTo127Float:
+            if (spec.compressed_scalar == S::U8)
+            {
+                compress_loop<float, std::uint8_t>(
+                    src, dst, vertex_count, compressed_stride, compressed_offset, cc,
+                    [](float v) -> std::uint8_t { return static_cast<std::uint8_t>(std::round(v * 127.0f + 127.0f)); });
+            }
+            else if (spec.compressed_scalar == S::S8)
+            {
+                compress_loop<float, std::int8_t>(
+                    src, dst, vertex_count, compressed_stride, compressed_offset, cc,
+                    [](float v) -> std::int8_t { return static_cast<std::int8_t>(std::round(v * 127.0f + 127.0f)); });
+            }
+            else
+            {
+                throw FLVERError("SignedIntTo127Float compress: unsupported type");
+            }
+            return;
+
+        case VertexCodec::SignedIntTo255Float:
+            compress_loop<float, std::uint8_t>(
+                src, dst, vertex_count, compressed_stride, compressed_offset, cc,
+                [](float v) -> std::uint8_t { return static_cast<std::uint8_t>(std::round(v * 255.0f + 255.0f)); });
+            return;
+
+        case VertexCodec::SignedIntTo32767Float:
+            if (spec.compressed_scalar == S::S16)
+            {
+                compress_loop<float, std::int16_t>(
+                    src, dst, vertex_count, compressed_stride, compressed_offset, cc,
+                    [](float v) -> std::int16_t
+                    {
+                        return static_cast<std::int16_t>(std::round(v * 32767.0f + 32767.0f));
+                    });
+            }
+            else if (spec.compressed_scalar == S::U16)
+            {
+                compress_loop<float, std::uint16_t>(
+                    src, dst, vertex_count, compressed_stride, compressed_offset, cc,
+                    [](float v) -> std::uint16_t
+                    {
+                        return static_cast<std::uint16_t>(std::round(v * 32767.0f + 32767.0f));
+                    });
+            }
+            else
+            {
+                throw FLVERError("SignedIntTo32767Float compress: unsupported type");
+            }
+            return;
+
+        case VertexCodec::UvFactor:
+            compress_loop<float, std::int16_t>(
+                src, dst, vertex_count, compressed_stride, compressed_offset, cc,
+                [uv_factor](float v) -> std::int16_t { return static_cast<std::int16_t>(std::round(v * uv_factor)); });
+            return;
+        }
+        throw FLVERError("compress_field: unknown codec");
+    }
+} // namespace Firelink

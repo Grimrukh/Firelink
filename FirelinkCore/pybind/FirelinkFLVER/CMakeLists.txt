@@ -1,0 +1,4 @@
+
+pybind11_add_module(pyrelink_flver pyrelink_flver.cpp)
+target_link_libraries(pyrelink_flver PRIVATE FirelinkFLVER)
+configure_install_pybind_module(pyrelink_flver)
