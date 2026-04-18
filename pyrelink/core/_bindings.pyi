@@ -286,6 +286,88 @@ def convert_png_to_dds(
 
 
 # ---------------------------------------------------------------------------
+# ImageImportManager
+# ---------------------------------------------------------------------------
+
+class GameType(IntEnum):
+    """Game identifier for ImageImportManager."""
+    DemonsSouls = 0
+    DarkSoulsPTDE = 1
+    DarkSoulsDSR = 2
+    Bloodborne = 3
+    DarkSouls3 = 4
+    Sekiro = 5
+    EldenRing = 6
+
+
+class ImageFormat(IntEnum):
+    DDS = 0
+    PNG = 1
+    TGA = 2
+
+
+class ImportImageManager:
+    """
+    /// @brief Construct a manager for the given game.
+        /// @param game       Which FromSoftware game.
+        /// @param data_root  Root of unpacked game data (e.g. "DARK SOULS REMASTERED", "ELDEN RING/Game").
+        ImageImportManager(GameType game, std::filesystem::path data_root);
+
+        /// @brief Register texture source locations for a FLVER loaded from `flver_source_path`.
+        ///
+        /// `flver_source_path` is the path to the file the FLVER was loaded from
+        /// (e.g. "chr/c2300.chrbnd.dcx" or a loose "map/.../m1234.flver").
+        ///
+        /// If the FLVER came from a Binder that has already been opened, pass it as
+        /// `flver_binder` so its TPF entries can be scanned without re-reading the file.
+        void RegisterFLVERSources(
+            const std::filesystem::path& flver_source_path,
+            const Binder* flver_binder = nullptr,
+            bool prefer_hi_res = true);
+
+        /// @brief Look up a texture by stem (case-insensitive). Returns nullptr if not found.
+        ///
+        /// Lazily loads pending TPFs and Binders as needed.
+        const TPFTexture* GetTexture(const std::string& texture_stem,
+                                     const std::string& model_name = "");
+
+        /// @brief Get texture data converted to the requested format.
+        ///
+        /// Returns empty vector if texture not found.
+        std::vector<std::byte> GetTextureAs(const std::string& texture_stem,
+                                            ImageFormat format,
+                                            const std::string& model_name = "");
+
+        /// @brief Manually set the AET root directory for asset texture lookups.
+        void SetAETRoot(const std::filesystem::path& aet_root) { aet_root_ = aet_root; }
+
+        /// @brief Get the number of cached textures.
+        [[nodiscard]] std::size_t CachedTextureCount() const;
+
+    """
+
+    def __init__(self, game: GameType, data_root: str) -> None: ...
+
+    def register_flver_sources(
+        self,
+        flver_source_path: str,
+        flver_binder: Optional[Binder] = None,
+        prefer_hi_res: bool = True,
+    ) -> None: ...
+
+    def get_texture(self, texture_stem: str, model_name: str = "") -> Optional[TPFTexture]: ...
+
+    def get_texture_as(self, texture_stem: str, format: ImageFormat, model_name: str = "") -> bytes: ...
+
+    def set_aet_root(self, aet_root: str) -> None: ...
+
+    @property
+    def cached_texture_count(self) -> int: ...
+
+    def __repr__(self) -> str: ...
+
+
+# ---------------------------------------------------------------------------
 # TPF
 # ---------------------------------------------------------------------------
 
