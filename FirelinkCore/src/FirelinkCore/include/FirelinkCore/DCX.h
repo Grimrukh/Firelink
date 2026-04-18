@@ -7,6 +7,7 @@
 
 #pragma once
 
+#include <FirelinkCore/Endian.h>
 #include <FirelinkCore/Export.h>
 
 #include <cstddef>
@@ -14,8 +15,16 @@
 #include <string>
 #include <vector>
 
+#include "BinaryReadWrite.h"
+
 namespace Firelink
 {
+    namespace BinaryReadWrite
+    {
+        class BufferReader;
+        class BufferWriter;
+    }
+
     // --- DCXType ----------------------------------------------------------------
 
     enum class DCXType
@@ -71,4 +80,19 @@ namespace Firelink
     /// @brief Compress data into the given DCX format.
     [[nodiscard]] FIRELINK_CORE_API std::vector<std::byte> CompressDCX(
         const std::byte* data, std::size_t size, DCXType type);
+
+    /// @brief Decompress data if required and return a BufferReader and DCXType.
+    /// @note  BufferReader will use `data` directly if already decompressed, or manage its own
+    ///        decompressed storage if required. Caller must maintain `data` in the former case.
+    [[nodiscard]] FIRELINK_CORE_API std::pair<BinaryReadWrite::BufferReader, DCXType> GetBufferReaderForDCX(
+        const std::byte* data, size_t size, BinaryReadWrite::Endian endian = BinaryReadWrite::Endian::Little);
+
+    /// @brief Decompress data if required and return a BufferReader and DCXType.
+    /// @note  Takes ownership of storage. Will use new storage if decompression is needed.
+    [[nodiscard]] FIRELINK_CORE_API std::pair<BinaryReadWrite::BufferReader, DCXType> GetBufferReaderForDCX(
+        std::vector<std::byte>&& storage, BinaryReadWrite::Endian endian = BinaryReadWrite::Endian::Little);
+
+    /// @brief Decompress data if required and return a BufferReader and DCXType.
+    [[nodiscard]] FIRELINK_CORE_API std::pair<BinaryReadWrite::BufferReader, DCXType> GetBufferReaderForDCX(
+        const std::filesystem::path& path, BinaryReadWrite::Endian endian = BinaryReadWrite::Endian::Little);
 } // namespace Firelink

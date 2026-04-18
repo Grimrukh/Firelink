@@ -30,6 +30,7 @@ static py::bytes vector_to_bytes(const std::vector<std::byte>& v)
 #include "pyrelink_core_binder.cpp"
 #include "pyrelink_core_dcx.cpp"
 #include "pyrelink_core_dds.cpp"
+#include "pyrelink_core_image_import_manager.cpp"
 #include "pyrelink_core_tpf.cpp"
 
 // ============================================================================
@@ -38,11 +39,12 @@ static py::bytes vector_to_bytes(const std::vector<std::byte>& v)
 
 PYBIND11_MODULE(_pyrelink_core, m)
 {
-    m.doc() = "Python bindings for FirelinkCore (Binder, DCX, DDS, TPF).";
+    m.doc() = "Python bindings for FirelinkCore (Binder, DCX, DDS, ImageImportManager, TPF).";
 
     bind_firelink_core_binder(m);
     bind_firelink_core_dcx(m);
     bind_firelink_core_dds(m);
+    bind_firelink_core_image_import_manager(m);
     bind_firelink_core_tpf(m);
 }
 

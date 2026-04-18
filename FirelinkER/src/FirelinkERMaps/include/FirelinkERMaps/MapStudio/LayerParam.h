@@ -3,7 +3,7 @@
 #include "EntryParam.h"
 #include "Layer.h"
 
-namespace FirelinkER::Maps::MapStudio
+namespace Firelink::EldenRing::Maps::MapStudio
 {
     /// @brief Never properly instantiated; class is only used to read/write the constant header.
     class LayerParam final : public EntryParam<Layer>
@@ -21,4 +21,4 @@ namespace FirelinkER::Maps::MapStudio
         }
     };
 
-} // namespace FirelinkER::Maps::MapStudio
+} // namespace Firelink::EldenRing::Maps::MapStudio

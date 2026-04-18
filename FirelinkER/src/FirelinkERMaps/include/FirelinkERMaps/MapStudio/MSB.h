@@ -1,16 +1,20 @@
 ﻿#pragma once
 
-#include "EventParam.h"
-#include "ModelParam.h"
-#include "PartParam.h"
-#include "RegionParam.h"
-#include "RouteParam.h"
+#include <FirelinkERMaps/MapStudio/EventParam.h>
+#include <FirelinkERMaps/MapStudio/ModelParam.h>
+#include <FirelinkERMaps/MapStudio/PartParam.h>
+#include <FirelinkERMaps/MapStudio/RegionParam.h>
+#include <FirelinkERMaps/MapStudio/RouteParam.h>
 
 #include <FirelinkERMaps/Export.h>
 
+#include <FirelinkCore/DCX.h>
+
 #include <filesystem>
 
-namespace FirelinkER::Maps::MapStudio
+namespace Firelink::BinaryReadWrite { class BufferReader; class BufferWriter; }
+
+namespace Firelink::EldenRing::Maps::MapStudio
 {
     class FIRELINK_ER_MAPS_API MSB
     {
@@ -30,14 +34,17 @@ namespace FirelinkER::Maps::MapStudio
         /// @brief MSB cannot be move-assigned.
         MSB& operator=(MSB&&) = delete;
 
-        /// @Brief Deserialize an MSB into this instance from a filestream.
-        void Deserialize(std::ifstream& stream);
 
-        /// @brief Serialize this MSB to a filestream.
-        void Serialize(std::ofstream& stream);
+        /// @brief Deserialize an MSB into this instance from a BufferReader.
+        /// @todo: Replace with FromBytes.
+        void Deserialize(Firelink::BinaryReadWrite::BufferReader& reader);
+
+        /// @brief Serialize this MSB to a BufferWriter.
+        /// @todo: Replace with ToBytes.
+        void Serialize(Firelink::BinaryReadWrite::BufferWriter& writer);
 
         /// @brief Heap-allocate and deserialize a new MSB from a file.
-        static std::unique_ptr<MSB> NewFromFilePath(const std::filesystem::path& path);
+        static std::unique_ptr<MSB> FromPath(const std::filesystem::path& path);
 
         /// @brief Serialize this MSB and write it to a file path.
         void WriteToFilePath(const std::filesystem::path& path);
@@ -51,10 +58,12 @@ namespace FirelinkER::Maps::MapStudio
         [[nodiscard]] PartParam& GetPartParam() { return m_partParam; }
 
     protected:
-        static void ReadHeader(std::ifstream& stream);
-        static void WriteHeader(std::ofstream& stream);
+        static void ReadHeader(Firelink::BinaryReadWrite::BufferReader& reader);
+        static void WriteHeader(Firelink::BinaryReadWrite::BufferWriter& writer);
 
     private:
+        DCXType m_dcxType = DCXType::Null;
+
         ModelParam m_modelParam;
         EventParam m_eventParam;
         RegionParam m_regionParam;
@@ -76,4 +85,4 @@ namespace FirelinkER::Maps::MapStudio
             const std::vector<Region*>& regions,
             const std::vector<Part*>& parts);
     };
-} // namespace FirelinkER::Maps::MapStudio
+} // namespace Firelink::EldenRing::Maps::MapStudio

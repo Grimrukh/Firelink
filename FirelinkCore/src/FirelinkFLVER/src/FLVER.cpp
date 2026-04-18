@@ -927,22 +927,9 @@ namespace Firelink
 
     FLVER FLVER::FromBytes(const std::byte* data, std::size_t size)
     {
-        auto dcx_type = DCXType::Null;
-        const std::byte* decompressed_data = data;
-        std::vector<std::byte> decompressed_storage;
-        if (IsDCX(data, size))
-        {
-            auto result = DecompressDCX(data, size);
-            dcx_type = result.type;
-            decompressed_storage = std::move(result.data);
-            decompressed_data = decompressed_storage.data();
-            size = decompressed_storage.size();
-        }
-
-        if (size < 12)
+        auto [r, dcx_type] = GetBufferReaderForDCX(data, size, Endian::Little);
+        if (r.size() < 12)
             throw FLVERError("Buffer too small to contain a FLVER header");
-
-        BufferReader r(decompressed_data, size, Endian::Little);
 
         constexpr char expected_magic[] = "FLVER";
         r.AssertBytes(expected_magic, 5, "FLVER magic");

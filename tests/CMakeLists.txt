@@ -1,0 +1,4 @@
+add_subdirectory(FirelinkTestHelpers)
+
+add_subdirectory(FirelinkCore)
+add_subdirectory(FirelinkER)

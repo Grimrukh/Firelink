@@ -6,7 +6,7 @@
 
 #include <FirelinkERHook/Export.h>
 
-namespace FirelinkER
+namespace Firelink::EldenRing
 {
     /// @brief Name of ER process, for the user to find it.
     inline constexpr wchar_t ER_PROCESS_NAME[] = L"ELDEN_RING.exe";
@@ -43,4 +43,4 @@ namespace FirelinkER
         const Firelink::BasePointer* m_PlayerIns = nullptr;
     };
 
-} // namespace FirelinkER
+} // namespace Firelink::EldenRing

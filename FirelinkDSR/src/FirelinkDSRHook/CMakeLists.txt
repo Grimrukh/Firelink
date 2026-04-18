@@ -1,5 +1,5 @@
 ﻿
-add_library(FirelinkDSRHook SHARED)
+add_library(FirelinkDSRHook)
 
 target_sources(FirelinkDSRHook
     PRIVATE

@@ -8,7 +8,9 @@
 #include <utility>
 #include <vector>
 
-namespace FirelinkER::Maps::MapStudio
+namespace Firelink::BinaryReadWrite { class BufferReader; class BufferWriter; }
+
+namespace Firelink::EldenRing::Maps::MapStudio
 {
     /// @brief MSB entry supertype list, which maps subtypes of that supertype (by enum) to their unique instances.
     ///
@@ -61,17 +63,17 @@ namespace FirelinkER::Maps::MapStudio
         /// @brief Read fixed Param header data and create all subtypes entries in their owning `EntrySubParam`s.
         ///
         /// @return List of non-owning pointers to all entries, in order, for reference deserialization.
-        std::vector<T*> Deserialize(std::ifstream& stream);
+        std::vector<T*> Deserialize(Firelink::BinaryReadWrite::BufferReader& reader);
 
         /// @brief Write fixed Param header and all subtype lists, in subtype enum order.
         ///
-        /// @return Offset at which next entry list offset should be written.
-        std::streampos Serialize(std::ofstream& stream);
+        /// @return Reservation label for the next entry param offset (caller must fill it).
+        std::string Serialize(Firelink::BinaryReadWrite::BufferWriter& writer);
 
         /// @brief Deserialize and create a new entry of this list's supertype.
         ///
         /// @return A non-owning pointer to the created `Entry`.
-        T* DeserializeEntry(std::ifstream& stream);
+        T* DeserializeEntry(Firelink::BinaryReadWrite::BufferReader& reader);
 
         /// @brief Retrieve non-owning pointers to all entries of all subtypes in MSB order.
         ///
@@ -153,4 +155,4 @@ namespace FirelinkER::Maps::MapStudio
     // extern template class EntryParam<Layer>;
     // class Route;
     // extern template class EntryParam<Route>;
-} // namespace FirelinkER::Maps::MapStudio
+} // namespace Firelink::EldenRing::Maps::MapStudio

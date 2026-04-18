@@ -1,3 +1,13 @@
+# --------------------------------------------------------------
+# Add a Firelink library, appending '_static' suffix for static
+# builds to avoid .lib collision with DLL import libs on MSVC.
+# --------------------------------------------------------------
+function(add_firelink_library target_name)
+    add_library(${target_name} ${ARGN})
+    if(MSVC AND NOT BUILD_SHARED_LIBS)
+        set_target_properties(${target_name} PROPERTIES OUTPUT_NAME "${target_name}_static")
+    endif()
+endfunction()
 
 # --------------------------------------------------------------
 # Generate and include export header for a target.
@@ -19,24 +29,21 @@ function(generate_firelink_export_header target_name api_macro_name)
     )
 endfunction()
 
-macro(configure_install_pybind_module target_name)
+# --------------------------------------------------------------
+# Configure installation for a pybind11 module.
+#
+# Sets output name to '_bindings' and installs the module to
+# the specified path under 'pyrelink'. A PYI stub called '_bindings'
+# should already be present in the install path.
+# --------------------------------------------------------------
+macro(configure_install_pybind_module target_name install_path)
     set_target_properties(${target_name} PROPERTIES
-        LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+        OUTPUT_NAME _bindings
     )
 
-    # Copy PYI file to build directory
-    add_custom_command(TARGET ${target_name} POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "${CMAKE_CURRENT_SOURCE_DIR}/${target_name}.pyi"
-            "${CMAKE_BINARY_DIR}/bin/${target_name}.pyi"
-    )
-
-    # Install the module and PYI file
+    # Install the module
     install(TARGETS ${target_name}
-            RUNTIME DESTINATION bin
-            LIBRARY DESTINATION bin
-    )
-    install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/${target_name}.pyi"
-            DESTINATION bin
+            RUNTIME DESTINATION pyrelink/${install_path}
+            LIBRARY DESTINATION pyrelink/${install_path}
     )
 endmacro()

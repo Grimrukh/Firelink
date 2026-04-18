@@ -13,7 +13,7 @@
         break;                                             \
     }
 
-namespace FirelinkER::Maps::MapStudio
+namespace Firelink::EldenRing::Maps::MapStudio
 {
     class FIRELINK_ER_MAPS_API RegionParam final : public EntryParam<Region>
     {
@@ -74,6 +74,6 @@ namespace FirelinkER::Maps::MapStudio
             return subtypeVector.back().get();
         }
     };
-} // namespace FirelinkER::Maps::MapStudio
+} // namespace Firelink::EldenRing::Maps::MapStudio
 
 #undef CASE_MAKE_UNIQUE

@@ -6,12 +6,14 @@
 #include <FirelinkERMaps/Export.h>
 
 #include <cstdint>
-#include <iostream>
+#include <stdexcept>
 #include <string>
 #include <unordered_set>
 #include <utility>
 
-namespace FirelinkER::Maps::MapStudio
+namespace Firelink::BinaryReadWrite { class BufferReader; class BufferWriter; }
+
+namespace Firelink::EldenRing::Maps::MapStudio
 {
     /// @brief Base class for any entry in any MSB entry list. Only base field is `name`.
     class FIRELINK_ER_MAPS_API Entry
@@ -41,10 +43,10 @@ namespace FirelinkER::Maps::MapStudio
         void SetName(const std::u16string& newName) { m_name = newName; }
         [[nodiscard]] std::string GetNameUTF8() const { return Firelink::UTF16ToUTF8(m_name); }
 
-        /// @brief Deserialize an entry from a filestream.
-        virtual void Deserialize(std::ifstream& stream) = 0;
+        /// @brief Deserialize an entry from a BufferReader.
+        virtual void Deserialize(Firelink::BinaryReadWrite::BufferReader& reader) = 0;
         // Supertype and/or subtype indices may not be used by all subclasses.
-        virtual void Serialize(std::ofstream& stream, int supertypeIndex, int subtypeIndex) const = 0;
+        virtual void Serialize(Firelink::BinaryReadWrite::BufferWriter& writer, int supertypeIndex, int subtypeIndex) const = 0;
 
         /// @brief Register an incoming reference from another `Entry`.
         void AddReferrer(EntryReferenceBase* referrer)
@@ -93,4 +95,4 @@ namespace FirelinkER::Maps::MapStudio
     protected:
         uint32_t m_entityId = 0; // note unsigned
     };
-} // namespace FirelinkER::Maps::MapStudio
+} // namespace Firelink::EldenRing::Maps::MapStudio

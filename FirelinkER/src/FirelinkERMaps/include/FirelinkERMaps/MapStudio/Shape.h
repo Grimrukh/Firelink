@@ -2,11 +2,12 @@
 
 #include <FirelinkERMaps/Export.h>
 
-#include <fstream>
 #include <map>
 #include <memory>
 
-namespace FirelinkER::Maps::MapStudio
+namespace Firelink::BinaryReadWrite { class BufferReader; class BufferWriter; }
+
+namespace Firelink::EldenRing::Maps::MapStudio
 {
     class Region;
 
@@ -48,8 +49,8 @@ namespace FirelinkER::Maps::MapStudio
 
         [[nodiscard]] virtual std::unique_ptr<Shape> Clone() const = 0;
 
-        virtual void DeserializeShapeData(std::ifstream& stream) = 0;
-        virtual void SerializeShapeData(std::ofstream& stream) = 0;
+        virtual void DeserializeShapeData(Firelink::BinaryReadWrite::BufferReader& reader) = 0;
+        virtual void SerializeShapeData(Firelink::BinaryReadWrite::BufferWriter& writer) = 0;
 
         [[nodiscard]] std::string GetShapeTypeName() const { return GetTypeNames().at(GetType()); }
     };
@@ -67,8 +68,8 @@ namespace FirelinkER::Maps::MapStudio
 
         [[nodiscard]] std::unique_ptr<Shape> Clone() const override { return std::make_unique<Point>(*this); }
 
-        void DeserializeShapeData(std::ifstream& stream) override;
-        void SerializeShapeData(std::ofstream& stream) override;
+        void DeserializeShapeData(Firelink::BinaryReadWrite::BufferReader& reader) override;
+        void SerializeShapeData(Firelink::BinaryReadWrite::BufferWriter& writer) override;
     };
 
     class FIRELINK_ER_MAPS_API Circle final : public Shape
@@ -93,8 +94,8 @@ namespace FirelinkER::Maps::MapStudio
         [[nodiscard]] float GetRadius() const { return m_radius; }
         void SetRadius(const float radius) { m_radius = radius; }
 
-        void DeserializeShapeData(std::ifstream& stream) override;
-        void SerializeShapeData(std::ofstream& stream) override;
+        void DeserializeShapeData(Firelink::BinaryReadWrite::BufferReader& reader) override;
+        void SerializeShapeData(Firelink::BinaryReadWrite::BufferWriter& writer) override;
 
     protected:
         float m_radius;
@@ -122,8 +123,8 @@ namespace FirelinkER::Maps::MapStudio
         [[nodiscard]] float GetRadius() const { return m_radius; }
         void SetRadius(const float radius) { m_radius = radius; }
 
-        void DeserializeShapeData(std::ifstream& stream) override;
-        void SerializeShapeData(std::ofstream& stream) override;
+        void DeserializeShapeData(Firelink::BinaryReadWrite::BufferReader& reader) override;
+        void SerializeShapeData(Firelink::BinaryReadWrite::BufferWriter& writer) override;
 
     protected:
         float m_radius;
@@ -156,8 +157,8 @@ namespace FirelinkER::Maps::MapStudio
         [[nodiscard]] float GetHeight() const { return m_height; }
         void SetHeight(const float height) { m_height = height; }
 
-        void DeserializeShapeData(std::ifstream& stream) override;
-        void SerializeShapeData(std::ofstream& stream) override;
+        void DeserializeShapeData(Firelink::BinaryReadWrite::BufferReader& reader) override;
+        void SerializeShapeData(Firelink::BinaryReadWrite::BufferWriter& writer) override;
 
     protected:
         float m_radius;
@@ -191,8 +192,8 @@ namespace FirelinkER::Maps::MapStudio
         [[nodiscard]] float GetDepth() const { return m_depth; }
         void SetDepth(const float depth) { m_depth = depth; }
 
-        void DeserializeShapeData(std::ifstream& stream) override;
-        void SerializeShapeData(std::ofstream& stream) override;
+        void DeserializeShapeData(Firelink::BinaryReadWrite::BufferReader& reader) override;
+        void SerializeShapeData(Firelink::BinaryReadWrite::BufferWriter& writer) override;
 
     protected:
         float m_width; // X axis
@@ -231,8 +232,8 @@ namespace FirelinkER::Maps::MapStudio
         [[nodiscard]] float GetHeight() const { return m_height; }
         void SetHeight(const float height) { m_height = height; }
 
-        void DeserializeShapeData(std::ifstream& stream) override;
-        void SerializeShapeData(std::ofstream& stream) override;
+        void DeserializeShapeData(Firelink::BinaryReadWrite::BufferReader& reader) override;
+        void SerializeShapeData(Firelink::BinaryReadWrite::BufferWriter& writer) override;
 
     protected:
         float m_width;  // X axis
@@ -258,7 +259,7 @@ namespace FirelinkER::Maps::MapStudio
         [[nodiscard]] std::unique_ptr<Shape> Clone() const override { return std::make_unique<Composite>(*this); }
 
         // Dummy implementations. Handled by caller as special case so child references can be assigned to `Region`.
-        void DeserializeShapeData(std::ifstream& stream) override {}
-        void SerializeShapeData(std::ofstream& stream) override {}
+        void DeserializeShapeData(Firelink::BinaryReadWrite::BufferReader& reader) override {}
+        void SerializeShapeData(Firelink::BinaryReadWrite::BufferWriter& writer) override {}
     };
-} // namespace FirelinkER::Maps::MapStudio
+} // namespace Firelink::EldenRing::Maps::MapStudio

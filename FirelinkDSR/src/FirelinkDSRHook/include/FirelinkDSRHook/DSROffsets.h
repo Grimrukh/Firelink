@@ -5,7 +5,7 @@
  */
 #pragma once
 
-namespace FirelinkDSR
+namespace Firelink::DarkSouls1R
 {
     namespace WORLD_CHR_MAN
     {

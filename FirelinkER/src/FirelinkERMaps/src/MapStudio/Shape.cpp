@@ -1,76 +1,74 @@
-﻿
-#include <FirelinkCore/BinaryReadWrite.h>
+﻿#include <FirelinkCore/BinaryReadWrite.h>
 #include <FirelinkERMaps/MapStudio/MSBFormatError.h>
 #include <FirelinkERMaps/MapStudio/Shape.h>
 
-using namespace std;
 using namespace Firelink::BinaryReadWrite;
-using namespace FirelinkER::Maps::MapStudio;
+using namespace Firelink::EldenRing::Maps::MapStudio;
 
-void Point::DeserializeShapeData(ifstream& stream)
+void Point::DeserializeShapeData(BufferReader& reader)
 {
     throw MSBFormatError("Point shape should not have shape data to read.");
 }
 
-void Point::SerializeShapeData(ofstream& stream)
+void Point::SerializeShapeData(BufferWriter& writer)
 {
     throw MSBFormatError("Point shape should not have shape data to write.");
 }
 
-void Circle::DeserializeShapeData(ifstream& stream)
+void Circle::DeserializeShapeData(BufferReader& reader)
 {
-    m_radius = ReadValue<float>(stream);
+    m_radius = reader.Read<float>();
 }
 
-void Circle::SerializeShapeData(ofstream& stream)
+void Circle::SerializeShapeData(BufferWriter& writer)
 {
-    WriteValue<float>(stream, m_radius);
+    writer.Write<float>(m_radius);
 }
 
-void Sphere::DeserializeShapeData(ifstream& stream)
+void Sphere::DeserializeShapeData(BufferReader& reader)
 {
-    m_radius = ReadValue<float>(stream);
+    m_radius = reader.Read<float>();
 }
 
-void Sphere::SerializeShapeData(ofstream& stream)
+void Sphere::SerializeShapeData(BufferWriter& writer)
 {
-    WriteValue<float>(stream, m_radius);
+    writer.Write<float>(m_radius);
 }
 
-void Cylinder::DeserializeShapeData(ifstream& stream)
+void Cylinder::DeserializeShapeData(BufferReader& reader)
 {
-    m_radius = ReadValue<float>(stream);
-    m_height = ReadValue<float>(stream);
+    m_radius = reader.Read<float>();
+    m_height = reader.Read<float>();
 }
 
-void Cylinder::SerializeShapeData(ofstream& stream)
+void Cylinder::SerializeShapeData(BufferWriter& writer)
 {
-    WriteValue<float>(stream, m_radius);
-    WriteValue<float>(stream, m_height);
+    writer.Write<float>(m_radius);
+    writer.Write<float>(m_height);
 }
 
-void Rectangle::DeserializeShapeData(ifstream& stream)
+void Rectangle::DeserializeShapeData(BufferReader& reader)
 {
-    m_width = ReadValue<float>(stream);
-    m_depth = ReadValue<float>(stream);
+    m_width = reader.Read<float>();
+    m_depth = reader.Read<float>();
 }
 
-void Rectangle::SerializeShapeData(ofstream& stream)
+void Rectangle::SerializeShapeData(BufferWriter& writer)
 {
-    WriteValue<float>(stream, m_width);
-    WriteValue<float>(stream, m_depth);
+    writer.Write<float>(m_width);
+    writer.Write<float>(m_depth);
 }
 
-void Box::DeserializeShapeData(ifstream& stream)
+void Box::DeserializeShapeData(BufferReader& reader)
 {
-    m_width = ReadValue<float>(stream);
-    m_depth = ReadValue<float>(stream);
-    m_height = ReadValue<float>(stream);
+    m_width = reader.Read<float>();
+    m_depth = reader.Read<float>();
+    m_height = reader.Read<float>();
 }
 
-void Box::SerializeShapeData(ofstream& stream)
+void Box::SerializeShapeData(BufferWriter& writer)
 {
-    WriteValue<float>(stream, m_width);
-    WriteValue<float>(stream, m_depth);
-    WriteValue<float>(stream, m_height);
+    writer.Write<float>(m_width);
+    writer.Write<float>(m_depth);
+    writer.Write<float>(m_height);
 }

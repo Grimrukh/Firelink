@@ -10,7 +10,7 @@
 #include <map>
 #include <string>
 
-namespace FirelinkER::Maps::MapStudio
+namespace Firelink::EldenRing::Maps::MapStudio
 {
     // Minimal MSB type related to muffling box/portal Regions. Has two subtypes, neither of which has any subtype data.
     class FIRELINK_ER_MAPS_API Route : public Entry
@@ -48,8 +48,8 @@ namespace FirelinkER::Maps::MapStudio
         [[nodiscard]] int32_t GetSubtypeIndexOverride() const { return subtypeIndexOverride; }
         void SetSubtypeIndexOverride(const int32_t value) { subtypeIndexOverride = value; }
 
-        void Deserialize(std::ifstream& stream) override;
-        void Serialize(std::ofstream& stream, int supertypeIndex, int subtypeIndex) const override;
+        void Deserialize(Firelink::BinaryReadWrite::BufferReader& reader) override;
+        void Serialize(Firelink::BinaryReadWrite::BufferWriter& writer, int supertypeIndex, int subtypeIndex) const override;
 
         explicit operator std::string() const
         {
@@ -101,4 +101,4 @@ namespace FirelinkER::Maps::MapStudio
 
         [[nodiscard]] RouteType GetType() const override { return RouteType::Other; }
     };
-} // namespace FirelinkER::Maps::MapStudio
+} // namespace Firelink::EldenRing::Maps::MapStudio

@@ -111,7 +111,7 @@ as [DSREquipmentSwap](https://github.com/Grimrukh/DSREquipmentSwap), for more co
 void PrintHealthEverySecond()
 {
     using namespace Firelink;
-    using namespace FirelinkDSR;
+    using namespace Firelink::DarkSouls1R;
 
     // We need an atomic flag to pass to `WaitForProcess` to stop the search if needed.
     // It's not used in this example, but the caller could pass it in and set it to `true` in another thread to

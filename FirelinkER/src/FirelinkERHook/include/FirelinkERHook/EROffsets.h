@@ -1,6 +1,6 @@
 ﻿#pragma once
 
-namespace FirelinkER
+namespace Firelink::EldenRing
 {
     namespace WORLD_CHR_MAN
     {

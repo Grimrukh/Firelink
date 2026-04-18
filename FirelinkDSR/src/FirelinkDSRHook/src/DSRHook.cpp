@@ -7,7 +7,7 @@
 #include <memory>
 
 using namespace Firelink;
-using namespace FirelinkDSR;
+using namespace Firelink::DarkSouls1R;
 
 namespace
 {

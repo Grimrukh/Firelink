@@ -1,5 +1,5 @@
 
-add_library(FirelinkERMaps SHARED)
+add_firelink_library(FirelinkERMaps)
 
 target_sources(FirelinkERMaps
     PRIVATE

@@ -4,7 +4,7 @@
 #include "Enums.h"
 #include "MSBFormatError.h"
 
-namespace FirelinkER::Maps::MapStudio
+namespace Firelink::EldenRing::Maps::MapStudio
 {
     /// @brief Empty `LayerParam` for MSB.
     class Layer final : public Entry
@@ -28,9 +28,9 @@ namespace FirelinkER::Maps::MapStudio
 
         static LayerType GetType() { return LayerType::None; }
 
-        void Deserialize(std::ifstream& stream) override {}
-        void Serialize(std::ofstream& stream, int supertypeIndex, int subtypeIndex) const override {}
+        void Deserialize(Firelink::BinaryReadWrite::BufferReader& reader) override {}
+        void Serialize(Firelink::BinaryReadWrite::BufferWriter& writer, int supertypeIndex, int subtypeIndex) const override {}
 
         explicit operator std::string() const { return "Layer[]"; }
     };
-} // namespace FirelinkER::Maps::MapStudio
+} // namespace Firelink::EldenRing::Maps::MapStudio

@@ -1,5 +1,6 @@
 ﻿#pragma once
 
+#include <FirelinkCore/Endian.h>
 #include <FirelinkCore/Export.h>
 #include <FirelinkCore/Logging.h>
 
@@ -442,9 +443,6 @@ namespace Firelink::BinaryReadWrite
     // BUFFER-BASED I/O (in-memory byte buffers with endian support)
     // =========================================================================
 
-    /// @brief Byte order for in-memory buffer readers/writers.
-    enum class Endian : std::uint8_t { Little, Big };
-
     namespace detail
     {
         /// @brief Reverse the bytes of a primitive value (for endian conversion).
@@ -472,9 +470,50 @@ namespace Firelink::BinaryReadWrite
     class BufferReader
     {
     public:
+        /// @brief Get a BufferReader into data managed by the caller.
         BufferReader(const std::byte* data, const std::size_t size, const Endian endian = Endian::Little)
-            : m_data(data), m_size(size), m_position(0), m_endian(endian)
+            : m_data(data), m_size(size), m_endian(endian)
         {
+        }
+
+        /// @brief Get a BufferReader with its own managed storage.
+        explicit BufferReader(std::vector<std::byte>&& storage, const Endian endian = Endian::Little);
+
+        /// @brief Get a BufferReader from a file path with its own managed storage.
+        explicit BufferReader(const std::filesystem::path& part, Endian endian = Endian::Little);
+
+        // Non-copyable (m_data may alias m_storage).
+        BufferReader(const BufferReader&) = delete;
+        BufferReader& operator=(const BufferReader&) = delete;
+
+        /// @brief Move constructor. Fixes up m_data when storage is owned.
+        BufferReader(BufferReader&& other) noexcept
+            : m_storage(std::move(other.m_storage))
+            , m_data(m_storage.empty() ? other.m_data : m_storage.data())
+            , m_size(other.m_size)
+            , m_position(other.m_position)
+            , m_endian(other.m_endian)
+        {
+            other.m_data = nullptr;
+            other.m_size = 0;
+            other.m_position = 0;
+        }
+
+        /// @brief Move assignment. Fixes up m_data when storage is owned.
+        BufferReader& operator=(BufferReader&& other) noexcept
+        {
+            if (this != &other)
+            {
+                m_storage = std::move(other.m_storage);
+                m_data = m_storage.empty() ? other.m_data : m_storage.data();
+                m_size = other.m_size;
+                m_position = other.m_position;
+                m_endian = other.m_endian;
+                other.m_data = nullptr;
+                other.m_size = 0;
+                other.m_position = 0;
+            }
+            return *this;
         }
 
         /// @brief Read a trivially-copyable value, byte-swapping if big-endian.
@@ -659,11 +698,14 @@ namespace Firelink::BinaryReadWrite
             return result;
         }
 
+        [[nodiscard]] size_t size() const noexcept { return m_size; }
+
     private:
+        std::vector<std::byte> m_storage{};
         const std::byte* m_data;
         std::size_t m_size;
-        std::size_t m_position;
-        Endian m_endian;
+        std::size_t m_position = 0;
+        Endian m_endian = Endian::Little;
     };
 
     // -------------------------------------------------------------------------

@@ -19,7 +19,7 @@
 
 namespace py = pybind11;
 using namespace Firelink;
-using namespace FirelinkER::Maps::MapStudio;
+using namespace Firelink::EldenRing::Maps::MapStudio;
 
 
 // ============================================================================
@@ -90,7 +90,7 @@ static void bind_shapes(py::module_& m)
         .def_property("radius", &Cylinder::GetRadius, &Cylinder::SetRadius)
         .def_property("height", &Cylinder::GetHeight, &Cylinder::SetHeight);
 
-    py::class_<FirelinkER::Maps::MapStudio::Rectangle, Shape>(m, "RectangleShape")
+    py::class_<Firelink::EldenRing::Maps::MapStudio::Rectangle, Shape>(m, "RectangleShape")
         .def(py::init<>())
         .def(py::init<float, float>(), py::arg("width"), py::arg("depth"))
         .def_property("width", &Rectangle::GetWidth, &Rectangle::SetWidth)
@@ -1329,7 +1329,7 @@ PYBIND11_MODULE(_pyrelink_er_maps, m)
                     tmp.close();
                 }
 
-                msb = MSB::NewFromFilePath(temp_path);
+                msb = MSB::FromPath(temp_path);
                 std::filesystem::remove(temp_path);
             }
             return msb;
@@ -1379,12 +1379,12 @@ PYBIND11_MODULE(_pyrelink_er_maps, m)
                         tmp.write(reinterpret_cast<const char*>(dcx_result.data.data()),
                             static_cast<std::streamsize>(dcx_result.data.size()));
                     }
-                    msb = MSB::NewFromFilePath(temp_path);
+                    msb = MSB::FromPath(temp_path);
                     std::filesystem::remove(temp_path);
                 }
                 else
                 {
-                    msb = MSB::NewFromFilePath(path_str);
+                    msb = MSB::FromPath(path_str);
                 }
             }
             return msb;

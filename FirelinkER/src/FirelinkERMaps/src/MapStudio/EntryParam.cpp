@@ -1,4 +1,5 @@
-﻿#include <FirelinkCore/BinaryReadWrite.h>
+﻿#include "MSBBufferHelpers.h"
+#include <FirelinkCore/BinaryReadWrite.h>
 #include <FirelinkCore/BinaryValidation.h>
 #include <FirelinkERMaps/Export.h>
 #include <FirelinkERMaps/MapStudio/Entry.h>
@@ -16,16 +17,16 @@
 #include <sstream>
 #include <utility>
 
-using namespace std;
 using namespace Firelink;
 using namespace Firelink::BinaryReadWrite;
 using namespace Firelink::BinaryValidation;
-using namespace FirelinkER::Maps::MapStudio;
+using namespace Firelink::EldenRing::Maps::MapStudio;
+using namespace Firelink::EldenRing::Maps::MapStudio::BufferHelpers;
 
 template <typename T>
-EntryParam<T>::EntryParam(const int version, u16string name)
+EntryParam<T>::EntryParam(const int version, std::u16string name)
 : m_version(version)
-, m_name(move(name))
+, m_name(std::move(name))
 , m_nameUtf8(UTF16ToUTF8(m_name))
 {
     static_assert(std::is_base_of_v<Entry, T>, "EntryParam type must be an `Entry` subclass.");
@@ -38,7 +39,7 @@ EntryParam<T>::EntryParam(const int version, u16string name)
 }
 
 template <typename T>
-void EntryParam<T>::AddEntry(unique_ptr<T> entry)
+void EntryParam<T>::AddEntry(std::unique_ptr<T> entry)
 {
     static_assert(std::is_base_of_v<Entry, T>, "EntryParam type must be an `Entry` subclass.");
     typename T::EnumType subtype = entry->GetType();
@@ -62,7 +63,7 @@ void EntryParam<T>::RemoveEntry(T* entry)
     auto& subtypeVector = m_entriesBySubtype.at(subtypeInt);
     auto it = subtypeVector.erase(
         std::remove_if(
-            subtypeVector.begin(), subtypeVector.end(), [entry](const unique_ptr<T>& e) { return e.get() == entry; }),
+            subtypeVector.begin(), subtypeVector.end(), [entry](const std::unique_ptr<T>& e) { return e.get() == entry; }),
         subtypeVector.end());
 
     if (it == subtypeVector.end())
@@ -71,72 +72,72 @@ void EntryParam<T>::RemoveEntry(T* entry)
 
 // Base read method: sets `version` and `name`, and returns list of entries for subtype sorting (in subclass).
 template <typename T>
-vector<T*> EntryParam<T>::Deserialize(ifstream& stream)
+std::vector<T*> EntryParam<T>::Deserialize(BufferReader& reader)
 {
     static_assert(std::is_base_of_v<Entry, T>, "EntryParam type must be an `Entry` subclass.");
 
-    auto pos = static_cast<int64_t>(stream.tellg());
+    auto pos = static_cast<int64_t>(reader.Position());
     Debug(std::format("Reading EntryParam '{}' at offset 0x{:X}.", m_nameUtf8, pos));
 
-    m_version = ReadValue<int>(stream);
-    const auto entryOffsetCount = ReadValue<int32_t>(stream);
-    const auto listNameOffset = ReadValue<int64_t>(stream);
+    m_version = reader.Read<int>();
+    const auto entryOffsetCount = reader.Read<int32_t>();
+    const auto listNameOffset = reader.Read<int64_t>();
 
     // Final offset is for next `EntryParam` in MSB.
-    vector<int64_t> entryOffsets;
+    std::vector<int64_t> entryOffsets;
     entryOffsets.reserve(entryOffsetCount - 1);
     for (int i = 0; i < entryOffsetCount - 1; ++i)
-        entryOffsets.push_back(ReadValue<int64_t>(stream));
-    const auto nextEntryParamOffset = ReadValue<int64_t>(stream);
+        entryOffsets.push_back(reader.Read<int64_t>());
+    const auto nextEntryParamOffset = reader.Read<int64_t>();
 
     // Read and validate name.
-    if (const u16string name = ReadUTF16String(stream, listNameOffset); name != m_name)
-        throw MSBFormatError(
-            std::format("Expected MSB entry list name '{}', but read '{}'.", m_nameUtf8, UTF16ToUTF8(name)));
+    {
+        auto guard = reader.TempOffset(static_cast<size_t>(listNameOffset));
+        if (const std::u16string name = BufferHelpers::ReadUTF16String(reader); name != m_name)
+            throw MSBFormatError(
+                std::format("Expected MSB entry list name '{}', but read '{}'.", m_nameUtf8, UTF16ToUTF8(name)));
+    }
 
     // Read and collect pointers to all entries.
-    vector<T*> entries;
+    std::vector<T*> entries;
     entries.reserve(entryOffsetCount - 1); // allocate vector capacity now
     for (const int64_t offset : entryOffsets)
     {
-        stream.seekg(offset);
-        T* entry = DeserializeEntry(stream);
+        reader.Seek(static_cast<size_t>(offset));
+        T* entry = DeserializeEntry(reader);
         if (!entry)
             throw MSBFormatError("Failed to read entry from MSB entry list (returned nullptr).");
-        Debug(format("Deserialized entry {} at offset 0x{:X} for Param '{}'.", string(*entry), offset, m_nameUtf8));
-        // std::cout << "Deserialized entry " << string(*entry) << " at offset 0x" << std::hex << offset << " for Param
-        // '" << m_name << "'." << std::endl;
+        Debug(format("Deserialized entry {} at offset 0x{:X} for Param '{}'.", std::string(*entry), offset, m_nameUtf8));
         entries.push_back(entry);
     }
 
     // Final entry list must have this as 0.
-    stream.seekg(nextEntryParamOffset);
+    reader.Seek(static_cast<size_t>(nextEntryParamOffset));
     return entries;
 }
 
 template <typename T>
-streampos EntryParam<T>::Serialize(ofstream& stream)
+std::string EntryParam<T>::Serialize(BufferWriter& writer)
 {
     static_assert(std::is_base_of_v<Entry, T>, "EntryParam type must be an `Entry` subclass.");
-    Reserver reserver(stream, true);
     const size_t entryCount = GetSize();
 
-    Debug(std::format("Writing EntryParam '{}' at offset 0x{:X}.", m_nameUtf8, static_cast<int64_t>(stream.tellp())));
+    Debug(std::format("Writing EntryParam '{}' at offset 0x{:X}.", m_nameUtf8, writer.Position()));
 
-    WriteValue(stream, m_version);
-    WriteValue(stream, static_cast<int>(entryCount + 1)); // +1 for `nextEntryParamOffset`
-    reserver.ReserveOffset("entryParamNameOffset");
+    writer.Write(m_version);
+    writer.Write(static_cast<int>(entryCount + 1)); // +1 for `nextEntryParamOffset`
+    writer.Reserve<int64_t>("entryParamNameOffset");
     // Reserve entry offsets.
     for (size_t i = 0; i < entryCount; ++i)
-        reserver.ReserveOffset("entryNameOffset" + to_string(i));
+        writer.Reserve<int64_t>("entryNameOffset" + std::to_string(i));
 
-    // Rather than reserving `nextEntryParamOffset`, we return it for the caller to write.
-    const streampos nextEntryParamOffset = stream.tellp();
-    // Write dummy value for now.
-    WriteValue(stream, static_cast<int64_t>(0));
-    reserver.FillOffsetWithPosition("entryParamNameOffset");
-    WriteUTF16String(stream, m_name);
-    AlignStream(stream, 8);
+    // Reserve `nextEntryParamOffset` with a label; return the label for the caller (MSB) to fill.
+    const std::string nextOffsetLabel = m_nameUtf8 + "_nextParamOffset";
+    writer.Reserve<int64_t>(nextOffsetLabel);
+
+    writer.FillWithPosition<int64_t>("entryParamNameOffset");
+    BufferHelpers::WriteUTF16String(writer, m_name);
+    writer.PadAlign(8);
 
     // Write Entries in ascending subtype order.
     int supertypeIndex = 0; // never resets
@@ -145,25 +146,24 @@ streampos EntryParam<T>::Serialize(ofstream& stream)
         int subtypeIndex = 0;
         for (auto& subtypeVector = m_entriesBySubtype.at(subtypeInt); const auto& entry : subtypeVector)
         {
-            reserver.FillOffsetWithPosition("entryNameOffset" + to_string(supertypeIndex));
-            entry->Serialize(stream, supertypeIndex, subtypeIndex);
+            writer.FillWithPosition<int64_t>("entryNameOffset" + std::to_string(supertypeIndex));
+            entry->Serialize(writer, supertypeIndex, subtypeIndex);
             ++supertypeIndex;
             ++subtypeIndex;
         }
     }
 
-    reserver.Finish();
-
-    // Caller (MSB) writes `nextEntryParamOffset` before writing next entry list.
-    return nextEntryParamOffset;
+    // Caller (MSB) fills `nextOffsetLabel` before writing next entry list.
+    return nextOffsetLabel;
 }
 
 template <typename T>
-T* EntryParam<T>::DeserializeEntry(ifstream& stream)
+T* EntryParam<T>::DeserializeEntry(BufferReader& reader)
 {
     static_assert(std::is_base_of_v<Entry, T>, "EntryParam type must be an `Entry` subclass.");
-    auto entrySubtype =
-        ReadEnum32<typename T::EnumType>(stream, stream.tellg() + static_cast<streamoff>(T::SubtypeEnumOffset));
+    // Read subtype enum at the appropriate offset without advancing cursor
+    auto entrySubtype = BufferHelpers::ReadEnum32At<typename T::EnumType>(
+        reader, reader.Position() + T::SubtypeEnumOffset);
 
     int subtypeInt = static_cast<int>(entrySubtype);
     const auto it = m_entriesBySubtype.find(subtypeInt);
@@ -171,15 +171,15 @@ T* EntryParam<T>::DeserializeEntry(ifstream& stream)
         throw MSBFormatError(std::format("Unknown Entry type {} for Param '{}'.", subtypeInt, m_nameUtf8));
     auto& subtypeVector = it->second;
     auto entry = GetNewEntry(subtypeInt);
-    entry->Deserialize(stream);
+    entry->Deserialize(reader);
     return entry;
 }
 
 template <typename T>
-vector<T*> EntryParam<T>::GetAllEntries() const
+std::vector<T*> EntryParam<T>::GetAllEntries() const
 {
     static_assert(std::is_base_of_v<Entry, T>, "EntryParam type must be an `Entry` subclass.");
-    vector<T*> allEntries;
+    std::vector<T*> allEntries;
     allEntries.reserve(GetSize());
     for (const auto& subtypeInt : m_subtypeOrder)
     {
@@ -210,11 +210,11 @@ void EntryParam<T>::ClearAllEntries()
 }
 
 template <typename T>
-EntryParam<T>::operator string() const
+EntryParam<T>::operator std::string() const
 {
     static_assert(std::is_base_of_v<Entry, T>, "EntryParam type must be an `Entry` subclass.");
-    ostringstream oss;
-    oss << "0x" << hex << uppercase << m_version << " " << m_nameUtf8;
+    std::ostringstream oss;
+    oss << "0x" << std::hex << std::uppercase << m_version << " " << m_nameUtf8;
     return oss.str();
 }
 

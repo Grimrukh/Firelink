@@ -738,4 +738,49 @@ namespace Firelink
         }
     }
 
+    std::pair<BufferReader, DCXType> GetBufferReaderForDCX(
+        const std::byte* data, const size_t size, const Endian endian)
+    {
+        if (IsDCX(data, size))
+        {
+            auto [decompressedStorage, type] = DecompressDCX(data, size);
+            DCXType dcxType = type;
+            BufferReader reader(std::move(decompressedStorage), endian);
+            return {std::move(reader), dcxType};
+        }
+
+        // Not compressed. Caller must maintain lifetime of `data`.
+        return {BufferReader(data, size, endian), DCXType::Null};
+    }
+
+    std::pair<BufferReader, DCXType> GetBufferReaderForDCX(
+        std::vector<std::byte>&& storage, const Endian endian)
+    {
+        if (IsDCX(storage.data(), storage.size()))
+        {
+            auto [decompressedStorage, type] = DecompressDCX(storage.data(), storage.size());
+            DCXType dcxType = type;
+            BufferReader reader(std::move(decompressedStorage), endian);
+            return {std::move(reader), dcxType};
+        }
+
+        // Not compressed.
+        return {BufferReader(std::move(storage), endian), DCXType::Null};
+    }
+
+    std::pair<BufferReader, DCXType> GetBufferReaderForDCX(
+        const std::filesystem::path& path, const Endian endian)
+    {
+        // Read entire file into memory.
+        std::ifstream stream(path, std::ios::binary | std::ios::ate);
+        if (!stream)
+            throw BinaryReadWrite::BinaryReadError("Could not open file: " + path.string());
+        const auto fileSize = static_cast<size_t>(stream.tellg());
+        stream.seekg(0);
+        std::vector<std::byte> storage(fileSize);
+        stream.read(reinterpret_cast<char*>(storage.data()), static_cast<std::streamsize>(fileSize));
+        stream.close();
+
+        return GetBufferReaderForDCX(std::move(storage), endian);
+    }
 } // namespace Firelink

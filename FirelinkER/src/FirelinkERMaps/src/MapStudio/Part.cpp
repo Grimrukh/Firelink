@@ -1,4 +1,5 @@
-﻿#include <FirelinkCore/BinaryReadWrite.h>
+﻿#include "MSBBufferHelpers.h"
+#include <FirelinkCore/BinaryReadWrite.h>
 #include <FirelinkCore/BinaryValidation.h>
 #include <FirelinkCore/Collections.h>
 #include <FirelinkERMaps/MapStudio/Model.h>
@@ -9,18 +10,18 @@
 
 #include <cstdint>
 
-using namespace std;
 using namespace Firelink;
 using namespace Firelink::BinaryReadWrite;
 using namespace Firelink::BinaryValidation;
-using namespace FirelinkER::Maps;
-using namespace FirelinkER::Maps::MapStudio;
+using namespace Firelink::EldenRing::Maps::MapStudio::BufferHelpers;
+using namespace Firelink::EldenRing::Maps;
+using namespace Firelink::EldenRing::Maps::MapStudio;
 
 // MACRO: Check that unused struct offset is zero.
 #define ASSERT_ZERO_STRUCT_OFFSET(name, offset)                                                         \
     if ((offset) != 0)                                                                                  \
     {                                                                                                   \
-        throw MSBFormatError("Expected struct " #name " offset to be 0, but got " + to_string(offset)); \
+        throw MSBFormatError("Expected struct " #name " offset to be 0, but got " + std::to_string(offset)); \
     }
 
 // MACRO: Check that header offset is non-zero, then read struct.
@@ -29,8 +30,8 @@ using namespace FirelinkER::Maps::MapStudio;
     {                                                                                       \
         throw MSBFormatError("Expected struct " #name " offset to be non-zero, but got 0"); \
     }                                                                                       \
-    stream.seekg(entryStart + header.name##Offset);                                         \
-    (name).Read(stream);
+    reader.Seek(entryStart + header.name##Offset);                                         \
+    (name).Read(reader);
 
 // MACRO: Check supertype data offset is non-zero, then read supertype data.
 #define READ_SUPERTYPE_DATA()                                                             \
@@ -38,8 +39,8 @@ using namespace FirelinkER::Maps::MapStudio;
     {                                                                                     \
         throw MSBFormatError("Expected supertype data offset to be non-zero, but got 0"); \
     }                                                                                     \
-    stream.seekg(entryStart + header.supertypeDataOffset);                                \
-    ReadSupertypeData(stream);
+    reader.Seek(entryStart + header.supertypeDataOffset);                                         \
+    ReadSupertypeData(reader);
 
 // MACRO: Check subtype data offset is non-zero (the case for all subtypes), then read subtype data.
 #define READ_SUBTYPE_DATA()                                                             \
@@ -47,26 +48,26 @@ using namespace FirelinkER::Maps::MapStudio;
     {                                                                                   \
         throw MSBFormatError("Expected subtype data offset to be non-zero, but got 0"); \
     }                                                                                   \
-    stream.seekg(entryStart + header.subtypeDataOffset);                                \
-    if (!DeserializeSubtypeData(stream))                                                \
+    reader.Seek(entryStart + header.subtypeDataOffset);                                         \
+    if (!DeserializeSubtypeData(reader))                                                \
     {                                                                                   \
         throw MSBFormatError("Failed to read subtype data for part " + GetNameUTF8());  \
     }
 
 // MACRO: Record struct offset in header, then write struct.
 #define WRITE_STRUCT(name)                             \
-    header.name##Offset = stream.tellp() - entryStart; \
-    (name).Write(stream);
+    header.name##Offset = writer.Position() - entryStart; \
+    (name).Write(writer);
 
 // MACRO: Record supertype data offset in header, then write supertype data.
 #define WRITE_SUPERTYPE_DATA()                                \
-    header.supertypeDataOffset = stream.tellp() - entryStart; \
-    WriteSupertypeData(stream);
+    header.supertypeDataOffset = static_cast<int64_t>(writer.Position() - entryStart); \
+    WriteSupertypeData(writer);
 
 // MACRO: Record subtype data offset in header, then write subtype data (passing in supertype/subtype indices).
 #define WRITE_SUBTYPE_DATA()                                    \
-    header.subtypeDataOffset = stream.tellp() - entryStart;     \
-    SerializeSubtypeData(stream, supertypeIndex, subtypeIndex);
+    header.subtypeDataOffset = static_cast<int64_t>(writer.Position() - entryStart);     \
+    SerializeSubtypeData(writer, supertypeIndex, subtypeIndex);
 
 struct MapStudio::PartHeader
 {
@@ -93,7 +94,7 @@ struct MapStudio::PartHeader
     int64_t unkStruct9Offset;     // Offset for unknown data struct 9
     int64_t tileLoadConfigOffset; // Offset for TileLoad data
     int64_t unkStruct11Offset;    // Offset for unknown data struct 11
-    array<uint8_t, 24> _pad1;     // Padding (three unused offsets?)
+    std::array<uint8_t, 24> _pad1;     // Padding (three unused offsets?)
 
     void Validate() const
     {
@@ -107,50 +108,50 @@ struct MapStudio::PartHeader
     }
 };
 
-void DrawInfo1::Read(ifstream& stream)
+void DrawInfo1::Read(BufferReader& reader)
 {
-    displayGroups = GroupBitSet<256>(stream);
-    drawGroups = GroupBitSet<256>(stream);
-    collisionMask = GroupBitSet<1024>(stream);
-    condition1A = ReadValue<uint8_t>(stream);
-    condition1B = ReadValue<uint8_t>(stream);
-    unkC2 = ReadValue<uint8_t>(stream);
-    unkC3 = ReadValue<uint8_t>(stream);
-    unkC4 = ReadValue<int16_t>(stream);
-    unkC6 = ReadValue<int16_t>(stream);
-    AssertReadValues<uint8_t, 0xC0>(stream, 0, "DrawInfoData1 padding");
+    displayGroups = GroupBitSet<256>(reader);
+    drawGroups = GroupBitSet<256>(reader);
+    collisionMask = GroupBitSet<1024>(reader);
+    condition1A = reader.Read<uint8_t>();
+    condition1B = reader.Read<uint8_t>();
+    unkC2 = reader.Read<uint8_t>();
+    unkC3 = reader.Read<uint8_t>();
+    unkC4 = reader.Read<int16_t>();
+    unkC6 = reader.Read<int16_t>();
+    reader.AssertPad(0xC0);
 }
 
-void DrawInfo1::Write(ofstream& stream) const
+void DrawInfo1::Write(BufferWriter& writer) const
 {
-    displayGroups.Write(stream);
-    drawGroups.Write(stream);
-    collisionMask.Write(stream);
-    WriteValue(stream, condition1A);
-    WriteValue(stream, condition1B);
-    WriteValue(stream, unkC2);
-    WriteValue(stream, unkC3);
-    WriteValue(stream, unkC4);
-    WriteValue(stream, unkC6);
-    WritePadBytes(stream, 0xC0);
+    displayGroups.Write(writer);
+    drawGroups.Write(writer);
+    collisionMask.Write(writer);
+    writer.Write(condition1A);
+    writer.Write(condition1B);
+    writer.Write(unkC2);
+    writer.Write(unkC3);
+    writer.Write(unkC4);
+    writer.Write(unkC6);
+    writer.WritePad(0xC0);
 }
 
-void DrawInfo2::Read(ifstream& stream)
+void DrawInfo2::Read(BufferReader& reader)
 {
-    condition2 = ReadValue<int32_t>(stream);
-    displayGroups2 = GroupBitSet<256>(stream);
-    unk24 = ReadValue<int16_t>(stream);
-    unk26 = ReadValue<int16_t>(stream);
-    AssertReadValues<uint8_t, 0x20>(stream, 0, "DrawInfoData2 padding");
+    condition2 = reader.Read<int32_t>();
+    displayGroups2 = GroupBitSet<256>(reader);
+    unk24 = reader.Read<int16_t>();
+    unk26 = reader.Read<int16_t>();
+    reader.AssertPad(0x20);
 }
 
-void DrawInfo2::Write(ofstream& stream) const
+void DrawInfo2::Write(BufferWriter& writer) const
 {
-    WriteValue(stream, condition2);
-    displayGroups2.Write(stream);
-    WriteValue(stream, unk24);
-    WriteValue(stream, unk26);
-    WritePadBytes(stream, 0x20);
+    writer.Write(condition2);
+    displayGroups2.Write(writer);
+    writer.Write(unk24);
+    writer.Write(unk26);
+    writer.WritePad(0x20);
 }
 
 struct PartDataStruct
@@ -175,178 +176,178 @@ struct PartDataStruct
     bool disablePointLightEffect;
     uint8_t unk17;
     int32_t unk18;
-    array<uint32_t, 8> entityGroupIds;
+    std::array<uint32_t, 8> entityGroupIds;
     int16_t unk3C;
     int16_t unk3E;
 
     void Validate() const { AssertPadding("PartDataStruct", _pad1); }
 };
 
-void GParam::Read(ifstream& stream)
+void GParam::Read(BufferReader& reader)
 {
-    lightSetId = ReadValue<int32_t>(stream);
-    fogId = ReadValue<int32_t>(stream);
-    lightScatteringId = ReadValue<int32_t>(stream);
-    environmentMapId = ReadValue<int32_t>(stream);
-    AssertReadValues<uint8_t, 16>(stream, 0, "GParamData padding");
+    lightSetId = reader.Read<int32_t>();
+    fogId = reader.Read<int32_t>();
+    lightScatteringId = reader.Read<int32_t>();
+    environmentMapId = reader.Read<int32_t>();
+    reader.AssertPad(16);
 }
 
-void GParam::Write(ofstream& stream) const
+void GParam::Write(BufferWriter& writer) const
 {
-    WriteValue(stream, lightSetId);
-    WriteValue(stream, fogId);
-    WriteValue(stream, lightScatteringId);
-    WriteValue(stream, environmentMapId);
-    WritePadBytes(stream, 16);
+    writer.Write(lightSetId);
+    writer.Write(fogId);
+    writer.Write(lightScatteringId);
+    writer.Write(environmentMapId);
+    writer.WritePad(16);
 }
 
-void SceneGParam::Read(ifstream& stream)
+void SceneGParam::Read(BufferReader& reader)
 {
-    AssertReadValues<uint8_t, 0x10>(stream, 0, "SceneGParamData padding 0x10");
-    transitionTime = ReadValue<float>(stream);
-    AssertReadValue<int32_t>(stream, 0, "SceneGParamData[0x20]");
+    reader.AssertPad(0x10);
+    transitionTime = reader.Read<float>();
+    reader.AssertValue<int32_t>(0, "SceneGParamData[0x20]");
 
-    unk18 = ReadValue<int8_t>(stream);
-    unk19 = ReadValue<int8_t>(stream);
-    unk1A = ReadValue<int8_t>(stream);
-    unk1B = ReadValue<int8_t>(stream);
+    unk18 = reader.Read<int8_t>();
+    unk19 = reader.Read<int8_t>();
+    unk1A = reader.Read<int8_t>();
+    unk1B = reader.Read<int8_t>();
 
-    unk1C = ReadValue<int8_t>(stream);
-    unk1D = ReadValue<int8_t>(stream);
-    AssertReadValues<uint8_t, 2>(stream, 0, "SceneGParamData padding 0x2");
+    unk1C = reader.Read<int8_t>();
+    unk1D = reader.Read<int8_t>();
+    reader.AssertPad(2);
 
-    unk20 = ReadValue<int8_t>(stream);
-    unk21 = ReadValue<int8_t>(stream);
-    AssertReadValues<uint8_t, 2>(stream, 0, "SceneGParamData padding 0x2");
+    unk20 = reader.Read<int8_t>();
+    unk21 = reader.Read<int8_t>();
+    reader.AssertPad(2);
 
-    AssertReadValues<uint8_t, 0x44>(stream, 0, "SceneGParamData padding 0x44");
+    reader.AssertPad(0x44);
 }
 
-void SceneGParam::Write(ofstream& stream) const
+void SceneGParam::Write(BufferWriter& writer) const
 {
-    WritePadBytes(stream, 0x10);
-    WriteValue(stream, transitionTime);
-    WriteValue(stream, 0);
+    writer.WritePad(0x10);
+    writer.Write(transitionTime);
+    writer.Write(0);
 
-    WriteValue(stream, unk18);
-    WriteValue(stream, unk19);
-    WriteValue(stream, unk1A);
-    WriteValue(stream, unk1B);
+    writer.Write(unk18);
+    writer.Write(unk19);
+    writer.Write(unk1A);
+    writer.Write(unk1B);
 
-    WriteValue(stream, unk1C);
-    WriteValue(stream, unk1D);
-    WritePadBytes(stream, 2);
+    writer.Write(unk1C);
+    writer.Write(unk1D);
+    writer.WritePad(2);
 
-    WriteValue(stream, unk20);
-    WriteValue(stream, unk21);
-    WritePadBytes(stream, 2);
+    writer.Write(unk20);
+    writer.Write(unk21);
+    writer.WritePad(2);
 
-    WritePadBytes(stream, 0x44);
+    writer.WritePad(0x44);
 }
 
-void GrassConfig::Read(ifstream& stream)
+void GrassConfig::Read(BufferReader& reader)
 {
-    unk00 = ReadValue<int32_t>(stream);
-    unk04 = ReadValue<int32_t>(stream);
-    unk08 = ReadValue<int32_t>(stream);
-    unk0C = ReadValue<int32_t>(stream);
-    unk10 = ReadValue<int32_t>(stream);
-    unk14 = ReadValue<int32_t>(stream);
-    unk18 = ReadValue<int32_t>(stream);
-    AssertReadValue<int32_t>(stream, 0, "UnkPartStruct7 zero");
+    unk00 = reader.Read<int32_t>();
+    unk04 = reader.Read<int32_t>();
+    unk08 = reader.Read<int32_t>();
+    unk0C = reader.Read<int32_t>();
+    unk10 = reader.Read<int32_t>();
+    unk14 = reader.Read<int32_t>();
+    unk18 = reader.Read<int32_t>();
+    reader.AssertValue<int32_t>(0, "UnkPartStruct7 zero");
 }
 
-void GrassConfig::Write(ofstream& stream) const
+void GrassConfig::Write(BufferWriter& writer) const
 {
-    WriteValue(stream, unk00);
-    WriteValue(stream, unk04);
-    WriteValue(stream, unk08);
-    WriteValue(stream, unk0C);
-    WriteValue(stream, unk10);
-    WriteValue(stream, unk14);
-    WriteValue(stream, unk18);
-    WriteValue(stream, 0);
+    writer.Write(unk00);
+    writer.Write(unk04);
+    writer.Write(unk08);
+    writer.Write(unk0C);
+    writer.Write(unk10);
+    writer.Write(unk14);
+    writer.Write(unk18);
+    writer.Write(0);
 }
 
-void UnkPartStruct8::Read(ifstream& stream)
+void UnkPartStruct8::Read(BufferReader& reader)
 {
-    unk00 = ReadValue<int32_t>(stream);
+    unk00 = reader.Read<int32_t>();
     if (unk00 != 0 && unk00 != 1)
     {
-        throw MSBFormatError("UnkPartStruct8: Expected unk00 to be 0 or 1, but got " + to_string(unk00));
+        throw MSBFormatError("UnkPartStruct8: Expected unk00 to be 0 or 1, but got " + std::to_string(unk00));
     }
-    AssertReadValues<uint8_t, 0x1C>(stream, 0, "UnkPartStruct8 padding 0x1C");
+    reader.AssertPad(0x1C);
 }
 
-void UnkPartStruct8::Write(ofstream& stream) const
+void UnkPartStruct8::Write(BufferWriter& writer) const
 {
-    WriteValue<int32_t>(stream, unk00);
-    WritePadBytes(stream, 0x1C);
+    writer.Write<int32_t>(unk00);
+    writer.WritePad(0x1C);
 }
 
-void UnkPartStruct9::Read(ifstream& stream)
+void UnkPartStruct9::Read(BufferReader& reader)
 {
-    unk00 = ReadValue<int32_t>(stream);
-    AssertReadValues<uint8_t, 0x1C>(stream, 0, "UnkPartStruct9 padding 0x1C");
+    unk00 = reader.Read<int32_t>();
+    reader.AssertPad(0x1C);
 }
 
-void UnkPartStruct9::Write(ofstream& stream) const
+void UnkPartStruct9::Write(BufferWriter& writer) const
 {
-    WriteValue<int32_t>(stream, unk00);
-    WritePadBytes(stream, 0x1C);
+    writer.Write<int32_t>(unk00);
+    writer.WritePad(0x1C);
 }
 
-void TileLoadConfig::Read(ifstream& stream)
+void TileLoadConfig::Read(BufferReader& reader)
 {
-    mapId = ReadValue<int32_t>(stream);
-    unk04 = ReadValue<int32_t>(stream);
-    AssertReadValue<int32_t>(stream, 0, "UnkPartStruct10 zero");
-    unk0C = ReadValue<int32_t>(stream);
-    unk10 = ReadValue<int32_t>(stream);
+    mapId = reader.Read<int32_t>();
+    unk04 = reader.Read<int32_t>();
+    reader.AssertValue<int32_t>(0, "UnkPartStruct10 zero");
+    unk0C = reader.Read<int32_t>();
+    unk10 = reader.Read<int32_t>();
     if (unk10 != 0 && unk10 != 1)
     {
-        throw MSBFormatError("UnkPartStruct10: Expected unk10 to be 0 or 1, but got " + to_string(unk10));
+        throw MSBFormatError("UnkPartStruct10: Expected unk10 to be 0 or 1, but got " + std::to_string(unk10));
     }
-    unk14 = ReadValue<int32_t>(stream);
-    AssertReadValues<uint8_t, 0x8>(stream, 0, "UnkPartStruct10 padding 0x8");
+    unk14 = reader.Read<int32_t>();
+    reader.AssertPad(0x8);
 }
 
-void TileLoadConfig::Write(ofstream& stream) const
+void TileLoadConfig::Write(BufferWriter& writer) const
 {
-    WriteValue(stream, mapId);
-    WriteValue(stream, unk04);
-    WriteValue(stream, 0);
-    WriteValue(stream, unk0C);
-    WriteValue(stream, unk10);
-    WriteValue(stream, unk14);
-    WritePadBytes(stream, 0x8);
+    writer.Write(mapId);
+    writer.Write(unk04);
+    writer.Write(0);
+    writer.Write(unk0C);
+    writer.Write(unk10);
+    writer.Write(unk14);
+    writer.WritePad(0x8);
 }
 
-void UnkPartStruct11::Read(ifstream& stream)
+void UnkPartStruct11::Read(BufferReader& reader)
 {
-    unk00 = ReadValue<int32_t>(stream);
-    unk04 = ReadValue<int32_t>(stream);
-    AssertReadValues<uint8_t, 0x18>(stream, 0, "UnkPartStruct11 padding 0x18");
+    unk00 = reader.Read<int32_t>();
+    unk04 = reader.Read<int32_t>();
+    reader.AssertPad(0x18);
 }
 
-void UnkPartStruct11::Write(ofstream& stream) const
+void UnkPartStruct11::Write(BufferWriter& writer) const
 {
-    WriteValue(stream, unk00);
-    WriteValue(stream, unk04);
-    WritePadBytes(stream, 0x18);
+    writer.Write(unk00);
+    writer.Write(unk04);
+    writer.WritePad(0x18);
 }
 
-void Part::Deserialize(ifstream& stream)
+void Part::Deserialize(BufferReader& reader)
 {
-    const streampos start = stream.tellg();
+    const size_t start = reader.Position();
 
-    const auto header = ReadValidatedStruct<PartHeader>(stream);
+    const auto header = BufferHelpers::ReadValidatedStruct<PartHeader>(reader);
 
-    stream.seekg(start + header.nameOffset);
-    m_name = ReadUTF16String(stream);
+    reader.Seek(start + header.nameOffset);
+    m_name = BufferHelpers::ReadUTF16String(reader);
 
-    stream.seekg(start + header.sibPathOffset);
-    m_sibPath = ReadUTF16String(stream);
+    reader.Seek(start + header.sibPathOffset);
+    m_sibPath = BufferHelpers::ReadUTF16String(reader);
 
     modelIndex = header.modelIndex;
     modelInstanceId = header.modelInstanceId;
@@ -356,14 +357,14 @@ void Part::Deserialize(ifstream& stream)
     unk44 = header.unk44;
     eventLayer = header.eventLayer;
 
-    DeserializeStructs(stream, header, start);
+    DeserializeStructs(reader, header, start);
 }
 
-void Part::Serialize(ofstream& stream, const int supertypeIndex, const int subtypeIndex) const
+void Part::Serialize(BufferWriter& writer, const int supertypeIndex, const int subtypeIndex) const
 {
-    const streampos start = stream.tellp();
+    const size_t start = writer.Position();
 
-    Reserver reserver(stream, true);
+        const void* scope = this;
 
     auto header = PartHeader{
         .modelInstanceId = modelInstanceId,
@@ -376,26 +377,27 @@ void Part::Serialize(ofstream& stream, const int supertypeIndex, const int subty
         .unk44 = unk44,
         .eventLayer = eventLayer,
     };
-    reserver.ReserveValidatedStruct("PartHeader", sizeof(PartHeader));
+    writer.Reserve<PartHeader>("PartHeader", scope);
 
     // TODO: Funky combined string padding rules?
-    header.nameOffset = stream.tellp() - start;
-    WriteUTF16String(stream, m_name);
-    header.sibPathOffset = stream.tellp() - start;
-    WriteUTF16String(stream, m_sibPath);
-    AlignStream(stream, 8);
+    header.nameOffset = static_cast<int64_t>(writer.Position() - start);
+    BufferHelpers::WriteUTF16String(writer, m_name);
+    header.sibPathOffset = static_cast<int64_t>(writer.Position() - start);
+    BufferHelpers::WriteUTF16String(writer, m_sibPath);
+    writer.PadAlign(8);
 
     // No additional alignment necessary before or after structs.
-    SerializeStructs(stream, header, start, supertypeIndex, subtypeIndex);
+    SerializeStructs(writer, header, start, supertypeIndex, subtypeIndex);
 
-    reserver.FillValidatedStruct("PartHeader", header);
+    header.Validate();
+    writer.Fill<PartHeader>("PartHeader", header, scope);
 
-    reserver.Finish();
+    
 }
 
-void Part::ReadSupertypeData(ifstream& stream)
+void Part::ReadSupertypeData(BufferReader& reader)
 {
-    auto supertypeData = ReadValidatedStruct<PartDataStruct>(stream);
+    auto supertypeData = BufferHelpers::ReadValidatedStruct<PartDataStruct>(reader);
     m_entityId = supertypeData.entityId;
     unk04 = supertypeData.unk04;
     lodId = supertypeData.lodId;
@@ -415,12 +417,12 @@ void Part::ReadSupertypeData(ifstream& stream)
     disablePointLightEffect = supertypeData.disablePointLightEffect;
     unk17 = supertypeData.unk17;
     unk18 = supertypeData.unk18;
-    ranges::copy(supertypeData.entityGroupIds, entityGroupIds.begin());
+    std::ranges::copy(supertypeData.entityGroupIds, entityGroupIds.begin());
     unk3C = supertypeData.unk3C;
     unk3E = supertypeData.unk3E;
 }
 
-void Part::WriteSupertypeData(ofstream& stream) const
+void Part::WriteSupertypeData(BufferWriter& writer) const
 {
     auto supertypeData = PartDataStruct{
         .entityId = m_entityId,
@@ -445,9 +447,9 @@ void Part::WriteSupertypeData(ofstream& stream) const
         .unk3C = unk3C,
         .unk3E = unk3E,
     };
-    ranges::copy(entityGroupIds, supertypeData.entityGroupIds.begin());
+    std::ranges::copy(entityGroupIds, supertypeData.entityGroupIds.begin());
 
-    WriteValidatedStruct(stream, supertypeData);
+    BufferHelpers::WriteValidatedStruct(writer, supertypeData);
 }
 
 void Part::OnReferencedEntryDestroy(const Entry* destroyedEntry)
@@ -458,18 +460,18 @@ void Part::OnReferencedEntryDestroy(const Entry* destroyedEntry)
 }
 
 void Part::DeserializeEntryReferences(
-    const vector<Model*>& models, const vector<Part*>& parts, const vector<Region*>& regions)
+    const std::vector<Model*>& models, const std::vector<Part*>& parts, const std::vector<Region*>& regions)
 {
     model.SetFromIndex(models, modelIndex);
 }
 
 void Part::SerializeEntryIndices(
-    const vector<Model*>& models, const vector<Part*>& parts, const vector<Region*>& regions)
+    const std::vector<Model*>& models, const std::vector<Part*>& parts, const std::vector<Region*>& regions)
 {
     modelIndex = model.ToIndex(this, models);
 }
 
-void MapPiecePart::DeserializeStructs(ifstream& stream, const PartHeader& header, const streampos& entryStart)
+void MapPiecePart::DeserializeStructs(BufferReader& reader, const PartHeader& header, std::size_t entryStart)
 {
     READ_STRUCT(drawInfo1);
     ASSERT_ZERO_STRUCT_OFFSET("DrawInfo2", header.drawInfo2Offset);
@@ -485,9 +487,9 @@ void MapPiecePart::DeserializeStructs(ifstream& stream, const PartHeader& header
 }
 
 void MapPiecePart::SerializeStructs(
-    ofstream& stream,
+    BufferWriter& writer,
     PartHeader& header,
-    const streampos& entryStart,
+    std::size_t entryStart,
     const int& supertypeIndex,
     const int& subtypeIndex) const
 {
@@ -504,20 +506,20 @@ void MapPiecePart::SerializeStructs(
     WRITE_STRUCT(unkStruct11);
 }
 
-bool MapPiecePart::DeserializeSubtypeData(ifstream& stream)
+bool MapPiecePart::DeserializeSubtypeData(BufferReader& reader)
 {
     // Just padding.
-    AssertReadValues<uint8_t, 8>(stream, 0, "MapPiece subtype data");
+    reader.AssertPad(8);
     return true;
 }
 
-bool MapPiecePart::SerializeSubtypeData(ofstream& stream, int supertypeIndex, int subtypeIndex) const
+bool MapPiecePart::SerializeSubtypeData(BufferWriter& writer, int supertypeIndex, int subtypeIndex) const
 {
-    WritePadBytes(stream, 8);
+    writer.WritePad(8);
     return true;
 }
 
-void CharacterPart::DeserializeStructs(ifstream& stream, const PartHeader& header, const streampos& entryStart)
+void CharacterPart::DeserializeStructs(BufferReader& reader, const PartHeader& header, std::size_t entryStart)
 {
     READ_STRUCT(drawInfo1);
     ASSERT_ZERO_STRUCT_OFFSET("DrawInfo2", header.drawInfo2Offset);
@@ -533,9 +535,9 @@ void CharacterPart::DeserializeStructs(ifstream& stream, const PartHeader& heade
 }
 
 void CharacterPart::SerializeStructs(
-    ofstream& stream,
+    BufferWriter& writer,
     PartHeader& header,
-    const streampos& entryStart,
+    std::size_t entryStart,
     const int& supertypeIndex,
     const int& subtypeIndex) const
 {
@@ -572,17 +574,17 @@ struct CharacterSubtypeData
     int sUnk34;
     int backAwayEventAnimationId;
     int sUnk3C;
-    array<int, 4> specialEffectSetParamIds;
+    std::array<int, 4> specialEffectSetParamIds;
     padding<40> _pad2;
     int64_t _x80;
     int _zero4;
     float sUnk84;
     // Five instances of four-short pattern [-1, -1 , -1, 0xA]:
-    array<int16_t, 4> _pad3a;
-    array<int16_t, 4> _pad3b;
-    array<int16_t, 4> _pad3c;
-    array<int16_t, 4> _pad3d;
-    array<int16_t, 4> _pad3e;
+    std::array<int16_t, 4> _pad3a;
+    std::array<int16_t, 4> _pad3b;
+    std::array<int16_t, 4> _pad3c;
+    std::array<int16_t, 4> _pad3d;
+    std::array<int16_t, 4> _pad3e;
     padding<0x10> _pad4;
 
     void Validate() const
@@ -593,7 +595,7 @@ struct CharacterSubtypeData
         AssertValue("CharacterSubtypeData", 0, _zero4);
         AssertValue("CharacterSubtypeData", 0x80, _x80);
 
-        constexpr array<int16_t, 4> pad3 = {-1, -1, -1, 0xA};
+        constexpr std::array<int16_t, 4> pad3 = {-1, -1, -1, 0xA};
         ValidateArray("CharacterSubtypeData", pad3, _pad3a);
         ValidateArray("CharacterSubtypeData", pad3, _pad3b);
         ValidateArray("CharacterSubtypeData", pad3, _pad3c);
@@ -602,9 +604,9 @@ struct CharacterSubtypeData
     }
 };
 
-bool CharacterPart::DeserializeSubtypeData(ifstream& stream)
+bool CharacterPart::DeserializeSubtypeData(BufferReader& reader)
 {
-    const auto subtypeData = ReadValidatedStruct<CharacterSubtypeData>(stream);
+    const auto subtypeData = BufferHelpers::ReadValidatedStruct<CharacterSubtypeData>(reader);
     aiId = subtypeData.aiId;
     characterId = subtypeData.characterId;
     talkId = subtypeData.talkId;
@@ -626,7 +628,7 @@ bool CharacterPart::DeserializeSubtypeData(ifstream& stream)
     return true;
 }
 
-bool CharacterPart::SerializeSubtypeData(ofstream& stream, int supertypeIndex, int subtypeIndex) const
+bool CharacterPart::SerializeSubtypeData(BufferWriter& writer, int supertypeIndex, int subtypeIndex) const
 {
     const auto subtypeData = CharacterSubtypeData{
         .aiId = aiId,
@@ -652,35 +654,35 @@ bool CharacterPart::SerializeSubtypeData(ofstream& stream, int supertypeIndex, i
         ._pad3d = {-1, -1, -1, 0xA},
         ._pad3e = {-1, -1, -1, 0xA},
     };
-    WriteValidatedStruct(stream, subtypeData);
+    BufferHelpers::WriteValidatedStruct(writer, subtypeData);
     return true;
 }
 
 void CharacterPart::DeserializeEntryReferences(
-    const vector<Model*>& models, const vector<Part*>& parts, const vector<Region*>& regions)
+    const std::vector<Model*>& models, const std::vector<Part*>& parts, const std::vector<Region*>& regions)
 {
     Part::DeserializeEntryReferences(models, parts, regions);
     drawParent.SetFromIndex(parts, drawParentIndex);
 }
 
 void CharacterPart::SerializeEntryIndices(
-    const vector<Model*>& models, const vector<Part*>& parts, const vector<Region*>& regions)
+    const std::vector<Model*>& models, const std::vector<Part*>& parts, const std::vector<Region*>& regions)
 {
     Part::SerializeEntryIndices(models, parts, regions);
     drawParentIndex = drawParent.ToIndex(this, parts);
 }
 
-void CharacterPart::DeserializePatrolRouteEventReference(const vector<PatrolRouteEvent*>& patrolRouteEvents)
+void CharacterPart::DeserializePatrolRouteEventReference(const std::vector<PatrolRouteEvent*>& patrolRouteEvents)
 {
     patrolRouteEvent.SetFromIndex16(patrolRouteEvents, patrolRouteEventIndex);
 }
 
-void CharacterPart::SerializePatrolRouteEventIndex(const vector<PatrolRouteEvent*>& patrolRouteEvents)
+void CharacterPart::SerializePatrolRouteEventIndex(const std::vector<PatrolRouteEvent*>& patrolRouteEvents)
 {
     patrolRouteEventIndex = patrolRouteEvent.ToIndex16(this, patrolRouteEvents);
 }
 
-void PlayerStartPart::DeserializeStructs(ifstream& stream, const PartHeader& header, const streampos& entryStart)
+void PlayerStartPart::DeserializeStructs(BufferReader& reader, const PartHeader& header, std::size_t entryStart)
 {
     READ_STRUCT(drawInfo1);
     ASSERT_ZERO_STRUCT_OFFSET("DrawInfo2", header.drawInfo2Offset);
@@ -696,9 +698,9 @@ void PlayerStartPart::DeserializeStructs(ifstream& stream, const PartHeader& hea
 }
 
 void PlayerStartPart::SerializeStructs(
-    ofstream& stream,
+    BufferWriter& writer,
     PartHeader& header,
-    const streampos& entryStart,
+    std::size_t entryStart,
     const int& supertypeIndex,
     const int& subtypeIndex) const
 {
@@ -715,22 +717,22 @@ void PlayerStartPart::SerializeStructs(
     header.unkStruct11Offset = 0; // unused
 }
 
-bool PlayerStartPart::DeserializeSubtypeData(ifstream& stream)
+bool PlayerStartPart::DeserializeSubtypeData(BufferReader& reader)
 {
     // Not bothering with a struct.
-    sUnk00 = ReadValue<int32_t>(stream);
-    AssertReadValues<uint8_t, 0xC>(stream, 0, "PlayerStart subtype data padding");
+    sUnk00 = reader.Read<int32_t>();
+    reader.AssertPad(0xC);
     return true;
 }
 
-bool PlayerStartPart::SerializeSubtypeData(ofstream& stream, int supertypeIndex, int subtypeIndex) const
+bool PlayerStartPart::SerializeSubtypeData(BufferWriter& writer, int supertypeIndex, int subtypeIndex) const
 {
-    WriteValue(stream, sUnk00);
-    WritePadBytes(stream, 0xC);
+    writer.Write(sUnk00);
+    writer.WritePad(0xC);
     return true;
 }
 
-void CollisionPart::DeserializeStructs(ifstream& stream, const PartHeader& header, const streampos& entryStart)
+void CollisionPart::DeserializeStructs(BufferReader& reader, const PartHeader& header, std::size_t entryStart)
 {
     READ_STRUCT(drawInfo1);
     READ_STRUCT(drawInfo2);
@@ -746,9 +748,9 @@ void CollisionPart::DeserializeStructs(ifstream& stream, const PartHeader& heade
 }
 
 void CollisionPart::SerializeStructs(
-    ofstream& stream,
+    BufferWriter& writer,
     PartHeader& header,
-    const streampos& entryStart,
+    std::size_t entryStart,
     const int& supertypeIndex,
     const int& subtypeIndex) const
 {
@@ -806,18 +808,18 @@ struct CollisionPartSubtypeData
 
         if (sUnk26 != 0 && sUnk26 != 1)
         {
-            throw MSBFormatError("CollisionPartSubtypeData: Expected sUnk26 to be 0 or 1, but got " + to_string(sUnk26));
+            throw MSBFormatError("CollisionPartSubtypeData: Expected sUnk26 to be 0 or 1, but got " + std::to_string(sUnk26));
         }
         if (sUnk4C != 0 && sUnk4C != 1)
         {
-            throw MSBFormatError("CollisionPartSubtypeData: Expected sUnk4C to be 0 or 1, but got " + to_string(sUnk4C));
+            throw MSBFormatError("CollisionPartSubtypeData: Expected sUnk4C to be 0 or 1, but got " + std::to_string(sUnk4C));
         }
     }
 };
 
-bool CollisionPart::DeserializeSubtypeData(ifstream& stream)
+bool CollisionPart::DeserializeSubtypeData(BufferReader& reader)
 {
-    const auto subtypeData = ReadValidatedStruct<CollisionPartSubtypeData>(stream);
+    const auto subtypeData = BufferHelpers::ReadValidatedStruct<CollisionPartSubtypeData>(reader);
     hitFilterId = subtypeData.hitFilterId;
     sUnk01 = subtypeData.sUnk01;
     sUnk02 = subtypeData.sUnk02;
@@ -842,7 +844,7 @@ bool CollisionPart::DeserializeSubtypeData(ifstream& stream)
     return true;
 }
 
-bool CollisionPart::SerializeSubtypeData(ofstream& stream, int supertypeIndex, int subtypeIndex) const
+bool CollisionPart::SerializeSubtypeData(BufferWriter& writer, int supertypeIndex, int subtypeIndex) const
 {
     const auto subtypeData = CollisionPartSubtypeData{
         .hitFilterId = hitFilterId,
@@ -869,11 +871,11 @@ bool CollisionPart::SerializeSubtypeData(ofstream& stream, int supertypeIndex, i
         .sUnk4C = sUnk4C,
         .sUnk4E = sUnk4E,
     };
-    WriteValidatedStruct(stream, subtypeData);
+    BufferHelpers::WriteValidatedStruct(writer, subtypeData);
     return true;
 }
 
-void DummyAssetPart::DeserializeStructs(ifstream& stream, const PartHeader& header, const streampos& entryStart)
+void DummyAssetPart::DeserializeStructs(BufferReader& reader, const PartHeader& header, std::size_t entryStart)
 {
     READ_STRUCT(drawInfo1);
     ASSERT_ZERO_STRUCT_OFFSET("DrawInfo2", header.drawInfo2Offset);
@@ -889,9 +891,9 @@ void DummyAssetPart::DeserializeStructs(ifstream& stream, const PartHeader& head
 }
 
 void DummyAssetPart::SerializeStructs(
-    ofstream& stream,
+    BufferWriter& writer,
     PartHeader& header,
-    const streampos& entryStart,
+    std::size_t entryStart,
     const int& supertypeIndex,
     const int& subtypeIndex) const
 {
@@ -931,21 +933,21 @@ struct DummyAssetSubtypeData
     }
 };
 
-bool DummyAssetPart::DeserializeSubtypeData(ifstream& stream)
+bool DummyAssetPart::DeserializeSubtypeData(BufferReader& reader)
 {
-    const auto subtypeData = ReadValidatedStruct<DummyAssetSubtypeData>(stream);
+    const auto subtypeData = BufferHelpers::ReadValidatedStruct<DummyAssetSubtypeData>(reader);
     sUnk18 = subtypeData.sUnk18;
     return true;
 }
 
-bool DummyAssetPart::SerializeSubtypeData(ofstream& stream, int supertypeIndex, int subtypeIndex) const
+bool DummyAssetPart::SerializeSubtypeData(BufferWriter& writer, int supertypeIndex, int subtypeIndex) const
 {
     const auto subtypeData = DummyAssetSubtypeData{0, 0, -1, 0, -1, -1, sUnk18, -1};
-    WriteValidatedStruct(stream, subtypeData);
+    BufferHelpers::WriteValidatedStruct(writer, subtypeData);
     return true;
 }
 
-void ConnectCollisionPart::DeserializeStructs(ifstream& stream, const PartHeader& header, const streampos& entryStart)
+void ConnectCollisionPart::DeserializeStructs(BufferReader& reader, const PartHeader& header, std::size_t entryStart)
 {
     READ_STRUCT(drawInfo1);
     READ_STRUCT(drawInfo2);
@@ -961,9 +963,9 @@ void ConnectCollisionPart::DeserializeStructs(ifstream& stream, const PartHeader
 }
 
 void ConnectCollisionPart::SerializeStructs(
-    ofstream& stream,
+    BufferWriter& writer,
     PartHeader& header,
-    const streampos& entryStart,
+    std::size_t entryStart,
     const int& supertypeIndex,
     const int& subtypeIndex) const
 {
@@ -983,7 +985,7 @@ void ConnectCollisionPart::SerializeStructs(
 struct ConnectCollisionSubtypeData
 {
     int32_t collisionIndex;
-    array<int8_t, 4> connectedMapId; // unsigned?
+    std::array<int8_t, 4> connectedMapId; // unsigned?
     uint8_t sUnk08;
     bool sUnk09;
     uint8_t sUnk0A;
@@ -993,9 +995,9 @@ struct ConnectCollisionSubtypeData
     void Validate() const { AssertValue("ConnectCollisionSubtypeData._zero", 0, _zero); }
 };
 
-bool ConnectCollisionPart::DeserializeSubtypeData(ifstream& stream)
+bool ConnectCollisionPart::DeserializeSubtypeData(BufferReader& reader)
 {
-    const auto subtypeData = ReadValidatedStruct<ConnectCollisionSubtypeData>(stream);
+    const auto subtypeData = BufferHelpers::ReadValidatedStruct<ConnectCollisionSubtypeData>(reader);
     collisionIndex = subtypeData.collisionIndex;
     connectedMapId = subtypeData.connectedMapId;
     sUnk08 = subtypeData.sUnk08;
@@ -1005,7 +1007,7 @@ bool ConnectCollisionPart::DeserializeSubtypeData(ifstream& stream)
     return true;
 }
 
-bool ConnectCollisionPart::SerializeSubtypeData(ofstream& stream, int supertypeIndex, int subtypeIndex) const
+bool ConnectCollisionPart::SerializeSubtypeData(BufferWriter& writer, int supertypeIndex, int subtypeIndex) const
 {
     const auto subtypeData = ConnectCollisionSubtypeData{
         .collisionIndex = collisionIndex,
@@ -1015,21 +1017,21 @@ bool ConnectCollisionPart::SerializeSubtypeData(ofstream& stream, int supertypeI
         .sUnk0A = sUnk0A,
         .sUnk0B = sUnk0B,
     };
-    WriteValidatedStruct(stream, subtypeData);
+    BufferHelpers::WriteValidatedStruct(writer, subtypeData);
     return true;
 }
 
-void ConnectCollisionPart::DeserializeCollisionReference(const vector<CollisionPart*>& collisions)
+void ConnectCollisionPart::DeserializeCollisionReference(const std::vector<CollisionPart*>& collisions)
 {
     collision.SetFromIndex(collisions, collisionIndex);
 }
 
-void ConnectCollisionPart::SerializeCollisionIndex(const vector<CollisionPart*>& collisions)
+void ConnectCollisionPart::SerializeCollisionIndex(const std::vector<CollisionPart*>& collisions)
 {
     collisionIndex = collision.ToIndex(this, collisions);
 }
 
-void AssetPart::DeserializeStructs(ifstream& stream, const PartHeader& header, const streampos& entryStart)
+void AssetPart::DeserializeStructs(BufferReader& reader, const PartHeader& header, std::size_t entryStart)
 {
     // Uses all structs except `SceneGParam`.
     READ_STRUCT(drawInfo1);
@@ -1046,9 +1048,9 @@ void AssetPart::DeserializeStructs(ifstream& stream, const PartHeader& header, c
 }
 
 void AssetPart::SerializeStructs(
-    ofstream& stream,
+    BufferWriter& writer,
     PartHeader& header,
-    const streampos& entryStart,
+    std::size_t entryStart,
     const int& supertypeIndex,
     const int& subtypeIndex) const
 {
@@ -1083,7 +1085,7 @@ struct AssetPartSubtypeData
     int _zero2;
     int sUnk30;
     int sUnk34;
-    array<int, 6> drawParentPartsIndices;
+    std::array<int, 6> drawParentPartsIndices;
     bool sUnk50;
     uint8_t sUnk51;
     uint8_t _zero3;
@@ -1114,135 +1116,135 @@ struct AssetPartSubtypeData
     }
 };
 
-void ExtraAssetData1::Read(ifstream& stream)
+void ExtraAssetData1::Read(BufferReader& reader)
 {
-    unk00 = ReadValue<int16_t>(stream);
-    AssertReadValue<int16_t>(stream, -1, "ExtraAssetData1 padding");
-    unk04 = ReadValue<bool>(stream);
-    disableTorrentAssetOnly = ReadValue<bool>(stream);
-    AssertReadValue<int16_t>(stream, -1, "ExtraAssetData1 padding");
-    constexpr array constants{0, 0, -1, -1, -1};
-    AssertReadValues(stream, constants, "ExtraAssetData1 padding");
-    unk1C = ReadValue<int>(stream);
-    AssertReadValue<int32_t>(stream, 0, "ExtraAssetData1 padding");
-    unk24 = ReadValue<int16_t>(stream);
-    unk26 = ReadValue<int16_t>(stream);
-    unk28 = ReadValue<int32_t>(stream);
-    unk2C = ReadValue<int32_t>(stream);
-    AssertReadPadBytes(stream, 0x10, "ExtraAssetData1 padding");
+    unk00 = reader.Read<int16_t>();
+    reader.AssertValue<int16_t>(-1, "ExtraAssetData1 padding");
+    unk04 = reader.Read<bool>();
+    disableTorrentAssetOnly = reader.Read<bool>();
+    reader.AssertValue<int16_t>(-1, "ExtraAssetData1 padding");
+    constexpr std::array constants{0, 0, -1, -1, -1};
+    BufferHelpers::AssertReadValues(reader, constants, "ExtraAssetData1 padding");
+    unk1C = reader.Read<int>();
+    reader.AssertValue<int32_t>(0, "ExtraAssetData1 padding");
+    unk24 = reader.Read<int16_t>();
+    unk26 = reader.Read<int16_t>();
+    unk28 = reader.Read<int32_t>();
+    unk2C = reader.Read<int32_t>();
+    reader.AssertPad(0x10);
 }
 
-void ExtraAssetData1::Write(ofstream& stream) const
+void ExtraAssetData1::Write(BufferWriter& writer) const
 {
-    WriteValue(stream, unk00);
-    WriteValue<int16_t>(stream, -1);
-    WriteValue(stream, unk04);
-    WriteValue(stream, disableTorrentAssetOnly);
-    WriteValue<int16_t>(stream, -1);
-    constexpr array constants{0, 0, -1, -1, -1};
-    WriteValues(stream, constants);
-    WriteValue(stream, unk1C);
-    WriteValue<int32_t>(stream, 0);
-    WriteValue(stream, unk24);
-    WriteValue(stream, unk26);
-    WriteValue(stream, unk28);
-    WriteValue(stream, unk2C);
-    WritePadBytes(stream, 0x10);
+    writer.Write(unk00);
+    writer.Write<int16_t>(-1);
+    writer.Write(unk04);
+    writer.Write(disableTorrentAssetOnly);
+    writer.Write<int16_t>(-1);
+    constexpr std::array constants{0, 0, -1, -1, -1};
+    BufferHelpers::WriteValues(writer, constants);
+    writer.Write(unk1C);
+    writer.Write<int32_t>(0);
+    writer.Write(unk24);
+    writer.Write(unk26);
+    writer.Write(unk28);
+    writer.Write(unk2C);
+    writer.WritePad(0x10);
 }
 
-void ExtraAssetData2::Read(ifstream& stream)
+void ExtraAssetData2::Read(BufferReader& reader)
 {
-    unk00 = ReadValue<int>(stream);
-    unk04 = ReadValue<int>(stream);
-    constexpr array constants = {-1, 0, 0};
-    AssertReadValues(stream, constants, "ExtraAssetData2 padding");
-    unk14 = ReadValue<float>(stream);
-    AssertReadValue<int>(stream, 0, "ExtraAssetData2 padding");
-    unk1C = ReadValue<uint8_t>(stream);
-    unk1D = ReadValue<uint8_t>(stream);
-    unk1E = ReadValue<uint8_t>(stream);
-    unk1F = ReadValue<uint8_t>(stream);
-    AssertReadPadBytes(stream, 0x20, "ExtraAssetData2 padding");
+    unk00 = reader.Read<int>();
+    unk04 = reader.Read<int>();
+    constexpr std::array constants = {-1, 0, 0};
+    BufferHelpers::AssertReadValues(reader, constants, "ExtraAssetData2 padding");
+    unk14 = reader.Read<float>();
+    reader.AssertValue<int>(0, "ExtraAssetData2 padding");
+    unk1C = reader.Read<uint8_t>();
+    unk1D = reader.Read<uint8_t>();
+    unk1E = reader.Read<uint8_t>();
+    unk1F = reader.Read<uint8_t>();
+    reader.AssertPad(0x20);
 }
 
-void ExtraAssetData2::Write(ofstream& stream) const
+void ExtraAssetData2::Write(BufferWriter& writer) const
 {
-    WriteValue(stream, unk00);
-    WriteValue(stream, unk04);
-    constexpr array constants = {-1, 0, 0};
-    WriteValues(stream, constants);
-    WriteValue(stream, unk14);
-    WriteValue<int>(stream, 0);
-    WriteValue(stream, unk1C);
-    WriteValue(stream, unk1D);
-    WriteValue(stream, unk1E);
-    WriteValue(stream, unk1F);
-    WritePadBytes(stream, 0x20);
+    writer.Write(unk00);
+    writer.Write(unk04);
+    constexpr std::array constants = {-1, 0, 0};
+    BufferHelpers::WriteValues(writer, constants);
+    writer.Write(unk14);
+    writer.Write<int>(0);
+    writer.Write(unk1C);
+    writer.Write(unk1D);
+    writer.Write(unk1E);
+    writer.Write(unk1F);
+    writer.WritePad(0x20);
 }
 
-void ExtraAssetData3::Read(ifstream& stream)
+void ExtraAssetData3::Read(BufferReader& reader)
 {
-    unk00 = ReadValue<int>(stream);
-    unk04 = ReadValue<float>(stream);
-    AssertReadValue<int8_t>(stream, -1, "ExtraAssetData3 padding");
-    unk09 = ReadValue<uint8_t>(stream);
-    unk0A = ReadValue<uint8_t>(stream);
-    unk0B = ReadValue<uint8_t>(stream);
-    unk0C = ReadValue<int16_t>(stream);
-    unk0E = ReadValue<int16_t>(stream);
-    unk10 = ReadValue<float>(stream);
-    disableWhenMapLoadedWithId = ReadValues<uint8_t, 4>(stream);
-    unk18 = ReadValue<int>(stream);
-    unk1C = ReadValue<int>(stream);
-    unk20 = ReadValue<int>(stream);
-    unk24 = ReadValue<uint8_t>(stream);
-    unk25 = ReadValue<bool>(stream);
-    AssertReadPadBytes(stream, 2, "ExtraAssetData3 padding");
-    AssertReadPadBytes(stream, 24, "ExtraAssetData3 padding");
+    unk00 = reader.Read<int>();
+    unk04 = reader.Read<float>();
+    reader.AssertValue<int8_t>(-1, "ExtraAssetData3 padding");
+    unk09 = reader.Read<uint8_t>();
+    unk0A = reader.Read<uint8_t>();
+    unk0B = reader.Read<uint8_t>();
+    unk0C = reader.Read<int16_t>();
+    unk0E = reader.Read<int16_t>();
+    unk10 = reader.Read<float>();
+    disableWhenMapLoadedWithId = BufferHelpers::ReadValues<uint8_t, 4>(reader);
+    unk18 = reader.Read<int>();
+    unk1C = reader.Read<int>();
+    unk20 = reader.Read<int>();
+    unk24 = reader.Read<uint8_t>();
+    unk25 = reader.Read<bool>();
+    reader.AssertPad(2);
+    reader.AssertPad(24);
 }
 
-void ExtraAssetData3::Write(ofstream& stream) const
+void ExtraAssetData3::Write(BufferWriter& writer) const
 {
-    WriteValue(stream, unk00);
-    WriteValue(stream, unk04);
-    WriteValue<int8_t>(stream, -1);
-    WriteValue(stream, unk09);
-    WriteValue(stream, unk0A);
-    WriteValue(stream, unk0B);
-    WriteValue(stream, unk0C);
-    WriteValue(stream, unk0E);
-    WriteValue(stream, unk10);
-    WriteValues(stream, disableWhenMapLoadedWithId);
-    WriteValue(stream, unk18);
-    WriteValue(stream, unk1C);
-    WriteValue(stream, unk20);
-    WriteValue(stream, unk24);
-    WriteValue(stream, unk25);
-    WritePadBytes(stream, 2);
-    WritePadBytes(stream, 24);
+    writer.Write(unk00);
+    writer.Write(unk04);
+    writer.Write<int8_t>(-1);
+    writer.Write(unk09);
+    writer.Write(unk0A);
+    writer.Write(unk0B);
+    writer.Write(unk0C);
+    writer.Write(unk0E);
+    writer.Write(unk10);
+    BufferHelpers::WriteValues(writer, disableWhenMapLoadedWithId);
+    writer.Write(unk18);
+    writer.Write(unk1C);
+    writer.Write(unk20);
+    writer.Write(unk24);
+    writer.Write(unk25);
+    writer.WritePad(2);
+    writer.WritePad(24);
 }
 
-void ExtraAssetData4::Read(ifstream& stream)
+void ExtraAssetData4::Read(BufferReader& reader)
 {
-    unk00 = ReadValue<bool>(stream);
-    unk01 = ReadValue<uint8_t>(stream);
-    unk02 = ReadValue<uint8_t>(stream);
-    unk03 = ReadValue<bool>(stream);
-    AssertReadPadBytes(stream, 60, "ExtraAssetData4 padding");
+    unk00 = reader.Read<bool>();
+    unk01 = reader.Read<uint8_t>();
+    unk02 = reader.Read<uint8_t>();
+    unk03 = reader.Read<bool>();
+    reader.AssertPad(60);
 }
 
-void ExtraAssetData4::Write(ofstream& stream) const
+void ExtraAssetData4::Write(BufferWriter& writer) const
 {
-    WriteValue(stream, unk00);
-    WriteValue(stream, unk01);
-    WriteValue(stream, unk02);
-    WriteValue(stream, unk03);
-    WritePadBytes(stream, 60);
+    writer.Write(unk00);
+    writer.Write(unk01);
+    writer.Write(unk02);
+    writer.Write(unk03);
+    writer.WritePad(60);
 }
 
-bool AssetPart::DeserializeSubtypeData(ifstream& stream)
+bool AssetPart::DeserializeSubtypeData(BufferReader& reader)
 {
-    auto subtypeData = ReadValidatedStruct<AssetPartSubtypeData>(stream);
+    auto subtypeData = BufferHelpers::ReadValidatedStruct<AssetPartSubtypeData>(reader);
     sUnk10 = subtypeData.sUnk10;
     sUnk11 = subtypeData.sUnk11;
     sUnk12 = subtypeData.sUnk12;
@@ -1253,7 +1255,7 @@ bool AssetPart::DeserializeSubtypeData(ifstream& stream)
     sUnk30 = subtypeData.sUnk30;
     sUnk34 = subtypeData.sUnk34;
     ClearReferenceArray(drawParentParts);
-    ranges::copy(subtypeData.drawParentPartsIndices, drawParentPartsIndices.begin());
+    std::ranges::copy(subtypeData.drawParentPartsIndices, drawParentPartsIndices.begin());
     sUnk50 = subtypeData.sUnk50;
     sUnk51 = subtypeData.sUnk51;
     sUnk53 = subtypeData.sUnk53;
@@ -1263,14 +1265,14 @@ bool AssetPart::DeserializeSubtypeData(ifstream& stream)
     sUnk60 = subtypeData.sUnk60;
     sUnk64 = subtypeData.sUnk64;
 
-    extraData1.Read(stream);
-    extraData2.Read(stream);
-    extraData3.Read(stream);
-    extraData4.Read(stream);
+    extraData1.Read(reader);
+    extraData2.Read(reader);
+    extraData3.Read(reader);
+    extraData4.Read(reader);
     return true;
 }
 
-bool AssetPart::SerializeSubtypeData(ofstream& stream, int supertypeIndex, int subtypeIndex) const
+bool AssetPart::SerializeSubtypeData(BufferWriter& writer, int supertypeIndex, int subtypeIndex) const
 {
     auto subtypeData = AssetPartSubtypeData{
         .sUnk10 = sUnk10,
@@ -1296,26 +1298,26 @@ bool AssetPart::SerializeSubtypeData(ofstream& stream, int supertypeIndex, int s
         ._extraAssetData3Offset = 0x108,
         ._extraAssetData4Offset = 0x148,
     };
-    ranges::copy(drawParentPartsIndices, subtypeData.drawParentPartsIndices.begin());
+    std::ranges::copy(drawParentPartsIndices, subtypeData.drawParentPartsIndices.begin());
 
-    WriteValidatedStruct(stream, subtypeData);
+    BufferHelpers::WriteValidatedStruct(writer, subtypeData);
 
-    extraData1.Write(stream);
-    extraData2.Write(stream);
-    extraData3.Write(stream);
-    extraData4.Write(stream);
+    extraData1.Write(writer);
+    extraData2.Write(writer);
+    extraData3.Write(writer);
+    extraData4.Write(writer);
     return true;
 }
 
 void AssetPart::DeserializeEntryReferences(
-    const vector<Model*>& models, const vector<Part*>& parts, const vector<Region*>& regions)
+    const std::vector<Model*>& models, const std::vector<Part*>& parts, const std::vector<Region*>& regions)
 {
     Part::DeserializeEntryReferences(models, parts, regions);
     SetReferenceArray(drawParentParts, drawParentPartsIndices, parts);
 }
 
 void AssetPart::SerializeEntryIndices(
-    const vector<Model*>& models, const vector<Part*>& parts, const vector<Region*>& regions)
+    const std::vector<Model*>& models, const std::vector<Part*>& parts, const std::vector<Region*>& regions)
 {
     Part::SerializeEntryIndices(models, parts, regions);
     SetIndexArray(this, drawParentPartsIndices, drawParentParts, parts);

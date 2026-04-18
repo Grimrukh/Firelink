@@ -1,4 +1,5 @@
-﻿#include <FirelinkCore/BinaryReadWrite.h>
+﻿#include "MSBBufferHelpers.h"
+#include <FirelinkCore/BinaryReadWrite.h>
 #include <FirelinkCore/BinaryValidation.h>
 #include <FirelinkCore/Collections.h>
 #include <FirelinkERMaps/MapStudio/MSBFormatError.h>
@@ -6,15 +7,14 @@
 #include <FirelinkERMaps/MapStudio/Shape.h>
 
 #include <cstdint>
-#include <fstream>
 #include <string>
 
-using namespace std;
 using namespace Firelink;
 using namespace Firelink::BinaryReadWrite;
 using namespace Firelink::BinaryValidation;
-using namespace FirelinkER::Maps;
-using namespace FirelinkER::Maps::MapStudio;
+using namespace Firelink::EldenRing::Maps::MapStudio::BufferHelpers;
+using namespace Firelink::EldenRing::Maps;
+using namespace Firelink::EldenRing::Maps::MapStudio;
 
 struct RegionHeader
 {
@@ -66,7 +66,7 @@ struct RegionExtraDataStruct
     void Validate() const { AssertPadding("RegionExtraDataStruct", _pad1, _pad2); }
 };
 
-unique_ptr<Shape>& Region::SetShapeType(const ShapeType shapeType)
+std::unique_ptr<Shape>& Region::SetShapeType(const ShapeType shapeType)
 {
     switch (shapeType)
     {
@@ -75,57 +75,57 @@ unique_ptr<Shape>& Region::SetShapeType(const ShapeType shapeType)
             m_shape = nullptr;
             return m_shape;
         case ShapeType::PointShape:
-            m_shape = make_unique<Point>();
+            m_shape = std::make_unique<Point>();
             return m_shape;
         case ShapeType::CircleShape:
-            m_shape = make_unique<Circle>();
+            m_shape = std::make_unique<Circle>();
             return m_shape;
         case ShapeType::SphereShape:
-            m_shape = make_unique<Sphere>();
+            m_shape = std::make_unique<Sphere>();
             return m_shape;
         case ShapeType::CylinderShape:
-            m_shape = make_unique<Cylinder>();
+            m_shape = std::make_unique<Cylinder>();
             return m_shape;
         case ShapeType::RectangleShape:
-            m_shape = make_unique<Rectangle>();
+            m_shape = std::make_unique<Rectangle>();
             return m_shape;
         case ShapeType::BoxShape:
-            m_shape = make_unique<Box>();
+            m_shape = std::make_unique<Box>();
             return m_shape;
         case ShapeType::CompositeShape:
-            m_shape = make_unique<Composite>();
-            m_compositeChildren = make_unique<CompositeShapeReferences>();
+            m_shape = std::make_unique<Composite>();
+            m_compositeChildren = std::make_unique<CompositeShapeReferences>();
             return m_shape;
     }
 
-    throw invalid_argument("Invalid shape type.");
+    throw std::invalid_argument("Invalid shape type.");
 }
 
-void Region::Deserialize(ifstream& stream)
+void Region::Deserialize(BufferReader& reader)
 {
-    const streampos start = stream.tellg();
+    const size_t start = reader.Position();
 
-    const auto header = ReadValidatedStruct<RegionHeader>(stream);
+    const auto header = BufferHelpers::ReadValidatedStruct<RegionHeader>(reader);
     if (header.subtype != GetType())
-        throw invalid_argument("Region header/class subtype mismatch.");
+        throw std::invalid_argument("Region header/class subtype mismatch.");
 
     SetShapeType(header.shapeType);
     m_translate = header.translate;
     m_rotate = header.rotate;
     this->m_hUnk40 = header.unk40;
 
-    stream.seekg(start + header.nameOffset);
-    m_name = ReadUTF16String(stream);
+    reader.Seek(start + header.nameOffset);
+    m_name = BufferHelpers::ReadUTF16String(reader);
 
-    stream.seekg(start + header.unkShortsAOffset);
-    const auto unkShortsACount = ReadValue<int16_t>(stream);
+    reader.Seek(start + header.unkShortsAOffset);
+    const auto unkShortsACount = reader.Read<int16_t>();
     for (int i = 0; i < unkShortsACount; i++)
-        m_unkShortsA.push_back(ReadValue<int16_t>(stream));
+        m_unkShortsA.push_back(reader.Read<int16_t>());
 
-    stream.seekg(start + header.unkShortsBOffset);
-    const auto unkShortsBCount = ReadValue<int16_t>(stream);
+    reader.Seek(start + header.unkShortsBOffset);
+    const auto unkShortsBCount = reader.Read<int16_t>();
     for (int i = 0; i < unkShortsBCount; i++)
-        m_unkShortsB.push_back(ReadValue<int16_t>(stream));
+        m_unkShortsB.push_back(reader.Read<int16_t>());
 
     // Info(std::format("Region {} has name, unkA, unkB, supertype offsets at: 0x{:X}, 0x{:X}, 0x{:X}, 0x{:X}.",
     // GetNameUTF8(), header.nameOffset, header.unkShortsAOffset, header.unkShortsBOffset, header.supertypeDataOffset));
@@ -140,39 +140,39 @@ void Region::Deserialize(ifstream& stream)
         throw MSBFormatError("Region shape data offset is non-zero for Point shape.");
     else
     {
-        stream.seekg(start + header.shapeDataOffset);
+        reader.Seek(start + header.shapeDataOffset);
         // Info(std::format("   Shape offset: 0x{:X}.", header.shapeDataOffset));
-        m_shape->DeserializeShapeData(stream);
+        m_shape->DeserializeShapeData(reader);
 
         if (header.shapeType == ShapeType::CompositeShape)
         {
             // Region stores child references for composite shape. (Deserialize method above did nothing.)
             // The references are resolved along with all other MSB references.
-            m_compositeChildren = make_unique<CompositeShapeReferences>();
+            m_compositeChildren = std::make_unique<CompositeShapeReferences>();
             for (int i = 0; i < 8; i++)
             {
-                m_compositeChildren->regionIndices[i] = ReadValue<int32_t>(stream);
-                m_compositeChildren->unk04s[i] = ReadValue<int32_t>(stream);
+                m_compositeChildren->regionIndices[i] = reader.Read<int32_t>();
+                m_compositeChildren->unk04s[i] = reader.Read<int32_t>();
             }
         }
     }
 
-    stream.seekg(start + header.supertypeDataOffset);
-    const auto supertypeData = ReadValidatedStruct<RegionDataStruct>(stream);
+    reader.Seek(start + header.supertypeDataOffset);
+    const auto supertypeData = BufferHelpers::ReadValidatedStruct<RegionDataStruct>(reader);
     m_attachedPartIndex = supertypeData.attachedPartIndex;
     m_entityId = supertypeData.entityId;
     m_dUnk08 = supertypeData.unk08;
 
     if (header.subtypeDataOffset > 0)
     {
-        stream.seekg(start + header.subtypeDataOffset);
-        if (!DeserializeSubtypeData(stream))
+        reader.Seek(start + header.subtypeDataOffset);
+        if (!DeserializeSubtypeData(reader))
         {
             throw MSBFormatError(
                 "Region " + GetNameUTF8() + " has non-zero subtype data offset, but no data was expected.");
         }
     }
-    else if (DeserializeSubtypeData(stream))
+    else if (DeserializeSubtypeData(reader))
     {
         throw MSBFormatError("Region " + GetNameUTF8() + " has no subtype data offset, but data was expected.");
     }
@@ -180,19 +180,19 @@ void Region::Deserialize(ifstream& stream)
     if (header.extraDataOffset == 0)
         throw MSBFormatError("Region " + GetNameUTF8() + " has zero extra data offset.");
 
-    stream.seekg(start + header.extraDataOffset);
-    const auto extraData = ReadValidatedStruct<RegionExtraDataStruct>(stream);
+    reader.Seek(start + header.extraDataOffset);
+    const auto extraData = BufferHelpers::ReadValidatedStruct<RegionExtraDataStruct>(reader);
     m_mapId = extraData.mapId;
     m_eUnk04 = extraData.unk04;
     m_eUnk0C = extraData.unk0C;
 }
 
-void Region::Serialize(ofstream& stream, const int supertypeIndex, const int subtypeIndex) const
+void Region::Serialize(BufferWriter& writer, const int supertypeIndex, const int subtypeIndex) const
 {
-    const streampos start = stream.tellp();
+    const size_t start = writer.Position();
 
-    Reserver reserver(stream, true);
-    reserver.ReserveValidatedStruct("RegionHeader", sizeof(RegionHeader));
+    const void* scope = this;
+    writer.Reserve<RegionHeader>("RegionHeader", scope);
     auto header = RegionHeader{
         .subtype = GetType(),
         .subtypeIndex = subtypeIndex,
@@ -204,42 +204,42 @@ void Region::Serialize(ofstream& stream, const int supertypeIndex, const int sub
         .eventLayer = m_eventLayer,
     };
 
-    header.nameOffset = stream.tellp() - start;
-    WriteUTF16String(stream, m_name);
-    AlignStream(stream, 4);
+    header.nameOffset = static_cast<int64_t>(writer.Position() - start);
+    BufferHelpers::WriteUTF16String(writer, m_name);
+    writer.PadAlign(4);
 
-    header.unkShortsAOffset = stream.tellp() - start;
-    WriteValue(stream, static_cast<int16_t>(m_unkShortsA.size()));
+    header.unkShortsAOffset = static_cast<int64_t>(writer.Position() - start);
+    writer.Write(static_cast<int16_t>(m_unkShortsA.size()));
     for (int16_t unkShort : m_unkShortsA)
-        WriteValue(stream, unkShort);
-    AlignStream(stream, 4);
+        writer.Write(unkShort);
+    writer.PadAlign(4);
 
-    header.unkShortsBOffset = stream.tellp() - start;
-    WriteValue(stream, static_cast<int16_t>(m_unkShortsB.size()));
+    header.unkShortsBOffset = static_cast<int64_t>(writer.Position() - start);
+    writer.Write(static_cast<int16_t>(m_unkShortsB.size()));
     for (int16_t unkShort : m_unkShortsB)
-        WriteValue(stream, unkShort);
-    AlignStream(stream, 4);
+        writer.Write(unkShort);
+    writer.PadAlign(4);
 
     // Align to 8 before next data (be it shape or supertype).
-    AlignStream(stream, 8);
+    writer.PadAlign(8);
 
     // Check if Shape is not `nullptr` and not a `Point`.
     if (m_shape && m_shape->GetType() != ShapeType::PointShape)
     {
-        header.shapeDataOffset = stream.tellp() - start;
+        header.shapeDataOffset = static_cast<int64_t>(writer.Position() - start);
         if (m_shape->GetType() == ShapeType::CompositeShape)
         {
             // Write composite child shape references/unknowns.
             // (`Shape::SerializeShapeData()` does nothing for Composite shapes.)
             for (int i = 0; i < 8; i++)
             {
-                WriteValue(stream, m_compositeChildren->regionIndices[i]);
-                WriteValue(stream, m_compositeChildren->unk04s[i]);
+                writer.Write(m_compositeChildren->regionIndices[i]);
+                writer.Write(m_compositeChildren->unk04s[i]);
             }
         }
         else
         {
-            m_shape->SerializeShapeData(stream);
+            m_shape->SerializeShapeData(writer);
         }
     }
     else
@@ -247,7 +247,7 @@ void Region::Serialize(ofstream& stream, const int supertypeIndex, const int sub
         header.shapeDataOffset = 0;
     }
 
-    header.supertypeDataOffset = stream.tellp() - start;
+    header.supertypeDataOffset = static_cast<int64_t>(writer.Position() - start);
     // Info(std::format("Writing Region '{}' supertype data at offset 0x{:X}.", string(*this),
     // static_cast<int64_t>(stream.tellp())));
     const RegionDataStruct supertypeData{
@@ -255,27 +255,27 @@ void Region::Serialize(ofstream& stream, const int supertypeIndex, const int sub
         .entityId = m_entityId,
         .unk08 = m_dUnk08,
     };
-    WriteValidatedStruct(stream, supertypeData);
+    BufferHelpers::WriteValidatedStruct(writer, supertypeData);
 
     // Padding varies across subtypes here, unfortunately. Later (newer?) subtypes align to 8 here.
     if (GetType() > RegionType::BuddySummonPoint && GetType() != RegionType::Other)
     {
-        AlignStream(stream, 8);
+        writer.PadAlign(8);
     }
 
-    const streampos subtypeDataOffset = stream.tellp();
+    const size_t subtypeDataOffset = writer.Position();
     // Info(std::format("  Writing Region '{}' subtype data at offset 0x{:X}.", string(*this),
-    // static_cast<int64_t>(stream.tellp())));
-    if (SerializeSubtypeData(stream))
-        header.subtypeDataOffset = subtypeDataOffset - start;
+    // static_cast<int64_t>(writer.Position())));
+    if (SerializeSubtypeData(writer))
+        header.subtypeDataOffset = static_cast<int64_t>(subtypeDataOffset - start);
     else
         header.subtypeDataOffset = 0;
 
     // Older region types align here instead.
     if (GetType() <= RegionType::BuddySummonPoint || GetType() == RegionType::Other)
-        AlignStream(stream, 8);
+        writer.PadAlign(8);
 
-    header.extraDataOffset = stream.tellp() - start;
+    header.extraDataOffset = static_cast<int64_t>(writer.Position() - start);
     // Info(std::format("  Writing Region '{}' extra data at offset 0x{:X}.", string(*this),
     // static_cast<int64_t>(stream.tellp()))); Info(std::format("  m_mapId = {}, m_eUnk04 = {}, m_eUnk0C = {}", m_mapId,
     // m_eUnk04, m_eUnk0C));
@@ -284,13 +284,14 @@ void Region::Serialize(ofstream& stream, const int supertypeIndex, const int sub
         .unk04 = m_eUnk04,
         .unk0C = m_eUnk0C,
     };
-    WriteValidatedStruct(stream, extraData);
+    BufferHelpers::WriteValidatedStruct(writer, extraData);
 
-    reserver.FillValidatedStruct("RegionHeader", header);
+    header.Validate();
+    writer.Fill<RegionHeader>("RegionHeader", header, scope);
 
-    AlignStream(stream, 8);
+    writer.PadAlign(8);
 
-    reserver.Finish();
+    
 }
 
 void Region::DeserializeEntryReferences(const std::vector<Region*>& regions, const std::vector<Part*>& parts)
@@ -307,17 +308,17 @@ void Region::SerializeEntryIndices(const std::vector<Region*>& regions, const st
     m_attachedPartIndex = m_attachedPart.ToIndex(this, parts);
 }
 
-bool InvasionPointRegion::DeserializeSubtypeData(ifstream& stream)
+bool InvasionPointRegion::DeserializeSubtypeData(BufferReader& reader)
 {
     // Not bothering with struct.
-    m_priority = ReadValue<int>(stream);
+    m_priority = reader.Read<int>();
     return true;
 }
 
-bool InvasionPointRegion::SerializeSubtypeData(ofstream& stream) const
+bool InvasionPointRegion::SerializeSubtypeData(BufferWriter& writer) const
 {
     // Not bothering with struct.
-    WriteValue(stream, m_priority);
+    writer.Write(m_priority);
     return true;
 }
 
@@ -349,9 +350,9 @@ struct EnvironmentMapPointRegionData
     }
 };
 
-bool EnvironmentMapPointRegion::DeserializeSubtypeData(ifstream& stream)
+bool EnvironmentMapPointRegion::DeserializeSubtypeData(BufferReader& reader)
 {
-    const auto subtypeData = ReadValidatedStruct<EnvironmentMapPointRegionData>(stream);
+    const auto subtypeData = BufferHelpers::ReadValidatedStruct<EnvironmentMapPointRegionData>(reader);
     sUnk00 = subtypeData.unk00;
     sUnk04 = subtypeData.unk04;
     sUnk0D = subtypeData.unk0D;
@@ -368,7 +369,7 @@ bool EnvironmentMapPointRegion::DeserializeSubtypeData(ifstream& stream)
     return true;
 }
 
-bool EnvironmentMapPointRegion::SerializeSubtypeData(ofstream& stream) const
+bool EnvironmentMapPointRegion::SerializeSubtypeData(BufferWriter& writer) const
 {
     const auto subtypeData = EnvironmentMapPointRegionData{
         .unk00 = sUnk00,
@@ -386,7 +387,7 @@ bool EnvironmentMapPointRegion::SerializeSubtypeData(ofstream& stream) const
         .unk2C = sUnk2C,
         .unk2D = sUnk2D,
     };
-    WriteValidatedStruct(stream, subtypeData);
+    BufferHelpers::WriteValidatedStruct(writer, subtypeData);
     return true;
 }
 
@@ -394,7 +395,7 @@ struct SoundRegionData
 {
     int soundType;
     int soundId;
-    array<int, 16> childRegionsIndices;
+    std::array<int, 16> childRegionsIndices;
     uint8_t _zero;
     bool unk49;
     padding<2> _pad1;
@@ -406,17 +407,17 @@ struct SoundRegionData
     }
 };
 
-bool SoundRegion::DeserializeSubtypeData(ifstream& stream)
+bool SoundRegion::DeserializeSubtypeData(BufferReader& reader)
 {
-    auto subtypeData = ReadValidatedStruct<SoundRegionData>(stream);
+    auto subtypeData = BufferHelpers::ReadValidatedStruct<SoundRegionData>(reader);
     soundType = subtypeData.soundType;
     soundId = subtypeData.soundId;
-    ranges::copy(subtypeData.childRegionsIndices, childRegionsIndices.begin());
+    std::ranges::copy(subtypeData.childRegionsIndices, childRegionsIndices.begin());
     sUnk49 = subtypeData.unk49;
     return true;
 }
 
-bool SoundRegion::SerializeSubtypeData(ofstream& stream) const
+bool SoundRegion::SerializeSubtypeData(BufferWriter& writer) const
 {
     const SoundRegionData subtypeData = {
         .soundType = soundType,
@@ -425,7 +426,7 @@ bool SoundRegion::SerializeSubtypeData(ofstream& stream) const
         ._zero = 0,
         .unk49 = sUnk49,
     };
-    WriteValidatedStruct(stream, subtypeData);
+    BufferHelpers::WriteValidatedStruct(writer, subtypeData);
     return true;
 }
 
@@ -441,33 +442,33 @@ void SoundRegion::SerializeEntryIndices(const std::vector<Region*>& regions, con
     SetIndexArray(this, childRegionsIndices, childRegions, regions);
 }
 
-bool VFXRegion::DeserializeSubtypeData(ifstream& stream)
+bool VFXRegion::DeserializeSubtypeData(BufferReader& reader)
 {
-    effectId = ReadValue<int>(stream);
-    sUnk04 = ReadValue<int>(stream);
+    effectId = reader.Read<int>();
+    sUnk04 = reader.Read<int>();
     return true;
 }
 
-bool VFXRegion::SerializeSubtypeData(ofstream& stream) const
+bool VFXRegion::SerializeSubtypeData(BufferWriter& writer) const
 {
-    WriteValue(stream, effectId);
-    WriteValue(stream, sUnk04);
+    writer.Write(effectId);
+    writer.Write(sUnk04);
     return true;
 }
 
-bool WindVFXRegion::DeserializeSubtypeData(ifstream& stream)
+bool WindVFXRegion::DeserializeSubtypeData(BufferReader& reader)
 {
-    effectId = ReadValue<int>(stream);
-    windRegionIndex = ReadValue<int>(stream);
-    sUnk08 = ReadValue<float>(stream);
+    effectId = reader.Read<int>();
+    windRegionIndex = reader.Read<int>();
+    sUnk08 = reader.Read<float>();
     return true;
 }
 
-bool WindVFXRegion::SerializeSubtypeData(ofstream& stream) const
+bool WindVFXRegion::SerializeSubtypeData(BufferWriter& writer) const
 {
-    WriteValue(stream, effectId);
-    WriteValue(stream, windRegionIndex);
-    WriteValue(stream, sUnk08);
+    writer.Write(effectId);
+    writer.Write(windRegionIndex);
+    writer.Write(sUnk08);
     return true;
 }
 
@@ -495,18 +496,18 @@ struct SpawnPointRegionData
     }
 };
 
-bool SpawnPointRegion::DeserializeSubtypeData(ifstream& stream)
+bool SpawnPointRegion::DeserializeSubtypeData(BufferReader& reader)
 {
-    ReadValidatedStruct<SpawnPointRegionData>(stream);
+    BufferHelpers::ReadValidatedStruct<SpawnPointRegionData>(reader);
     return true;
 }
 
-bool SpawnPointRegion::SerializeSubtypeData(ofstream& stream) const
+bool SpawnPointRegion::SerializeSubtypeData(BufferWriter& writer) const
 {
     constexpr auto subtypeData = SpawnPointRegionData{
         ._minusOne = -1,
     };
-    WriteValidatedStruct(stream, subtypeData);
+    BufferHelpers::WriteValidatedStruct(writer, subtypeData);
     return true;
 }
 
@@ -530,9 +531,9 @@ struct MessageRegionData
     }
 };
 
-bool MessageRegion::DeserializeSubtypeData(ifstream& stream)
+bool MessageRegion::DeserializeSubtypeData(BufferReader& reader)
 {
-    const auto subtypeData = ReadValidatedStruct<MessageRegionData>(stream);
+    const auto subtypeData = BufferHelpers::ReadValidatedStruct<MessageRegionData>(reader);
     messageId = subtypeData.messageId;
     sUnk02 = subtypeData.unk02;
     hidden = subtypeData.hidden == 1;
@@ -546,7 +547,7 @@ bool MessageRegion::DeserializeSubtypeData(ifstream& stream)
     return true;
 }
 
-bool MessageRegion::SerializeSubtypeData(ofstream& stream) const
+bool MessageRegion::SerializeSubtypeData(BufferWriter& writer) const
 {
     const auto subtypeData = MessageRegionData{
         .messageId = messageId,
@@ -560,7 +561,7 @@ bool MessageRegion::SerializeSubtypeData(ofstream& stream) const
         .animationId = animationId,
         .playerId = playerId,
     };
-    WriteValidatedStruct(stream, subtypeData);
+    BufferHelpers::WriteValidatedStruct(writer, subtypeData);
     return true;
 }
 
@@ -591,9 +592,9 @@ struct EnvironmentMapEffectBoxRegionData
     }
 };
 
-bool EnvironmentMapEffectBoxRegion::DeserializeSubtypeData(ifstream& stream)
+bool EnvironmentMapEffectBoxRegion::DeserializeSubtypeData(BufferReader& reader)
 {
-    const auto subtypeData = ReadValidatedStruct<EnvironmentMapEffectBoxRegionData>(stream);
+    const auto subtypeData = BufferHelpers::ReadValidatedStruct<EnvironmentMapEffectBoxRegionData>(reader);
     enableDist = subtypeData.enableDist;
     transitionDist = subtypeData.transitionDist;
     sUnk08 = subtypeData.unk08;
@@ -611,7 +612,7 @@ bool EnvironmentMapEffectBoxRegion::DeserializeSubtypeData(ifstream& stream)
     return true;
 }
 
-bool EnvironmentMapEffectBoxRegion::SerializeSubtypeData(ofstream& stream) const
+bool EnvironmentMapEffectBoxRegion::SerializeSubtypeData(BufferWriter& writer) const
 {
     const auto subtypeData = EnvironmentMapEffectBoxRegionData{
         .enableDist = enableDist,
@@ -630,31 +631,31 @@ bool EnvironmentMapEffectBoxRegion::SerializeSubtypeData(ofstream& stream) const
         .unk34 = sUnk34,
         .unk36 = sUnk36,
     };
-    WriteValidatedStruct(stream, subtypeData);
+    BufferHelpers::WriteValidatedStruct(writer, subtypeData);
     return true;
 }
 
 struct ConnectionRegionData
 {
-    array<int8_t, 4> targetMapId;
+    std::array<int8_t, 4> targetMapId;
     padding<12> _pad1;
 
     void Validate() const { AssertPadding("ConnectionRegionData", _pad1); }
 };
 
-bool ConnectionRegion::DeserializeSubtypeData(ifstream& stream)
+bool ConnectionRegion::DeserializeSubtypeData(BufferReader& reader)
 {
-    auto subtypeData = ReadValidatedStruct<ConnectionRegionData>(stream);
-    ranges::copy(subtypeData.targetMapId, targetMapId.begin());
+    auto subtypeData = BufferHelpers::ReadValidatedStruct<ConnectionRegionData>(reader);
+    std::ranges::copy(subtypeData.targetMapId, targetMapId.begin());
     return true;
 }
 
-bool ConnectionRegion::SerializeSubtypeData(ofstream& stream) const
+bool ConnectionRegion::SerializeSubtypeData(BufferWriter& writer) const
 {
     const ConnectionRegionData subtypeData = {
         .targetMapId = targetMapId,
     };
-    WriteValidatedStruct(stream, subtypeData);
+    BufferHelpers::WriteValidatedStruct(writer, subtypeData);
     return true;
 }
 
@@ -670,33 +671,33 @@ struct PatrolRoute22RegionData
     }
 };
 
-bool PatrolRoute22Region::DeserializeSubtypeData(ifstream& stream)
+bool PatrolRoute22Region::DeserializeSubtypeData(BufferReader& reader)
 {
-    ReadValidatedStruct<PatrolRoute22RegionData>(stream);
+    BufferHelpers::ReadValidatedStruct<PatrolRoute22RegionData>(reader);
     return true;
 }
 
-bool PatrolRoute22Region::SerializeSubtypeData(ofstream& stream) const
+bool PatrolRoute22Region::SerializeSubtypeData(BufferWriter& writer) const
 {
     constexpr auto subtypeData = PatrolRoute22RegionData{
         ._minusOne = -1,
         ._zero = 0,
     };
-    WriteValidatedStruct(stream, subtypeData);
+    BufferHelpers::WriteValidatedStruct(writer, subtypeData);
     return true;
 }
 
-bool BuddySummonPointRegion::DeserializeSubtypeData(ifstream& stream)
+bool BuddySummonPointRegion::DeserializeSubtypeData(BufferReader& reader)
 {
     // Not bothering with struct.
-    AssertReadPadBytes(stream, 16, "BuddySummonPointRegion subtype padding");
+    reader.AssertPad(16);
     return true;
 }
 
-bool BuddySummonPointRegion::SerializeSubtypeData(ofstream& stream) const
+bool BuddySummonPointRegion::SerializeSubtypeData(BufferWriter& writer) const
 {
     // Not bothering with struct.
-    WritePadBytes(stream, 16);
+    writer.WritePad(16);
     return true;
 }
 
@@ -721,9 +722,9 @@ struct MufflingBoxRegionData
     }
 };
 
-bool MufflingBoxRegion::DeserializeSubtypeData(ifstream& stream)
+bool MufflingBoxRegion::DeserializeSubtypeData(BufferReader& reader)
 {
-    const auto subtypeData = ReadValidatedStruct<MufflingBoxRegionData>(stream);
+    const auto subtypeData = BufferHelpers::ReadValidatedStruct<MufflingBoxRegionData>(reader);
     sUnk00 = subtypeData.unk00;
     sUnk24 = subtypeData.unk24;
     sUnk34 = subtypeData.unk34;
@@ -733,7 +734,7 @@ bool MufflingBoxRegion::DeserializeSubtypeData(ifstream& stream)
     return true;
 }
 
-bool MufflingBoxRegion::SerializeSubtypeData(ofstream& stream) const
+bool MufflingBoxRegion::SerializeSubtypeData(BufferWriter& writer) const
 {
     const auto subtypeData = MufflingBoxRegionData{
         .unk00 = sUnk00,
@@ -744,7 +745,7 @@ bool MufflingBoxRegion::SerializeSubtypeData(ofstream& stream) const
         .unk40 = sUnk40,
         .unk44 = sUnk44,
     };
-    WriteValidatedStruct(stream, subtypeData);
+    BufferHelpers::WriteValidatedStruct(writer, subtypeData);
     return true;
 }
 
@@ -766,21 +767,21 @@ struct MufflingPortalRegionData
     }
 };
 
-bool MufflingPortalRegion::DeserializeSubtypeData(ifstream& stream)
+bool MufflingPortalRegion::DeserializeSubtypeData(BufferReader& reader)
 {
-    const auto subtypeData = ReadValidatedStruct<MufflingPortalRegionData>(stream);
+    const auto subtypeData = BufferHelpers::ReadValidatedStruct<MufflingPortalRegionData>(reader);
     sUnk00 = subtypeData.unk00;
     return true;
 }
 
-bool MufflingPortalRegion::SerializeSubtypeData(ofstream& stream) const
+bool MufflingPortalRegion::SerializeSubtypeData(BufferWriter& writer) const
 {
     const auto subtypeData = MufflingPortalRegionData{
         .unk00 = sUnk00,
         ._x24_32 = 32,
         ._minusOne = -1,
     };
-    WriteValidatedStruct(stream, subtypeData);
+    BufferHelpers::WriteValidatedStruct(writer, subtypeData);
     return true;
 }
 
@@ -799,9 +800,9 @@ struct OtherSoundRegionData
     void Validate() const { AssertPadding("OtherSoundRegionData", _pad1); }
 };
 
-bool OtherSoundRegion::DeserializeSubtypeData(ifstream& stream)
+bool OtherSoundRegion::DeserializeSubtypeData(BufferReader& reader)
 {
-    const auto subtypeData = ReadValidatedStruct<OtherSoundRegionData>(stream);
+    const auto subtypeData = BufferHelpers::ReadValidatedStruct<OtherSoundRegionData>(reader);
     sUnk00 = subtypeData.unk00;
     sUnk01 = subtypeData.unk01;
     sUnk02 = subtypeData.unk02;
@@ -813,7 +814,7 @@ bool OtherSoundRegion::DeserializeSubtypeData(ifstream& stream)
     return true;
 }
 
-bool OtherSoundRegion::SerializeSubtypeData(ofstream& stream) const
+bool OtherSoundRegion::SerializeSubtypeData(BufferWriter& writer) const
 {
     const auto subtypeData = OtherSoundRegionData{
         .unk00 = sUnk00,
@@ -825,21 +826,21 @@ bool OtherSoundRegion::SerializeSubtypeData(ofstream& stream) const
         .unk0a = sUnk0a,
         .unk0c = sUnk0c,
     };
-    WriteValidatedStruct(stream, subtypeData);
+    BufferHelpers::WriteValidatedStruct(writer, subtypeData);
     return true;
 }
 
-bool PatrolRouteRegion::DeserializeSubtypeData(ifstream& stream)
+bool PatrolRouteRegion::DeserializeSubtypeData(BufferReader& reader)
 {
     // Not bothering with struct.
-    sUnk00 = ReadValue<int>(stream);
+    sUnk00 = reader.Read<int>();
     return true;
 }
 
-bool PatrolRouteRegion::SerializeSubtypeData(ofstream& stream) const
+bool PatrolRouteRegion::SerializeSubtypeData(BufferWriter& writer) const
 {
     // Not bothering with struct.
-    WriteValue(stream, sUnk00);
+    writer.Write(sUnk00);
     return true;
 }
 
@@ -861,9 +862,9 @@ struct MapPointRegionData
     }
 };
 
-bool MapPointRegion::DeserializeSubtypeData(ifstream& stream)
+bool MapPointRegion::DeserializeSubtypeData(BufferReader& reader)
 {
-    const auto subtypeData = ReadValidatedStruct<MapPointRegionData>(stream);
+    const auto subtypeData = BufferHelpers::ReadValidatedStruct<MapPointRegionData>(reader);
     sUnk00 = subtypeData.unk00;
     sUnk04 = subtypeData.unk04;
     sUnk08 = subtypeData.unk08;
@@ -873,7 +874,7 @@ bool MapPointRegion::DeserializeSubtypeData(ifstream& stream)
     return true;
 }
 
-bool MapPointRegion::SerializeSubtypeData(ofstream& stream) const
+bool MapPointRegion::SerializeSubtypeData(BufferWriter& writer) const
 {
     const auto subtypeData = MapPointRegionData{
         .unk00 = sUnk00,
@@ -885,7 +886,7 @@ bool MapPointRegion::SerializeSubtypeData(ofstream& stream) const
         .unk18 = sUnk18,
         ._zero = 0,
     };
-    WriteValidatedStruct(stream, subtypeData);
+    BufferHelpers::WriteValidatedStruct(writer, subtypeData);
     return true;
 }
 
@@ -902,20 +903,20 @@ struct WeatherOverrideRegionData
     }
 };
 
-bool WeatherOverrideRegion::DeserializeSubtypeData(ifstream& stream)
+bool WeatherOverrideRegion::DeserializeSubtypeData(BufferReader& reader)
 {
-    const auto subtypeData = ReadValidatedStruct<WeatherOverrideRegionData>(stream);
+    const auto subtypeData = BufferHelpers::ReadValidatedStruct<WeatherOverrideRegionData>(reader);
     weatherLotId = subtypeData.weatherLotId;
     return true;
 }
 
-bool WeatherOverrideRegion::SerializeSubtypeData(ofstream& stream) const
+bool WeatherOverrideRegion::SerializeSubtypeData(BufferWriter& writer) const
 {
     const auto subtypeData = WeatherOverrideRegionData{
         .weatherLotId = weatherLotId,
         ._minusOne = -1,
     };
-    WriteValidatedStruct(stream, subtypeData);
+    BufferHelpers::WriteValidatedStruct(writer, subtypeData);
     return true;
 }
 
@@ -927,19 +928,19 @@ struct AutoDrawGroupPointRegionData
     void Validate() const { AssertPadding("AutoDrawGroupPointRegionData", _pad1); }
 };
 
-bool AutoDrawGroupPointRegion::DeserializeSubtypeData(ifstream& stream)
+bool AutoDrawGroupPointRegion::DeserializeSubtypeData(BufferReader& reader)
 {
-    const auto subtypeData = ReadValidatedStruct<AutoDrawGroupPointRegionData>(stream);
+    const auto subtypeData = BufferHelpers::ReadValidatedStruct<AutoDrawGroupPointRegionData>(reader);
     sUnk00 = subtypeData.unk00;
     return true;
 }
 
-bool AutoDrawGroupPointRegion::SerializeSubtypeData(ofstream& stream) const
+bool AutoDrawGroupPointRegion::SerializeSubtypeData(BufferWriter& writer) const
 {
     const auto subtypeData = AutoDrawGroupPointRegionData{
         .unk00 = sUnk00,
     };
-    WriteValidatedStruct(stream, subtypeData);
+    BufferHelpers::WriteValidatedStruct(writer, subtypeData);
     return true;
 }
 
@@ -949,7 +950,7 @@ struct GroupDefeatRewardRegionData
     int unk04;
     int unk08;
     padding<8> _minusOnes0;
-    array<int, 8> groupPartsIndices;
+    std::array<int, 8> groupPartsIndices;
     int unk34;
     int unk38;
     padding<24> _minusOnes1;
@@ -966,20 +967,20 @@ struct GroupDefeatRewardRegionData
     }
 };
 
-bool GroupDefeatRewardRegion::DeserializeSubtypeData(ifstream& stream)
+bool GroupDefeatRewardRegion::DeserializeSubtypeData(BufferReader& reader)
 {
-    auto subtypeData = ReadValidatedStruct<GroupDefeatRewardRegionData>(stream);
+    auto subtypeData = BufferHelpers::ReadValidatedStruct<GroupDefeatRewardRegionData>(reader);
     sUnk00 = subtypeData.unk00;
     sUnk04 = subtypeData.unk04;
     sUnk08 = subtypeData.unk08;
-    ranges::copy(subtypeData.groupPartsIndices, groupPartsIndices.begin());
+    std::ranges::copy(subtypeData.groupPartsIndices, groupPartsIndices.begin());
     sUnk34 = subtypeData.unk34;
     sUnk38 = subtypeData.unk38;
     sUnk54 = subtypeData.unk54;
     return true;
 }
 
-bool GroupDefeatRewardRegion::SerializeSubtypeData(ofstream& stream) const
+bool GroupDefeatRewardRegion::SerializeSubtypeData(BufferWriter& writer) const
 {
     auto subtypeData = GroupDefeatRewardRegionData{
         .unk00 = sUnk00,
@@ -992,7 +993,7 @@ bool GroupDefeatRewardRegion::SerializeSubtypeData(ofstream& stream) const
     };
     subtypeData._minusOnes0.fill(-1);
     subtypeData._minusOnes1.fill(-1);
-    WriteValidatedStruct(stream, subtypeData);
+    BufferHelpers::WriteValidatedStruct(writer, subtypeData);
     return true;
 }
 
@@ -1009,174 +1010,174 @@ void GroupDefeatRewardRegion::SerializeEntryIndices(const std::vector<Region*>& 
     SetIndexArray(this, groupPartsIndices, groupParts, parts);
 }
 
-bool HitsetRegion::DeserializeSubtypeData(ifstream& stream)
+bool HitsetRegion::DeserializeSubtypeData(BufferReader& reader)
 {
     // Not bothering with struct.
-    sUnk00 = ReadValue<int>(stream);
+    sUnk00 = reader.Read<int>();
     return true;
 }
 
-bool HitsetRegion::SerializeSubtypeData(ofstream& stream) const
+bool HitsetRegion::SerializeSubtypeData(BufferWriter& writer) const
 {
     // Not bothering with struct.
-    WriteValue(stream, sUnk00);
+    writer.Write(sUnk00);
     return true;
 }
 
-bool FastTravelRestrictionRegion::DeserializeSubtypeData(ifstream& stream)
+bool FastTravelRestrictionRegion::DeserializeSubtypeData(BufferReader& reader)
 {
     // Not bothering with struct.
-    eventFlagId = ReadValue<int>(stream);
-    AssertReadValue<int>(stream, 0, "FastTravelRestrictionRegion[0x4]");
+    eventFlagId = reader.Read<int>();
+    reader.AssertValue<int>(0, "FastTravelRestrictionRegion[0x4]");
     return true;
 }
 
-bool FastTravelRestrictionRegion::SerializeSubtypeData(ofstream& stream) const
+bool FastTravelRestrictionRegion::SerializeSubtypeData(BufferWriter& writer) const
 {
     // Not bothering with struct.
-    WriteValue(stream, eventFlagId);
-    WriteValue(stream, 0);
+    writer.Write(eventFlagId);
+    writer.Write(0);
     return true;
 }
 
-bool WeatherCreateAssetPointRegion::DeserializeSubtypeData(ifstream& stream)
+bool WeatherCreateAssetPointRegion::DeserializeSubtypeData(BufferReader& reader)
 {
     // Not bothering with struct.
-    AssertReadValue<int>(stream, 0, "WeatherCreateAssetPointRegion[0x0]");
+    reader.AssertValue<int>(0, "WeatherCreateAssetPointRegion[0x0]");
     return true;
 }
 
-bool WeatherCreateAssetPointRegion::SerializeSubtypeData(ofstream& stream) const
+bool WeatherCreateAssetPointRegion::SerializeSubtypeData(BufferWriter& writer) const
 {
     // Not bothering with struct.
-    WriteValue(stream, 0);
+    writer.Write(0);
     return true;
 }
 
-bool PlayAreaRegion::DeserializeSubtypeData(ifstream& stream)
+bool PlayAreaRegion::DeserializeSubtypeData(BufferReader& reader)
 {
     // Not bothering with struct.
-    sUnk00 = ReadValue<int>(stream);
-    sUnk04 = ReadValue<int>(stream);
+    sUnk00 = reader.Read<int>();
+    sUnk04 = reader.Read<int>();
     return true;
 }
 
-bool PlayAreaRegion::SerializeSubtypeData(ofstream& stream) const
+bool PlayAreaRegion::SerializeSubtypeData(BufferWriter& writer) const
 {
     // Not bothering with struct.
-    WriteValue(stream, sUnk00);
-    WriteValue(stream, sUnk04);
+    writer.Write(sUnk00);
+    writer.Write(sUnk04);
     return true;
 }
 
-bool MountJumpRegion::DeserializeSubtypeData(ifstream& stream)
+bool MountJumpRegion::DeserializeSubtypeData(BufferReader& reader)
 {
     // Not bothering with struct.
-    jumpHeight = ReadValue<float>(stream);
-    sUnk04 = ReadValue<int>(stream);
+    jumpHeight = reader.Read<float>();
+    sUnk04 = reader.Read<int>();
     return true;
 }
 
-bool MountJumpRegion::SerializeSubtypeData(ofstream& stream) const
+bool MountJumpRegion::SerializeSubtypeData(BufferWriter& writer) const
 {
     // Not bothering with struct.
-    WriteValue(stream, jumpHeight);
-    WriteValue(stream, sUnk04);
+    writer.Write(jumpHeight);
+    writer.Write(sUnk04);
     return true;
 }
 
-bool DummyRegion::DeserializeSubtypeData(ifstream& stream)
+bool DummyRegion::DeserializeSubtypeData(BufferReader& reader)
 {
     // Not bothering with struct.
-    sUnk00 = ReadValue<int>(stream);
-    AssertReadValue<int>(stream, 0, "DummyRegion[0x4");
+    sUnk00 = reader.Read<int>();
+    reader.AssertValue<int>(0, "DummyRegion[0x4");
     return true;
 }
 
-bool DummyRegion::SerializeSubtypeData(ofstream& stream) const
+bool DummyRegion::SerializeSubtypeData(BufferWriter& writer) const
 {
     // Not bothering with struct.
-    WriteValue(stream, sUnk00);
-    WriteValue(stream, 0);
+    writer.Write(sUnk00);
+    writer.Write(0);
     return true;
 }
 
-bool FallPreventionRemovalRegion::DeserializeSubtypeData(ifstream& stream)
+bool FallPreventionRemovalRegion::DeserializeSubtypeData(BufferReader& reader)
 {
     // Not bothering with struct.
-    AssertReadValue<int>(stream, 0, "FallPreventionRemovalRegion[0x0]");
-    AssertReadValue<int>(stream, 0, "FallPreventionRemovalRegion[0x4]");
+    reader.AssertValue<int>(0, "FallPreventionRemovalRegion[0x0]");
+    reader.AssertValue<int>(0, "FallPreventionRemovalRegion[0x4]");
     return true;
 }
 
-bool FallPreventionRemovalRegion::SerializeSubtypeData(ofstream& stream) const
+bool FallPreventionRemovalRegion::SerializeSubtypeData(BufferWriter& writer) const
 {
     // Not bothering with struct.
-    WriteValue(stream, 0);
-    WriteValue(stream, 0);
+    writer.Write(0);
+    writer.Write(0);
     return true;
 }
 
-bool NavmeshCuttingRegion::DeserializeSubtypeData(ifstream& stream)
+bool NavmeshCuttingRegion::DeserializeSubtypeData(BufferReader& reader)
 {
     // Not bothering with struct.
-    AssertReadValue<int>(stream, 0, "NavmeshCuttingRegion[0x0]");
-    AssertReadValue<int>(stream, 0, "NavmeshCuttingRegion[0x4]");
+    reader.AssertValue<int>(0, "NavmeshCuttingRegion[0x0]");
+    reader.AssertValue<int>(0, "NavmeshCuttingRegion[0x4]");
     return true;
 }
 
-bool NavmeshCuttingRegion::SerializeSubtypeData(ofstream& stream) const
+bool NavmeshCuttingRegion::SerializeSubtypeData(BufferWriter& writer) const
 {
     // Not bothering with struct.
-    WriteValue(stream, 0);
-    WriteValue(stream, 0);
+    writer.Write(0);
+    writer.Write(0);
     return true;
 }
 
-bool MapNameOverrideRegion::DeserializeSubtypeData(ifstream& stream)
+bool MapNameOverrideRegion::DeserializeSubtypeData(BufferReader& reader)
 {
     // Not bothering with struct.
-    mapNameId = ReadValue<int>(stream);
-    AssertReadValue<int>(stream, 0, "MapNameOverrideRegion[0x4]");
+    mapNameId = reader.Read<int>();
+    reader.AssertValue<int>(0, "MapNameOverrideRegion[0x4]");
     return true;
 }
 
-bool MapNameOverrideRegion::SerializeSubtypeData(ofstream& stream) const
+bool MapNameOverrideRegion::SerializeSubtypeData(BufferWriter& writer) const
 {
     // Not bothering with struct.
-    WriteValue(stream, mapNameId);
-    WriteValue(stream, 0);
+    writer.Write(mapNameId);
+    writer.Write(0);
     return true;
 }
 
-bool MountJumpFallRegion::DeserializeSubtypeData(ifstream& stream)
+bool MountJumpFallRegion::DeserializeSubtypeData(BufferReader& reader)
 {
     // Not bothering with struct.
-    AssertReadValue<int>(stream, -1, "MountJumpFallRegion[0x0]");
-    AssertReadValue<int>(stream, 0, "MountJumpFallRegion[0x4]");
+    reader.AssertValue<int>(-1, "MountJumpFallRegion[0x0]");
+    reader.AssertValue<int>(0, "MountJumpFallRegion[0x4]");
     return true;
 }
 
-bool MountJumpFallRegion::SerializeSubtypeData(ofstream& stream) const
+bool MountJumpFallRegion::SerializeSubtypeData(BufferWriter& writer) const
 {
     // Not bothering with struct.
-    WriteValue(stream, -1);
-    WriteValue(stream, 0);
+    writer.Write(-1);
+    writer.Write(0);
     return true;
 }
 
-bool HorseRideOverrideRegion::DeserializeSubtypeData(ifstream& stream)
+bool HorseRideOverrideRegion::DeserializeSubtypeData(BufferReader& reader)
 {
     // Not bothering with struct.
-    overrideType = static_cast<HorseRideOverrideType>(ReadValue<int>(stream));
-    AssertReadValue<int>(stream, 0, "HorseRideOverrideRegion[0x4]");
+    overrideType = static_cast<HorseRideOverrideType>(reader.Read<int>());
+    reader.AssertValue<int>(0, "HorseRideOverrideRegion[0x4]");
     return true;
 }
 
-bool HorseRideOverrideRegion::SerializeSubtypeData(ofstream& stream) const
+bool HorseRideOverrideRegion::SerializeSubtypeData(BufferWriter& writer) const
 {
     // Not bothering with struct.
-    WriteValue(stream, static_cast<int>(overrideType));
-    WriteValue(stream, 0);
+    writer.Write(static_cast<int>(overrideType));
+    writer.Write(0);
     return true;
 }

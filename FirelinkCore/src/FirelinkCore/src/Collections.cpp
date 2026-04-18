@@ -40,6 +40,22 @@ Firelink::GroupBitSet<BIT_COUNT>::GroupBitSet(std::ifstream& stream)
     }
 }
 
+// Constructor from BufferReader
+template <std::size_t BIT_COUNT>
+Firelink::GroupBitSet<BIT_COUNT>::GroupBitSet(BinaryReadWrite::BufferReader& reader)
+{
+    const size_t uintCount = BIT_COUNT / 32;
+    for (std::size_t i = 0; i < uintCount; ++i)
+    {
+        const auto uint = reader.Read<uint32_t>();
+        for (int j = 0; j < 32; ++j)
+        {
+            if (uint >> j & 1)
+                bits.set(i * 32 + j);
+        }
+    }
+}
+
 // Constructor from array<uint32_t, BIT_COUNT / 32> (i.e. from serialized data)
 template <std::size_t BIT_COUNT>
 Firelink::GroupBitSet<BIT_COUNT>::GroupBitSet(const std::array<uint32_t, BIT_COUNT / 32>& uintArray)
@@ -142,6 +158,16 @@ void Firelink::GroupBitSet<BIT_COUNT>::Write(std::ofstream& stream) const
     for (uint32_t value : ToUintList())
     {
         WriteValue(stream, value);
+    }
+}
+
+// Write to BufferWriter (appropriate number of `uint32_t`s)
+template <std::size_t BIT_COUNT>
+void Firelink::GroupBitSet<BIT_COUNT>::Write(BinaryReadWrite::BufferWriter& writer) const
+{
+    for (uint32_t value : ToUintList())
+    {
+        writer.Write(value);
     }
 }
 

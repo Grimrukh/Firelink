@@ -1,5 +1,6 @@
 ﻿#pragma once
 
+#include <FirelinkCore/BinaryReadWrite.h>
 #include <FirelinkCore/Export.h>
 
 #include <array>
@@ -118,6 +119,9 @@ namespace Firelink
         /// @brief Read the appropriate number of `uint32_t`s from `stream` and enable all bits.
         explicit GroupBitSet(std::ifstream& stream);
 
+        /// @brief Read the appropriate number of `uint32_t`s from a BufferReader and enable all bits.
+        explicit GroupBitSet(BinaryReadWrite::BufferReader& reader);
+
         /// @brief Construct from a vector of serialized `uint32_t` values. Size of vector must be correct.
         explicit GroupBitSet(const std::vector<uint32_t>& uintList);
 
@@ -143,6 +147,9 @@ namespace Firelink
         ///
         /// Calls `ToUintList()` and writes each `uint32_t` to the stream.
         void Write(std::ofstream& stream) const;
+
+        /// @brief Write the appropriate number of `uint32_t`s to a BufferWriter (for serialization).
+        void Write(BinaryReadWrite::BufferWriter& writer) const;
 
         bool operator[](std::size_t index) const;
 

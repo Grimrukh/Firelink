@@ -1,5 +1,5 @@
 
-add_library(FirelinkFLVER SHARED)
+add_library(FirelinkFLVER)
 
 target_sources(FirelinkFLVER
     PRIVATE

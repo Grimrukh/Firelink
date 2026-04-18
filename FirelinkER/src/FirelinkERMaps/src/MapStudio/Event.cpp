@@ -1,13 +1,14 @@
-﻿
+
+#include "MSBBufferHelpers.h"
 #include <FirelinkCore/BinaryReadWrite.h>
 #include <FirelinkCore/BinaryValidation.h>
 #include <FirelinkERMaps/MapStudio/Event.h>
 #include <FirelinkERMaps/MapStudio/MSBFormatError.h>
 
-using namespace std;
 using namespace Firelink::BinaryReadWrite;
 using namespace Firelink::BinaryValidation;
-using namespace FirelinkER::Maps::MapStudio;
+using namespace Firelink::EldenRing::Maps::MapStudio::BufferHelpers;
+using namespace Firelink::EldenRing::Maps::MapStudio;
 
 struct EventHeader
 {
@@ -23,7 +24,7 @@ struct EventHeader
     void Validate() const
     {
         if (unk14 != 0 && unk14 != 1)
-            throw MSBFormatError("EventHeader: Expected unk14 to be 0 or 1, but got " + to_string(unk14));
+            throw MSBFormatError("EventHeader: Expected unk14 to be 0 or 1, but got " + std::to_string(unk14));
     }
 };
 
@@ -33,7 +34,7 @@ struct EventDataStruct
     int32_t attachedRegionIndex;
     int32_t entityId;
     uint8_t unk0C;
-    array<uint8_t, 3> _pad1;
+    std::array<uint8_t, 3> _pad1;
 
     void Validate() const
     {
@@ -48,7 +49,7 @@ struct EventExtraDataStruct
     int32_t unk04;
     int32_t unk08;
     int32_t unk0C;
-    array<uint8_t, 16> _pad1;
+    std::array<uint8_t, 16> _pad1;
 
     void Validate() const
     {
@@ -57,16 +58,16 @@ struct EventExtraDataStruct
     }
 };
 
-void Event::Deserialize(ifstream& stream)
+void Event::Deserialize(BufferReader& reader)
 {
-    const streampos start = stream.tellg();
-    const auto header = ReadValidatedStruct<EventHeader>(stream);
+    const size_t start = reader.Position();
+    const auto header = BufferHelpers::ReadValidatedStruct<EventHeader>(reader);
 
     if (header.nameOffset == 0)
         throw MSBFormatError("Event name offset is zero.");
 
-    stream.seekg(start + header.nameOffset);
-    m_name = ReadUTF16String(stream);
+    reader.Seek(start + header.nameOffset);
+    m_name = BufferHelpers::ReadUTF16String(reader);
 
     // Firelink::Info(std::format("Deserializing Event '{}' at offset 0x{:X}.", GetNameUTF8(),
     // static_cast<int64_t>(start)));
@@ -76,8 +77,8 @@ void Event::Deserialize(ifstream& stream)
         throw MSBFormatError(std::format("Event '{}' was loaded with incorrect subtype.", GetNameUTF8()));
     if (header.supertypeDataOffset == 0)
         throw MSBFormatError("Event supertype data offset is zero.");
-    stream.seekg(start + header.supertypeDataOffset);
-    const auto supertypeData = ReadValidatedStruct<EventDataStruct>(stream);
+    reader.Seek(start + header.supertypeDataOffset);
+    const auto supertypeData = BufferHelpers::ReadValidatedStruct<EventDataStruct>(reader);
     attachedPartIndex = supertypeData.attachedPartIndex;
     attachedRegionIndex = supertypeData.attachedRegionIndex;
     entityId = supertypeData.entityId;
@@ -85,12 +86,12 @@ void Event::Deserialize(ifstream& stream)
 
     if (header.subtypeDataOffset > 0)
     {
-        stream.seekg(start + header.subtypeDataOffset);
-        if (!DeserializeSubtypeData(stream))
+        reader.Seek(start + header.subtypeDataOffset);
+        if (!DeserializeSubtypeData(reader))
             throw MSBFormatError(
                 std::format("Event '{}' has non-zero subtype data offset, but no data was expected.", GetNameUTF8()));
     }
-    else if (DeserializeSubtypeData(stream))
+    else if (DeserializeSubtypeData(reader))
     {
         throw MSBFormatError(
             std::format("Event '{}' has zero subtype data offset, but data was expected.", GetNameUTF8()));
@@ -99,22 +100,22 @@ void Event::Deserialize(ifstream& stream)
     // Extra data always present.
     if (header.extraDataOffset == 0)
         throw MSBFormatError("Event extra data offset is zero.");
-    stream.seekg(start + header.extraDataOffset);
-    const auto extraData = ReadValidatedStruct<EventExtraDataStruct>(stream);
+    reader.Seek(start + header.extraDataOffset);
+    const auto extraData = BufferHelpers::ReadValidatedStruct<EventExtraDataStruct>(reader);
     mapId = extraData.mapId;
     eUnk04 = extraData.unk04;
     eUnk08 = extraData.unk08;
     eUnk0C = extraData.unk0C;
 }
 
-void Event::Serialize(ofstream& stream, const int supertypeIndex, const int subtypeIndex) const
+void Event::Serialize(BufferWriter& writer, const int supertypeIndex, const int subtypeIndex) const
 {
-    const streampos start = stream.tellp();
+    const size_t start = writer.Position();
 
     // Firelink::Info(std::format("Serializing Event '{}' at offset 0x{:X}.", GetNameUTF8(),
     // static_cast<int64_t>(start)));
 
-    Reserver reserver(stream, true);
+        const void* scope = this;
 
     EventHeader header{
         .supertypeIndex = supertypeIndex,
@@ -122,45 +123,46 @@ void Event::Serialize(ofstream& stream, const int supertypeIndex, const int subt
         .subtypeIndex = subtypeIndexOverride != -1 ? subtypeIndexOverride : subtypeIndex,
         .unk14 = hUnk14,
     };
-    reserver.ReserveValidatedStruct("EventHeader", sizeof(EventHeader));
+    writer.Reserve<EventHeader>("EventHeader", scope);
 
-    header.nameOffset = stream.tellp() - start;
-    WriteUTF16String(stream, m_name);
-    AlignStream(stream, 8);
+    header.nameOffset = static_cast<int64_t>(writer.Position() - start);
+    BufferHelpers::WriteUTF16String(writer, m_name);
+    writer.PadAlign(8);
 
-    header.supertypeDataOffset = stream.tellp() - start;
+    header.supertypeDataOffset = static_cast<int64_t>(writer.Position() - start);
     const EventDataStruct supertypeData{
         .attachedPartIndex = attachedPartIndex,
         .attachedRegionIndex = attachedRegionIndex,
         .entityId = entityId,
         .unk0C = dUnk0C,
     };
-    WriteValidatedStruct(stream, supertypeData);
+    BufferHelpers::WriteValidatedStruct(writer, supertypeData);
 
-    const streampos subtypeDataOffset = stream.tellp();
-    if (SerializeSubtypeData(stream))
+    const size_t subtypeDataOffset = writer.Position();
+    if (SerializeSubtypeData(writer))
     { // yes subtype data
-        header.subtypeDataOffset = subtypeDataOffset - start;
+        header.subtypeDataOffset = static_cast<int64_t>(subtypeDataOffset - start);
     }
     else
     { // no subtype data
         header.subtypeDataOffset = 0;
     }
 
-    header.extraDataOffset = stream.tellp() - start;
+    header.extraDataOffset = static_cast<int64_t>(writer.Position() - start);
     const EventExtraDataStruct extraData{
         .mapId = mapId,
         .unk04 = eUnk04,
         .unk08 = eUnk08,
         .unk0C = eUnk0C,
     };
-    WriteValidatedStruct(stream, extraData);
+    BufferHelpers::WriteValidatedStruct(writer, extraData);
 
-    AlignStream(stream, 8);
+    writer.PadAlign(8);
 
-    reserver.FillValidatedStruct("EventHeader", header);
+    header.Validate();
+    writer.Fill<EventHeader>("EventHeader", header, scope);
 
-    reserver.Finish();
+    
 }
 
 void Event::DeserializeEntryReferences(const std::vector<Part*>& parts, const std::vector<Region*>& regions)
@@ -196,9 +198,9 @@ struct TreasureEventData
     }
 };
 
-bool TreasureEvent::DeserializeSubtypeData(ifstream& stream)
+bool TreasureEvent::DeserializeSubtypeData(BufferReader& reader)
 {
-    const auto data = ReadValidatedStruct<TreasureEventData>(stream);
+    const auto data = BufferHelpers::ReadValidatedStruct<TreasureEventData>(reader);
     treasurePartIndex = data.treasurePartIndex;
     itemLot = data.itemLot;
     actionButtonId = data.actionButtonId;
@@ -208,7 +210,7 @@ bool TreasureEvent::DeserializeSubtypeData(ifstream& stream)
     return true;
 }
 
-bool TreasureEvent::SerializeSubtypeData(ofstream& stream) const
+bool TreasureEvent::SerializeSubtypeData(BufferWriter& writer) const
 {
     TreasureEventData data{
         .treasurePartIndex = treasurePartIndex,
@@ -219,7 +221,7 @@ bool TreasureEvent::SerializeSubtypeData(ofstream& stream) const
         .startsDisabled = startsDisabled,
     };
     data.pad3_xFF.fill(0xFF);
-    WriteValidatedStruct(stream, data);
+    BufferHelpers::WriteValidatedStruct(writer, data);
     return true;
 }
 
@@ -259,9 +261,9 @@ struct SpawnerEventData
 };
 
 // Read subtype-specific data from the stream
-bool SpawnerEvent::DeserializeSubtypeData(ifstream& stream)
+bool SpawnerEvent::DeserializeSubtypeData(BufferReader& reader)
 {
-    auto data = ReadValidatedStruct<SpawnerEventData>(stream);
+    auto data = BufferHelpers::ReadValidatedStruct<SpawnerEventData>(reader);
     maxCount = data.maxCount;
     spawnerType = data.spawnerType;
     limitCount = data.limitCount;
@@ -273,14 +275,14 @@ bool SpawnerEvent::DeserializeSubtypeData(ifstream& stream)
     spawnerUnk14 = data.spawnerUnk14;
     spawnerUnk18 = data.spawnerUnk18;
 
-    ranges::copy(data.spawnRegionsIndices, begin(spawnRegionsIndices));
-    ranges::copy(data.spawnPartsIndices, begin(spawnPartsIndices));
+    std::ranges::copy(data.spawnRegionsIndices, begin(spawnRegionsIndices));
+    std::ranges::copy(data.spawnPartsIndices, begin(spawnPartsIndices));
 
     return true;
 }
 
 // Write subtype-specific data to the stream
-bool SpawnerEvent::SerializeSubtypeData(ofstream& stream) const
+bool SpawnerEvent::SerializeSubtypeData(BufferWriter& writer) const
 {
     SpawnerEventData data{
         .maxCount = maxCount,
@@ -294,10 +296,10 @@ bool SpawnerEvent::SerializeSubtypeData(ofstream& stream) const
         .spawnerUnk14 = spawnerUnk14,
         .spawnerUnk18 = spawnerUnk18,
     };
-    ranges::copy(spawnRegionsIndices, begin(data.spawnRegionsIndices));
-    ranges::copy(spawnPartsIndices, begin(data.spawnPartsIndices));
+    std::ranges::copy(spawnRegionsIndices, std::begin(data.spawnRegionsIndices));
+    std::ranges::copy(spawnPartsIndices, std::begin(data.spawnPartsIndices));
 
-    WriteValidatedStruct(stream, data);
+    BufferHelpers::WriteValidatedStruct(writer, data);
     return true;
 }
 
@@ -323,19 +325,19 @@ struct NavigationEventData
     void Validate() const { AssertPadding("NavigationEventData", pad1); }
 };
 
-bool NavigationEvent::DeserializeSubtypeData(ifstream& stream)
+bool NavigationEvent::DeserializeSubtypeData(BufferReader& reader)
 {
-    const auto data = ReadValidatedStruct<NavigationEventData>(stream);
+    const auto data = BufferHelpers::ReadValidatedStruct<NavigationEventData>(reader);
     navigationRegionIndex = data.navigationRegionIndex;
     return true;
 }
 
-bool NavigationEvent::SerializeSubtypeData(ofstream& stream) const
+bool NavigationEvent::SerializeSubtypeData(BufferWriter& writer) const
 {
     const NavigationEventData data{
         .navigationRegionIndex = navigationRegionIndex,
     };
-    WriteValidatedStruct(stream, data);
+    BufferHelpers::WriteValidatedStruct(writer, data);
     return true;
 }
 
@@ -366,9 +368,9 @@ struct ObjActEventData
 };
 
 // Read subtype-specific data from the stream
-bool ObjActEvent::DeserializeSubtypeData(ifstream& stream)
+bool ObjActEvent::DeserializeSubtypeData(BufferReader& reader)
 {
-    const auto data = ReadValidatedStruct<ObjActEventData>(stream);
+    const auto data = BufferHelpers::ReadValidatedStruct<ObjActEventData>(reader);
     objActEntityId = data.objActEntityId;
     objActPartIndex = data.objActPartIndex;
     objActParamId = data.objActParamId;
@@ -378,7 +380,7 @@ bool ObjActEvent::DeserializeSubtypeData(ifstream& stream)
 }
 
 // Write subtype-specific data to the stream
-bool ObjActEvent::SerializeSubtypeData(ofstream& stream) const
+bool ObjActEvent::SerializeSubtypeData(BufferWriter& writer) const
 {
     const ObjActEventData data{
         .objActEntityId = objActEntityId,
@@ -387,7 +389,7 @@ bool ObjActEvent::SerializeSubtypeData(ofstream& stream) const
         .objActState = objActState,
         .objActFlag = objActFlag,
     };
-    WriteValidatedStruct(stream, data);
+    BufferHelpers::WriteValidatedStruct(writer, data);
     return true;
 }
 
@@ -418,14 +420,14 @@ struct NPCInvasionEventData
     void Validate() const
     {
         if (_minusOne != -1)
-            throw MSBFormatError("NPCInvasionEventData: Expected minusOne to be -1, but got " + to_string(_minusOne));
+            throw MSBFormatError("NPCInvasionEventData: Expected minusOne to be -1, but got " + std::to_string(_minusOne));
     }
 };
 
 // Read subtype-specific data from the stream
-bool NPCInvasionEvent::DeserializeSubtypeData(ifstream& stream)
+bool NPCInvasionEvent::DeserializeSubtypeData(BufferReader& reader)
 {
-    const auto data = ReadValidatedStruct<NPCInvasionEventData>(stream);
+    const auto data = BufferHelpers::ReadValidatedStruct<NPCInvasionEventData>(reader);
     hostEntityId = data.hostEntityId;
     invasionFlagId = data.invasionFlagId;
     activateGoodId = data.activateGoodId;
@@ -438,7 +440,7 @@ bool NPCInvasionEvent::DeserializeSubtypeData(ifstream& stream)
 }
 
 // Write subtype-specific data to the stream
-bool NPCInvasionEvent::SerializeSubtypeData(ofstream& stream) const
+bool NPCInvasionEvent::SerializeSubtypeData(BufferWriter& writer) const
 {
     NPCInvasionEventData data = {};
 
@@ -452,7 +454,7 @@ bool NPCInvasionEvent::SerializeSubtypeData(ofstream& stream) const
     data.unk1c = unk1c;
     data._minusOne = -1;
 
-    WriteValidatedStruct(stream, data);
+    BufferHelpers::WriteValidatedStruct(writer, data);
     return true;
 }
 
@@ -467,24 +469,24 @@ struct PlatoonEventData
 };
 
 // Read subtype-specific data from the stream
-bool PlatoonEvent::DeserializeSubtypeData(ifstream& stream)
+bool PlatoonEvent::DeserializeSubtypeData(BufferReader& reader)
 {
-    auto data = ReadValidatedStruct<PlatoonEventData>(stream);
+    auto data = BufferHelpers::ReadValidatedStruct<PlatoonEventData>(reader);
     platoonIdScriptActivate = data.platoonIdScriptActivate;
     state = data.state;
-    ranges::copy(data.platoonPartsIndices, begin(platoonPartsIndices));
+    std::ranges::copy(data.platoonPartsIndices, begin(platoonPartsIndices));
     return true;
 }
 
 // Write subtype-specific data to the stream
-bool PlatoonEvent::SerializeSubtypeData(ofstream& stream) const
+bool PlatoonEvent::SerializeSubtypeData(BufferWriter& writer) const
 {
     PlatoonEventData data = {
         .platoonIdScriptActivate = platoonIdScriptActivate,
         .state = state,
     };
-    ranges::copy(platoonPartsIndices, begin(data.platoonPartsIndices));
-    WriteValidatedStruct(stream, data);
+    std::ranges::copy(platoonPartsIndices, std::begin(data.platoonPartsIndices));
+    BufferHelpers::WriteValidatedStruct(writer, data);
     return true;
 }
 
@@ -507,38 +509,38 @@ struct PatrolRouteEventData
     uint8_t _one;
     int32_t _minusOne;
     padding<8> pad2;
-    array<int16_t, 64> patrolRegionsIndices;
+    std::array<int16_t, 64> patrolRegionsIndices;
 
     void Validate() const
     {
         if (_one != 1)
-            throw MSBFormatError("PatrolRouteEventData: Expected 'one' to be 1, but got " + to_string(_one));
+            throw MSBFormatError("PatrolRouteEventData: Expected 'one' to be 1, but got " + std::to_string(_one));
         if (_minusOne != -1)
-            throw MSBFormatError("PatrolRouteEventData: Expected 'minusOne' to be -1, but got " + to_string(_minusOne));
+            throw MSBFormatError("PatrolRouteEventData: Expected 'minusOne' to be -1, but got " + std::to_string(_minusOne));
         AssertPadding("PatrolRouteEventData", pad1, pad2);
     }
 };
 
 // Read subtype-specific data from the stream
-bool PatrolRouteEvent::DeserializeSubtypeData(ifstream& stream)
+bool PatrolRouteEvent::DeserializeSubtypeData(BufferReader& reader)
 {
-    auto data = ReadValidatedStruct<PatrolRouteEventData>(stream);
+    auto data = BufferHelpers::ReadValidatedStruct<PatrolRouteEventData>(reader);
     patrolType = data.patrolType;
-    ranges::copy(data.patrolRegionsIndices, begin(patrolRegionsIndices));
+    std::ranges::copy(data.patrolRegionsIndices, begin(patrolRegionsIndices));
     return true;
 }
 
 // Write subtype-specific data to the stream
-bool PatrolRouteEvent::SerializeSubtypeData(ofstream& stream) const
+bool PatrolRouteEvent::SerializeSubtypeData(BufferWriter& writer) const
 {
     PatrolRouteEventData data = {
         .patrolType = patrolType,
         ._one = 1,
         ._minusOne = -1,
     };
-    ranges::copy(patrolRegionsIndices, begin(data.patrolRegionsIndices));
+    std::ranges::copy(patrolRegionsIndices, begin(data.patrolRegionsIndices));
 
-    WriteValidatedStruct(stream, data);
+    BufferHelpers::WriteValidatedStruct(writer, data);
     return true;
 }
 
@@ -563,21 +565,21 @@ struct MountEventData
     static void Validate() {}
 };
 
-bool MountEvent::DeserializeSubtypeData(ifstream& stream)
+bool MountEvent::DeserializeSubtypeData(BufferReader& reader)
 {
-    const auto data = ReadValidatedStruct<MountEventData>(stream);
+    const auto data = BufferHelpers::ReadValidatedStruct<MountEventData>(reader);
     riderPartIndex = data.riderPartIndex;
     mountPartIndex = data.mountPartIndex;
     return true;
 }
 
-bool MountEvent::SerializeSubtypeData(ofstream& stream) const
+bool MountEvent::SerializeSubtypeData(BufferWriter& writer) const
 {
     const MountEventData data = {
         .riderPartIndex = riderPartIndex,
         .mountPartIndex = mountPartIndex,
     };
-    WriteValidatedStruct(stream, data);
+    BufferHelpers::WriteValidatedStruct(writer, data);
     return true;
 }
 
@@ -605,21 +607,21 @@ struct SignPoolEventData
     void Validate() const { AssertPadding("SignPoolEventData", pad1); }
 };
 
-bool SignPoolEvent::DeserializeSubtypeData(ifstream& stream)
+bool SignPoolEvent::DeserializeSubtypeData(BufferReader& reader)
 {
-    const auto data = ReadValidatedStruct<SignPoolEventData>(stream);
+    const auto data = BufferHelpers::ReadValidatedStruct<SignPoolEventData>(reader);
     signPartIndex = data.signPartIndex;
     signPoolUnk04 = data.signPoolUnk04;
     return true;
 }
 
-bool SignPoolEvent::SerializeSubtypeData(ofstream& stream) const
+bool SignPoolEvent::SerializeSubtypeData(BufferWriter& writer) const
 {
     const SignPoolEventData data = {
         .signPartIndex = signPartIndex,
         .signPoolUnk04 = signPoolUnk04,
     };
-    WriteValidatedStruct(stream, data);
+    BufferHelpers::WriteValidatedStruct(writer, data);
     return true;
 }
 
@@ -646,13 +648,13 @@ struct RetryPointEventData
     void Validate() const
     {
         if (_zero != 0)
-            throw MSBFormatError("RetryPointEventData: Expected 'zero' to be 0, but got " + to_string(_zero));
+            throw MSBFormatError("RetryPointEventData: Expected 'zero' to be 0, but got " + std::to_string(_zero));
     }
 };
 
-bool RetryPointEvent::DeserializeSubtypeData(ifstream& stream)
+bool RetryPointEvent::DeserializeSubtypeData(BufferReader& reader)
 {
-    const auto data = ReadValidatedStruct<RetryPointEventData>(stream);
+    const auto data = BufferHelpers::ReadValidatedStruct<RetryPointEventData>(reader);
     retryPartIndex = data.retryPartIndex;
     eventFlagId = data.eventFlagId;
     retryPointUnk08 = data.retryPointUnk08;
@@ -660,7 +662,7 @@ bool RetryPointEvent::DeserializeSubtypeData(ifstream& stream)
     return true;
 }
 
-bool RetryPointEvent::SerializeSubtypeData(ofstream& stream) const
+bool RetryPointEvent::SerializeSubtypeData(BufferWriter& writer) const
 {
     if (retryRegionIndex > 0xFFFF)
         throw MSBFormatError("RetryPointEvent: Retry region index is too large.");
@@ -671,7 +673,7 @@ bool RetryPointEvent::SerializeSubtypeData(ofstream& stream) const
         .retryPointUnk08 = retryPointUnk08,
         .retryRegionIndex = retryRegionIndex,
     };
-    WriteValidatedStruct(stream, data);
+    BufferHelpers::WriteValidatedStruct(writer, data);
     return true;
 }
 
@@ -706,9 +708,9 @@ struct AreaTeamEventData
     static void Validate() {}
 };
 
-bool AreaTeamEvent::DeserializeSubtypeData(ifstream& stream)
+bool AreaTeamEvent::DeserializeSubtypeData(BufferReader& reader)
 {
-    const auto data = ReadValidatedStruct<AreaTeamEventData>(stream);
+    const auto data = BufferHelpers::ReadValidatedStruct<AreaTeamEventData>(reader);
     leaderEntityId = data.leaderEntityId;
     sUnk04 = data.sUnk04;
     sUnk08 = data.sUnk08;
@@ -723,7 +725,7 @@ bool AreaTeamEvent::DeserializeSubtypeData(ifstream& stream)
     return true;
 }
 
-bool AreaTeamEvent::SerializeSubtypeData(ofstream& stream) const
+bool AreaTeamEvent::SerializeSubtypeData(BufferWriter& writer) const
 {
     const AreaTeamEventData data = {
         .leaderEntityId = leaderEntityId,
@@ -738,6 +740,6 @@ bool AreaTeamEvent::SerializeSubtypeData(ofstream& stream) const
         .sUnk24 = sUnk24,
         .sUnk28 = sUnk28,
     };
-    WriteValidatedStruct(stream, data);
+    BufferHelpers::WriteValidatedStruct(writer, data);
     return true;
 }

@@ -8,14 +8,13 @@
 
 #include <format>
 
-using namespace std;
 using namespace Firelink;
-using namespace FirelinkER::Maps::MapStudio;
+using namespace Firelink::EldenRing::Maps::MapStudio;
 
 template <typename T>
 EntryReference<T>::~EntryReference()
 {
-    static_assert(is_base_of_v<Entry, T>, "EntryReference destination type must be an `Entry` subclass.");
+    static_assert(std::is_base_of_v<Entry, T>, "EntryReference destination type must be an `Entry` subclass.");
     if (m_destEntry)
     {
         // NOTE: We can't call virtual `Clear()` method here, but this is the same.
@@ -27,7 +26,7 @@ EntryReference<T>::~EntryReference()
 template <typename T>
 EntryReference<T>& EntryReference<T>::operator=(const EntryReference& otherReference)
 {
-    static_assert(is_base_of_v<Entry, T>, "EntryReference destination type must be an `Entry` subclass.");
+    static_assert(std::is_base_of_v<Entry, T>, "EntryReference destination type must be an `Entry` subclass.");
     if (this == &otherReference)
         return *this;
     // Update destination entry.
@@ -38,7 +37,7 @@ EntryReference<T>& EntryReference<T>::operator=(const EntryReference& otherRefer
 template <typename T>
 void EntryReference<T>::Set(T* destEntry)
 {
-    static_assert(is_base_of_v<Entry, T>, "EntryReference destination type must be an `Entry` subclass.");
+    static_assert(std::is_base_of_v<Entry, T>, "EntryReference destination type must be an `Entry` subclass.");
     Clear();
     m_destEntry = destEntry;
     if (m_destEntry)
@@ -46,16 +45,16 @@ void EntryReference<T>::Set(T* destEntry)
 }
 
 template <typename T>
-void EntryReference<T>::Set(const unique_ptr<T>& destEntry)
+void EntryReference<T>::Set(const std::unique_ptr<T>& destEntry)
 {
-    static_assert(is_base_of_v<Entry, T>, "EntryReference destination type must be an `Entry` subclass.");
+    static_assert(std::is_base_of_v<Entry, T>, "EntryReference destination type must be an `Entry` subclass.");
     Set(destEntry.get());
 }
 
 template <typename T>
 void EntryReference<T>::Clear()
 {
-    static_assert(is_base_of_v<Entry, T>, "EntryReference destination type must be an `Entry` subclass.");
+    static_assert(std::is_base_of_v<Entry, T>, "EntryReference destination type must be an `Entry` subclass.");
     if (m_destEntry)
     {
         m_destEntry->RemoveReferrer(this);
@@ -66,14 +65,14 @@ void EntryReference<T>::Clear()
 template <typename T>
 EntryReference<T> EntryReference<T>::Clone() const
 {
-    static_assert(is_base_of_v<Entry, T>, "EntryReference destination type must be an `Entry` subclass.");
+    static_assert(std::is_base_of_v<Entry, T>, "EntryReference destination type must be an `Entry` subclass.");
     return EntryReference(m_destEntry);
 }
 
 template <typename T>
-int32_t EntryReference<T>::ToIndex(const Entry* sourceEntry, const vector<T*>& entries) const
+int32_t EntryReference<T>::ToIndex(const Entry* sourceEntry, const std::vector<T*>& entries) const
 {
-    static_assert(is_base_of_v<Entry, T>, "EntryReference destination type must be an `Entry` subclass.");
+    static_assert(std::is_base_of_v<Entry, T>, "EntryReference destination type must be an `Entry` subclass.");
     if (!m_destEntry)
         return -1; // null reference
 
@@ -90,16 +89,16 @@ int32_t EntryReference<T>::ToIndex(const Entry* sourceEntry, const vector<T*>& e
         i++;
     }
 
-    string sourceName = sourceEntry->GetNameUTF8();
-    string destName = m_destEntry->GetNameUTF8();
+    std::string sourceName = sourceEntry->GetNameUTF8();
+    std::string destName = m_destEntry->GetNameUTF8();
     Error(std::format("EntryReference '{}' references an invalid entry: '{}'", sourceName, destName));
     return -1;
 }
 
 template <typename T>
-int16_t EntryReference<T>::ToIndex16(const Entry* sourceEntry, const vector<T*>& entries) const
+int16_t EntryReference<T>::ToIndex16(const Entry* sourceEntry, const std::vector<T*>& entries) const
 {
-    static_assert(is_base_of_v<Entry, T>, "EntryReference destination type must be an `Entry` subclass.");
+    static_assert(std::is_base_of_v<Entry, T>, "EntryReference destination type must be an `Entry` subclass.");
     if (!m_destEntry)
         return -1; // null reference
 
@@ -113,8 +112,8 @@ int16_t EntryReference<T>::ToIndex16(const Entry* sourceEntry, const vector<T*>&
             }
             catch (const std::out_of_range& _)
             {
-                string sourceName = sourceEntry->GetNameUTF8();
-                string destName = m_destEntry->GetNameUTF8();
+                std::string sourceName = sourceEntry->GetNameUTF8();
+                std::string destName = m_destEntry->GetNameUTF8();
                 Error(
                     std::format(
                         "EntryReference '{}' references entry '{}' with an index that is too large "
@@ -126,8 +125,8 @@ int16_t EntryReference<T>::ToIndex16(const Entry* sourceEntry, const vector<T*>&
         i++;
     }
 
-    string sourceName = sourceEntry->GetNameUTF8();
-    string destName = m_destEntry->GetNameUTF8();
+    std::string sourceName = sourceEntry->GetNameUTF8();
+    std::string destName = m_destEntry->GetNameUTF8();
     Error(std::format("EntryReference '{}' references an invalid entry: '{}'", sourceName, destName));
     return -1;
 }
@@ -135,7 +134,7 @@ int16_t EntryReference<T>::ToIndex16(const Entry* sourceEntry, const vector<T*>&
 template <typename T>
 EntryReference<T>& EntryReference<T>::operator=(T* destEntry)
 {
-    static_assert(is_base_of_v<Entry, T>, "EntryReference destination type must be an `Entry` subclass.");
+    static_assert(std::is_base_of_v<Entry, T>, "EntryReference destination type must be an `Entry` subclass.");
     Set(destEntry);
     return *this;
 }
@@ -143,16 +142,16 @@ EntryReference<T>& EntryReference<T>::operator=(T* destEntry)
 template <typename T>
 void EntryReference<T>::OnReferencedEntryDestroy(const T* entry)
 {
-    static_assert(is_base_of_v<Entry, T>, "EntryReference destination type must be an `Entry` subclass.");
+    static_assert(std::is_base_of_v<Entry, T>, "EntryReference destination type must be an `Entry` subclass.");
     if (m_destEntry == entry)
         // We do NOT unregister (destination entry is being destroyed).
         m_destEntry = nullptr;
 }
 
 template <typename T>
-void EntryReference<T>::SetFromIndex(const vector<T*>& entries, int32_t index)
+void EntryReference<T>::SetFromIndex(const std::vector<T*>& entries, int32_t index)
 {
-    static_assert(is_base_of_v<Entry, T>, "EntryReference destination type must be an `Entry` subclass.");
+    static_assert(std::is_base_of_v<Entry, T>, "EntryReference destination type must be an `Entry` subclass.");
     if (index == -1)
         Clear();
     else
@@ -160,16 +159,16 @@ void EntryReference<T>::SetFromIndex(const vector<T*>& entries, int32_t index)
 }
 
 template <typename T>
-void EntryReference<T>::SetFromIndex16(const vector<T*>& entries, int16_t index)
+void EntryReference<T>::SetFromIndex16(const std::vector<T*>& entries, int16_t index)
 {
-    static_assert(is_base_of_v<Entry, T>, "EntryReference destination type must be an `Entry` subclass.");
+    static_assert(std::is_base_of_v<Entry, T>, "EntryReference destination type must be an `Entry` subclass.");
     if (index == -1)
         Clear();
     else
         Set(entries[index]);
 }
 
-namespace FirelinkER::Maps::MapStudio
+namespace Firelink::EldenRing::Maps::MapStudio
 {
     // Explicit template instantiations.
     template class EntryReference<Part>;

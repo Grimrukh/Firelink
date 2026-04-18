@@ -1,13 +1,12 @@
-﻿#include <FirelinkCore/BinaryReadWrite.h>
+﻿#include "MSBBufferHelpers.h"
+#include <FirelinkCore/BinaryReadWrite.h>
 #include <FirelinkCore/BinaryValidation.h>
 #include <FirelinkERMaps/MapStudio/Route.h>
 
-#include <fstream>
-
-using namespace std;
 using namespace Firelink::BinaryReadWrite;
 using namespace Firelink::BinaryValidation;
-using namespace FirelinkER::Maps::MapStudio;
+using namespace Firelink::EldenRing::Maps::MapStudio;
+using namespace Firelink::EldenRing::Maps::MapStudio::BufferHelpers;
 
 struct RouteHeader
 {
@@ -15,7 +14,7 @@ struct RouteHeader
     int32_t unk08;
     int32_t unk0C;
     RouteType routeType;
-    int32_t subtypeIndex; // preserved for bizarre `OtherRoute` usage
+    int32_t subtypeIndex;
     padding<0x68> _pad1;
 
     void Validate() const
@@ -25,39 +24,37 @@ struct RouteHeader
     }
 };
 
-void Route::Deserialize(ifstream& stream)
+void Route::Deserialize(BufferReader& reader)
 {
-    const streampos start = stream.tellg();
-    const auto header = ReadValidatedStruct<RouteHeader>(stream);
+    const size_t start = reader.Position();
+    const auto header = ReadValidatedStruct<RouteHeader>(reader);
 
     m_hUnk08 = header.unk08;
     m_hUnk0C = header.unk0C;
     subtypeIndexOverride = header.subtypeIndex;
 
-    stream.seekg(start + header.nameOffset);
-    m_name = ReadUTF16String(stream);
+    reader.Seek(start + header.nameOffset);
+    m_name = BufferHelpers::ReadUTF16String(reader);
 }
 
-void Route::Serialize(std::ofstream& stream, const int supertypeIndex, const int subtypeIndex) const
+void Route::Serialize(BufferWriter& writer, const int supertypeIndex, const int subtypeIndex) const
 {
-    const streampos start = stream.tellp();
+    const size_t start = writer.Position();
+    const void* scope = this;
 
-    Reserver reserver(stream, true);
-    reserver.ReserveValidatedStruct("RouteHeader", sizeof(RouteHeader));
+    writer.Reserve<RouteHeader>("RouteHeader", scope);
     auto header = RouteHeader{
-        // Supertype index is not used.
         .unk08 = m_hUnk08,
         .unk0C = m_hUnk0C,
         .routeType = GetType(),
         .subtypeIndex = GetType() == RouteType::Other && subtypeIndexOverride >= 0 ? subtypeIndexOverride : subtypeIndex,
     };
 
-    header.nameOffset = stream.tellp() - start;
-    WriteUTF16String(stream, m_name);
+    header.nameOffset = static_cast<int64_t>(writer.Position() - start);
+    BufferHelpers::WriteUTF16String(writer, m_name);
 
-    reserver.FillValidatedStruct("RouteHeader", header);
+    header.Validate();
+    writer.Fill<RouteHeader>("RouteHeader", header, scope);
 
-    AlignStream(stream, 8);
-
-    reserver.Finish();
+    writer.PadAlign(8);
 }

@@ -6,7 +6,7 @@
 #include <string>
 #include <utility>
 
-namespace FirelinkER::Maps::MapStudio
+namespace Firelink::EldenRing::Maps::MapStudio
 {
     class FIRELINK_ER_MAPS_API MSBFormatError final : public std::exception
     {
@@ -22,4 +22,4 @@ namespace FirelinkER::Maps::MapStudio
         std::string message;
     };
 
-} // namespace FirelinkER::Maps::MapStudio
+} // namespace Firelink::EldenRing::Maps::MapStudio

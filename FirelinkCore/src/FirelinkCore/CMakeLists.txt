@@ -1,4 +1,4 @@
-﻿add_library(FirelinkCore SHARED)
+﻿add_firelink_library(FirelinkCore)
 
 target_sources(FirelinkCore
     PRIVATE
@@ -11,6 +11,7 @@ target_sources(FirelinkCore
     src/Collections.cpp
     src/DCX.cpp
     src/DDS.cpp
+    src/ImageImportManager.cpp
     src/Logging.cpp
     src/Oodle.cpp
     src/Pointer.cpp
@@ -31,6 +32,8 @@ target_sources(FirelinkCore
         include/FirelinkCore/Collections.h
         include/FirelinkCore/DCX.h
         include/FirelinkCore/DDS.h
+        include/FirelinkCore/ImageImportManager.h
+        include/FirelinkCore/Logging.h
         include/FirelinkCore/Logging.h
         include/FirelinkCore/Oodle.h
         include/FirelinkCore/Pointer.h

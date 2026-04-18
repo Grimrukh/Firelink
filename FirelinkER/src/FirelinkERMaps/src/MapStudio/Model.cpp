@@ -1,14 +1,13 @@
-﻿#include <FirelinkCore/BinaryReadWrite.h>
+﻿#include "MSBBufferHelpers.h"
+#include <FirelinkCore/BinaryReadWrite.h>
 #include <FirelinkCore/BinaryValidation.h>
 #include <FirelinkERMaps/MapStudio/Model.h>
 #include <FirelinkERMaps/MapStudio/MSBFormatError.h>
 
-#include <fstream>
-#include <memory>
 #include <string>
 
-using namespace std;
-using namespace FirelinkER::Maps::MapStudio;
+using namespace Firelink::EldenRing::Maps::MapStudio;
+using namespace Firelink::EldenRing::Maps::MapStudio::BufferHelpers;
 using namespace Firelink::BinaryReadWrite;
 using namespace Firelink::BinaryValidation;
 
@@ -25,47 +24,35 @@ struct ModelHeader
     void Validate() const
     {
         if (nameOffset == 0)
-        {
             throw MSBFormatError("nameOffset must not be 0.");
-        }
         if (sibPathOffset == 0)
-        {
             throw MSBFormatError("sibOffset must not be 0.");
-        }
         if (subtypeDataOffset != 0)
-        {
             throw MSBFormatError("subtypeDataOffset must be 0 for models.");
-        }
     }
 };
 
-void Model::Deserialize(ifstream& stream)
+void Model::Deserialize(BufferReader& reader)
 {
-    const streampos start = stream.tellg();
+    const size_t start = reader.Position();
 
-    const auto header = ReadValidatedStruct<ModelHeader>(stream);
+    const auto header = ReadValidatedStruct<ModelHeader>(reader);
 
-    stream.seekg(start + header.nameOffset);
-    m_name = ReadUTF16String(stream);
+    reader.Seek(start + header.nameOffset);
+    m_name = BufferHelpers::ReadUTF16String(reader);
 
     if (header.modelDataType != GetType())
-    {
         throw MSBFormatError("Model header/class subtype mismatch.");
-    }
     m_instanceCount = header.instanceCount;
 
-    stream.seekg(start + header.sibPathOffset);
-    m_sibPath = ReadUTF16String(stream);
-
-    // No subtype data for models.
+    reader.Seek(start + header.sibPathOffset);
+    m_sibPath = BufferHelpers::ReadUTF16String(reader);
 }
 
-void Model::Serialize(ofstream& stream, int supertypeIndex, const int subtypeIndex) const
+void Model::Serialize(BufferWriter& writer, int supertypeIndex, const int subtypeIndex) const
 {
-    // `supertypeIndex` is not used.
-    const streampos start = stream.tellp();
-
-    Reserver reserver(stream, true);
+    const size_t start = writer.Position();
+    const void* scope = this;
 
     ModelHeader header{
         .modelDataType = GetType(),
@@ -73,17 +60,16 @@ void Model::Serialize(ofstream& stream, int supertypeIndex, const int subtypeInd
         .instanceCount = m_instanceCount,
         .unk1C = hUnk1C,
     };
-    reserver.ReserveValidatedStruct("ModelHeader", sizeof(ModelHeader));
+    writer.Reserve<ModelHeader>("ModelHeader", scope);
 
-    header.nameOffset = stream.tellp() - start;
-    WriteUTF16String(stream, m_name);
+    header.nameOffset = static_cast<int64_t>(writer.Position() - start);
+    BufferHelpers::WriteUTF16String(writer, m_name);
 
-    header.sibPathOffset = stream.tellp() - start;
-    WriteUTF16String(stream, m_sibPath);
+    header.sibPathOffset = static_cast<int64_t>(writer.Position() - start);
+    BufferHelpers::WriteUTF16String(writer, m_sibPath);
 
-    AlignStream(stream, 8);
+    writer.PadAlign(8);
 
-    reserver.FillValidatedStruct("ModelHeader", header);
-
-    reserver.Finish();
+    header.Validate();
+    writer.Fill<ModelHeader>("ModelHeader", header, scope);
 }

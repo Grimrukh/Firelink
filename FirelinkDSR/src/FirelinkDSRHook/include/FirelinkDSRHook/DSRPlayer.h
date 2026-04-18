@@ -8,7 +8,7 @@
 
 #include <utility>
 
-namespace FirelinkDSR
+namespace Firelink::DarkSouls1R
 {
     /// @brief Wrapper for `PlayerIns` struct, which could be host or client player.
     class FIRELINK_DSR_HOOK_API DSRPlayer
@@ -85,4 +85,4 @@ namespace FirelinkDSR
         const Firelink::BasePointer playerInsPtr; // "PlayerIns" or "ClientPlayerIns"
     };
 
-} // namespace FirelinkDSR
+} // namespace Firelink::DarkSouls1R

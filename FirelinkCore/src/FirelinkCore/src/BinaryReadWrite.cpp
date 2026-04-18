@@ -339,3 +339,29 @@ void BinaryReadWrite::Reserver::Finish()
     // No offsets still reserved, so we're done.
     m_finished = true;
 }
+
+BinaryReadWrite::BufferReader::BufferReader(std::vector<std::byte>&& storage, const Endian endian)
+    : m_endian(endian)
+{
+    m_storage = std::move(storage);
+    m_data = m_storage.data();
+    m_size = m_storage.size();
+    m_position = 0;
+}
+
+BinaryReadWrite::BufferReader::BufferReader(const std::filesystem::path& path, const Endian endian)
+    : m_endian(endian)
+{
+    // Read entire file into memory.
+    std::ifstream stream(path, std::ios::binary | std::ios::ate);
+    if (!stream)
+        throw BinaryReadError("Could not open file: " + path.string());
+    const auto fileSize = static_cast<size_t>(stream.tellg());
+    stream.seekg(0);
+    m_storage.resize(fileSize);
+    stream.read(reinterpret_cast<char*>(m_storage.data()), static_cast<std::streamsize>(fileSize));
+    stream.close();
+    m_data = m_storage.data();
+    m_size = m_storage.size();
+    m_position = 0;
+}

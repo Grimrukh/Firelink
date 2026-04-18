@@ -7,19 +7,22 @@
 
 using namespace Firelink;
 
-std::u16string FirelinkDSR::DSRPlayer::GetPlayerName() const
+namespace Firelink::DarkSouls1R
+{
+
+std::u16string DSRPlayer::GetPlayerName() const
 {
     return playerInsPtr.ReadUTF16String(PLAYER_INS::CHR_INS_NO_VTABLE + CHR_INS_NO_VTABLE::CHR_NAME, 0x28);
 }
 
-std::pair<int, int> FirelinkDSR::DSRPlayer::GetPlayerHp() const
+std::pair<int, int> DSRPlayer::GetPlayerHp() const
 {
     const int currentHP = playerInsPtr.Read<int32_t>(PLAYER_INS::CHR_INS_NO_VTABLE + CHR_INS_NO_VTABLE::CURRENT_HP);
     const int maxHP = playerInsPtr.Read<int32_t>(PLAYER_INS::CHR_INS_NO_VTABLE + CHR_INS_NO_VTABLE::MAX_HP);
     return {currentHP, maxHP};
 }
 
-std::vector<int> FirelinkDSR::DSRPlayer::GetPlayerActiveSpEffects() const
+std::vector<int> DSRPlayer::GetPlayerActiveSpEffects() const
 {
     if (playerInsPtr.IsNull())
         return {};
@@ -48,7 +51,7 @@ std::vector<int> FirelinkDSR::DSRPlayer::GetPlayerActiveSpEffects() const
     return spEffectIDs;
 }
 
-bool FirelinkDSR::DSRPlayer::HasSpEffect(const int spEffectId) const
+bool DSRPlayer::HasSpEffect(const int spEffectId) const
 {
     std::vector<int> playerSpEffects = GetPlayerActiveSpEffects();
     return std::ranges::find(playerSpEffects.begin(), playerSpEffects.end(), spEffectId) != playerSpEffects.end();
@@ -56,7 +59,7 @@ bool FirelinkDSR::DSRPlayer::HasSpEffect(const int spEffectId) const
 
 // --- EQUIPPED WEAPONS ---
 
-FirelinkDSR::WeaponSlot FirelinkDSR::DSRPlayer::GetWeaponSlot(const bool isLeftHand) const
+WeaponSlot DSRPlayer::GetWeaponSlot(const bool isLeftHand) const
 {
     const BasePointer playerGameData = GetPlayerGameData();
     if (playerGameData.IsNull())
@@ -66,7 +69,7 @@ FirelinkDSR::WeaponSlot FirelinkDSR::DSRPlayer::GetWeaponSlot(const bool isLeftH
         isLeftHand ? PLAYER_GAME_DATA::CURRENT_LEFT_WEAPON_SLOT : PLAYER_GAME_DATA::CURRENT_RIGHT_WEAPON_SLOT);
 }
 
-int FirelinkDSR::DSRPlayer::GetWeapon(WeaponSlot slot, const bool isLeftHand) const
+int DSRPlayer::GetWeapon(WeaponSlot slot, const bool isLeftHand) const
 {
     const BasePointer playerGameData = GetPlayerGameData();
     if (playerGameData.IsNull())
@@ -94,7 +97,7 @@ int FirelinkDSR::DSRPlayer::GetWeapon(WeaponSlot slot, const bool isLeftHand) co
     return -1;
 }
 
-bool FirelinkDSR::DSRPlayer::SetWeapon(WeaponSlot slot, const int weaponId, const bool isLeftHand) const
+bool DSRPlayer::SetWeapon(WeaponSlot slot, const int weaponId, const bool isLeftHand) const
 {
     const BasePointer playerGameData = GetPlayerGameData();
     if (playerGameData.IsNull())
@@ -123,7 +126,7 @@ bool FirelinkDSR::DSRPlayer::SetWeapon(WeaponSlot slot, const int weaponId, cons
     return false;
 }
 
-int FirelinkDSR::DSRPlayer::GetArmor(const ArmorType slot) const
+int DSRPlayer::GetArmor(const ArmorType slot) const
 {
     const BasePointer playerGameData = GetPlayerGameData();
     if (playerGameData.IsNull())
@@ -144,7 +147,7 @@ int FirelinkDSR::DSRPlayer::GetArmor(const ArmorType slot) const
     }
 }
 
-bool FirelinkDSR::DSRPlayer::SetArmor(const ArmorType slot, const int armorId) const
+bool DSRPlayer::SetArmor(const ArmorType slot, const int armorId) const
 {
     const BasePointer playerGameData = GetPlayerGameData();
     if (playerGameData.IsNull())
@@ -165,7 +168,7 @@ bool FirelinkDSR::DSRPlayer::SetArmor(const ArmorType slot, const int armorId) c
     }
 }
 
-int FirelinkDSR::DSRPlayer::GetRing(const int slot) const
+int DSRPlayer::GetRing(const int slot) const
 {
     if (slot < 0 || slot > 1)
     {
@@ -182,7 +185,7 @@ int FirelinkDSR::DSRPlayer::GetRing(const int slot) const
     return playerGameData.Read<int32_t>(PLAYER_GAME_DATA::EQUIPPED_RING2);
 }
 
-bool FirelinkDSR::DSRPlayer::SetRing(const int slot, const int ringId) const
+bool DSRPlayer::SetRing(const int slot, const int ringId) const
 {
     if (slot < 0 || slot > 1)
     {
@@ -197,4 +200,6 @@ bool FirelinkDSR::DSRPlayer::SetRing(const int slot, const int ringId) const
     if (slot == 0)
         return playerGameData.Write<int32_t>(PLAYER_GAME_DATA::EQUIPPED_RING1, ringId);
     return playerGameData.Write<int32_t>(PLAYER_GAME_DATA::EQUIPPED_RING2, ringId);
+}
+    
 }

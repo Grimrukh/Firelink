@@ -1,5 +1,5 @@
 
-add_library(FirelinkERHook SHARED)
+add_firelink_library(FirelinkERHook)
 
 target_sources(FirelinkERHook
     PRIVATE

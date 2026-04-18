@@ -5,7 +5,7 @@
 #include <FirelinkCore/BaseHook.h>
 #include <FirelinkCore/Process.h>
 
-namespace FirelinkDSR
+namespace Firelink::DarkSouls1R
 {
     /// @brief Name of DSR process, for the user to find it.
     inline constexpr wchar_t DSR_PROCESS_NAME[] = L"DarkSoulsRemastered.exe";
@@ -43,4 +43,4 @@ namespace FirelinkDSR
         Firelink::ChildPointer* m_ClientPlayerIns = nullptr;
     };
 
-} // namespace FirelinkDSR
+} // namespace Firelink::DarkSouls1R

@@ -1,9 +1,5 @@
 add_subdirectory(src)
 
-if(FIRELINK_BUILD_TESTS)
-    add_subdirectory(tests)
-endif()
-
 if(FIRELINK_BUILD_PYBIND)
     add_subdirectory(pybind)
 endif()

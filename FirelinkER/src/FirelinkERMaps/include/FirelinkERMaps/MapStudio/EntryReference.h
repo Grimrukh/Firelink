@@ -6,7 +6,7 @@
 #include <memory>
 #include <vector>
 
-namespace FirelinkER::Maps::MapStudio
+namespace Firelink::EldenRing::Maps::MapStudio
 {
     class Entry;
 
@@ -172,4 +172,4 @@ namespace FirelinkER::Maps::MapStudio
     // extern template class EntryReference<PatrolRouteEvent>;
     // class CollisionPart;
     // extern template class EntryReference<CollisionPart>;
-} // namespace FirelinkER::Maps::MapStudio
+} // namespace Firelink::EldenRing::Maps::MapStudio

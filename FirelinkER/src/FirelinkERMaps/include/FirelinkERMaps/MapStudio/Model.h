@@ -9,7 +9,7 @@
 #include <map>
 #include <string>
 
-namespace FirelinkER::Maps::MapStudio
+namespace Firelink::EldenRing::Maps::MapStudio
 {
     // MSB Model supertype
     class FIRELINK_ER_MAPS_API Model : public Entry
@@ -43,8 +43,8 @@ namespace FirelinkER::Maps::MapStudio
 
         void SetInstanceCount(const int count) { m_instanceCount = count; }
 
-        void Deserialize(std::ifstream& stream) override;
-        void Serialize(std::ofstream& stream, int supertypeIndex, int subtypeIndex) const override;
+        void Deserialize(Firelink::BinaryReadWrite::BufferReader& reader) override;
+        void Serialize(Firelink::BinaryReadWrite::BufferWriter& writer, int supertypeIndex, int subtypeIndex) const override;
 
         explicit operator std::string() const
         {
@@ -150,4 +150,4 @@ namespace FirelinkER::Maps::MapStudio
 
         [[nodiscard]] ModelType GetType() const override { return Type; }
     };
-} // namespace FirelinkER::Maps::MapStudio
+} // namespace Firelink::EldenRing::Maps::MapStudio

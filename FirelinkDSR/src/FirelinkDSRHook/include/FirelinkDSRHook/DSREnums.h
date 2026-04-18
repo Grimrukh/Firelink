@@ -3,7 +3,7 @@
 #include <string>
 #include <unordered_map>
 
-namespace FirelinkDSR
+namespace Firelink::DarkSouls1R
 {
     /*!
  * @brief Enum for the weapon slots in the player's current equipment set.
