@@ -6,6 +6,8 @@ import enum
 from typing import Optional, Sequence, Union
 from os import PathLike
 
+from pyrelink.core import GameFile
+
 # ── GroupBitSet ──────────────────────────────────────────────────────────
 
 class GroupBitSet128:
@@ -1714,7 +1716,7 @@ class PartParam:
 
 # ── MSB ──────────────────────────────────────────────────────────────────
 
-class MSB:
+class MSB(GameFile):
     def __init__(self) -> None: ...
     @property
     def model_param(self) -> ModelParam: ...
@@ -1736,11 +1738,4 @@ class MSB:
     def routes(self) -> list[Route]: ...
     @property
     def parts(self) -> list[Part]: ...
-    @staticmethod
-    def from_bytes(data: bytes) -> MSB: ...
-    def to_bytes(self, dcx_type: int = 0) -> bytes: ...
-    @staticmethod
-    def from_path(path: Union[str, PathLike]) -> MSB: ...
-    def write_to_path(self, path: Union[str, PathLike], dcx_type: int = 0) -> None: ...
     def __repr__(self) -> str: ...
-

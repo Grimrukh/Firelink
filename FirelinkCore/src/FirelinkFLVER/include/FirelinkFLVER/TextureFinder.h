@@ -8,11 +8,11 @@
 
 #include <FirelinkCore/Export.h>
 #include <FirelinkCore/Binder.h>
+#include <FirelinkCore/GameType.h>
 #include <FirelinkCore/TPF.h>
 
 #include <cstddef>
 #include <filesystem>
-#include <functional>
 #include <mutex>
 #include <shared_mutex>
 #include <string>
@@ -23,21 +23,8 @@
 
 namespace Firelink
 {
-    // --- GameType ----------------------------------------------------------------
 
-    enum class GameType : std::uint8_t
-    {
-        DemonsSouls = 0,
-        DarkSoulsPTDE = 1,
-        DarkSoulsDSR = 2,
-        Bloodborne = 3,
-        DarkSouls3 = 4,
-        Sekiro = 5,
-        EldenRing = 6,
-    };
-
-    // --- ImageFormat --------------------------------------------------------------
-
+    /// @brief Image format enum.
     enum class ImageFormat : std::uint8_t
     {
         DDS = 0,
@@ -45,15 +32,16 @@ namespace Firelink
         TGA = 2,
     };
 
-    // --- ImageImportManager -------------------------------------------------------
-
-    class FIRELINK_CORE_API ImageImportManager
+    /// @brief Manager for importing and converting DDS textures used by FLVER models.
+    ///
+    /// @details Knows the standard locations of texture TPFs for FLVERs of varying types.
+    class FIRELINK_CORE_API TextureFinder
     {
     public:
         /// @brief Construct a manager for the given game.
         /// @param game       Which FromSoftware game.
-        /// @param data_root  Root of unpacked game data (e.g. "DARK SOULS REMASTERED", "ELDEN RING/Game").
-        ImageImportManager(GameType game, std::filesystem::path data_root);
+        /// @param dataRoot  Root of unpacked game data (e.g. "DARK SOULS REMASTERED", "ELDEN RING/Game").
+        TextureFinder(GameType game, std::filesystem::path dataRoot);
 
         /// @brief Register texture source locations for a FLVER loaded from `flver_source_path`.
         ///
@@ -63,58 +51,58 @@ namespace Firelink
         /// If the FLVER came from a Binder that has already been opened, pass it as
         /// `flver_binder` so its TPF entries can be scanned without re-reading the file.
         void RegisterFLVERSources(
-            const std::filesystem::path& flver_source_path,
-            const Binder* flver_binder = nullptr,
-            bool prefer_hi_res = true);
+            const std::filesystem::path& flverSourcePath,
+            const Binder* flverBinder = nullptr,
+            bool preferHiRes = true);
 
-        /// @brief Look up a texture by stem (case-insensitive). Returns nullptr if not found.
+        /// @brief Look up a texture by stem. Lazily loads pending TPFs and Binders as needed.
         ///
-        /// Lazily loads pending TPFs and Binders as needed.
-        const TPFTexture* GetTexture(const std::string& texture_stem,
-                                     const std::string& model_name = "");
+        /// Returns nullptr if not found.
+        ///
+        /// @note Texture stems are not case-sensitive.
+        const TPFTexture* GetTexture(
+            const std::string& textureStem,
+            const std::string& modelName = "");
 
         /// @brief Get texture data converted to the requested format.
         ///
         /// Returns empty vector if texture not found.
-        std::vector<std::byte> GetTextureAs(const std::string& texture_stem,
-                                            ImageFormat format,
-                                            const std::string& model_name = "");
+        ///
+        /// @note Texture stems are not case-sensitive.
+        std::vector<std::byte> GetTextureAs(
+            const std::string& textureStem,
+            ImageFormat format,
+            const std::string& model_name = "");
 
-        /// @brief Manually set the AET root directory for asset texture lookups.
-        void SetAETRoot(const std::filesystem::path& aet_root) { aet_root_ = aet_root; }
+        /// @brief Manually set the AET root directory for asset texture lookups (Elden Ring).
+        void SetAETRoot(const std::filesystem::path& aetRoot)
+        {
+            m_aetRoot = aetRoot;
+        }
 
         /// @brief Get the number of cached textures.
         [[nodiscard]] std::size_t CachedTextureCount() const;
 
     private:
-        GameType game_;
-        std::filesystem::path data_root_;
-        std::filesystem::path aet_root_;
+        GameType m_game;
+        std::filesystem::path m_dataRoot;
+        std::filesystem::path m_aetRoot;
 
-        // Pending binder file paths (lowercase stem → path). Not yet opened.
-        std::unordered_map<std::string, std::filesystem::path> pending_binders_;
+        // Pending binder file paths (lowercase stem -> path). Not yet opened.
+        std::unordered_map<std::string, std::filesystem::path> m_pendingBinders;
 
-        // Pending TPF sources (lowercase stem → file path or BinderEntry).
+        // Pending TPF sources (lowercase stem -> file path or BinderEntry).
         // BinderEntry is stored by value (owns its data) for simple lifetime management.
-        std::unordered_map<std::string, std::variant<std::filesystem::path, BinderEntry>> pending_tpfs_;
+        std::unordered_map<std::string, std::variant<std::filesystem::path, BinderEntry>> m_pendingTPFs;
 
-        // Loaded texture cache (lowercase stem → TPFTexture).
-        std::unordered_map<std::string, TPFTexture> texture_cache_;
+        // Loaded texture cache (lowercase stem -> TPFTexture).
+        std::unordered_map<std::string, TPFTexture> m_textureCache;
 
         // Already-scanned paths to avoid re-scanning.
-        std::unordered_set<std::string> scanned_binders_;
-        std::unordered_set<std::string> scanned_tpfs_;
+        std::unordered_set<std::string> m_scannedBinders;
+        std::unordered_set<std::string> m_scannedTPFs;
 
-        mutable std::shared_mutex mutex_;
-
-        // --- Helpers ---
-
-        static std::string ToLower(const std::string& s);
-        static std::string StemOf(const std::filesystem::path& p);
-        static std::string StemOf(const BinderEntry& e);
-
-        /// Read a file and decompress DCX if needed.
-        static std::vector<std::byte> ReadAndDecompress(const std::filesystem::path& path);
+        mutable std::shared_mutex m_mutex;
 
         // --- Registration helpers (no locking — caller must hold unique lock) ---
 
@@ -134,4 +122,3 @@ namespace Firelink
     };
 
 } // namespace Firelink
-

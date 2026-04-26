@@ -26,7 +26,7 @@ inline std::filesystem::path GetResourcePath(const std::filesystem::path& filena
     return std::filesystem::path(TEST_RESOURCES_DIR) / filename;
 }
 
-inline bool oodle_available()
+inline bool IsOodleAvailable()
 {
     return Firelink::Oodle::IsAvailable();
 }

@@ -48,6 +48,6 @@ target_link_libraries(FirelinkERMaps
 )
 
 install(TARGETS FirelinkERMaps
-        EXPORT FirelinkERTargets
+        EXPORT FirelinkTargets
         FILE_SET HEADERS
 )

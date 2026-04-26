@@ -9,40 +9,21 @@
 #include <FirelinkCore/Binder.h>
 #include <FirelinkCore/DCX.h>
 #include <FirelinkCore/Oodle.h>
+#include <FirelinkCore/Paths.h>
 #include <FirelinkCore/TPF.h>
+#include "FirelinkCoreTestHelpers.h"
 
 #include <cstring>
 #include <filesystem>
-#include <fstream>
 #include <vector>
 
 using namespace Firelink;
 
 namespace
 {
-    // Load a TPF file, handling optional DCX wrapper.
-    std::optional<TPF> LoadTPF(const char* name)
+    TPF::CPtr LoadTPF(const char* name)
     {
-        auto path = GetResourcePath(name);
-        auto raw = LoadFile(path);
-        if (raw.empty()) return std::nullopt;
-
-        const std::byte* tpf_data = raw.data();
-        std::size_t tpf_size = raw.size();
-        std::vector<std::byte> decompressed;
-
-        if (IsDCX(tpf_data, tpf_size))
-        {
-            auto dcx_type = DetectDCX(tpf_data, tpf_size);
-            if (dcx_type == DCXType::DCX_KRAK && !Oodle::IsAvailable())
-                return std::nullopt;
-            auto result = DecompressDCX(tpf_data, tpf_size);
-            decompressed = std::move(result.data);
-            tpf_data = decompressed.data();
-            tpf_size = decompressed.size();
-        }
-
-        return TPF::FromBytes(tpf_data, tpf_size);
+        return TPF::FromPath(GetResourcePath(name));
     }
 } // namespace
 
@@ -53,7 +34,7 @@ namespace
 TEST_CASE("TPF: read c1200.tpf")
 {
     auto tpf = LoadTPF("darksouls1r/c1200.tpf");
-    if (!tpf.has_value())
+    if (!tpf)
     {
         MESSAGE("Skipping — c1200.tpf not available");
         return;
@@ -74,7 +55,7 @@ TEST_CASE("TPF: read c1200.tpf")
 TEST_CASE("TPF: round-trip c1200.tpf")
 {
     auto tpf = LoadTPF("darksouls1r/c1200.tpf");
-    if (!tpf.has_value())
+    if (!tpf)
     {
         MESSAGE("Skipping — c1200.tpf not available");
         return;
@@ -85,16 +66,16 @@ TEST_CASE("TPF: round-trip c1200.tpf")
     REQUIRE(written.size() >= 4);
     CHECK(std::memcmp(written.data(), "TPF\0", 4) == 0);
 
-    TPF reread = TPF::FromBytes(written.data(), written.size());
-    REQUIRE(reread.textures.size() == tpf->textures.size());
-    CHECK(reread.platform == tpf->platform);
-    CHECK(reread.tpf_flags == tpf->tpf_flags);
-    CHECK(reread.encoding_type == tpf->encoding_type);
+    TPF::CPtr reread = TPF::FromBytes(written.data(), written.size());
+    REQUIRE(reread->textures.size() == tpf->textures.size());
+    CHECK(reread->platform == tpf->platform);
+    CHECK(reread->tpf_flags == tpf->tpf_flags);
+    CHECK(reread->encoding_type == tpf->encoding_type);
 
     for (std::size_t i = 0; i < tpf->textures.size(); ++i)
     {
         const auto& a = tpf->textures[i];
-        const auto& b = reread.textures[i];
+        const auto& b = reread->textures[i];
         CHECK(a.stem == b.stem);
         CHECK(a.format == b.format);
         CHECK(a.texture_type == b.texture_type);
@@ -109,7 +90,7 @@ TEST_CASE("TPF: round-trip c1200.tpf")
 TEST_CASE("TPF: double-write c1200.tpf produces identical bytes")
 {
     auto tpf = LoadTPF("darksouls1r/c1200.tpf");
-    if (!tpf.has_value())
+    if (!tpf)
     {
         MESSAGE("Skipping — c1200.tpf not available");
         return;
@@ -121,8 +102,8 @@ TEST_CASE("TPF: double-write c1200.tpf produces identical bytes")
             any_compressed = true;
 
     auto written1 = tpf->ToBytes();
-    TPF reread = TPF::FromBytes(written1.data(), written1.size());
-    auto written2 = reread.ToBytes();
+    TPF::CPtr reread = TPF::FromBytes(written1.data(), written1.size());
+    auto written2 = reread->ToBytes();
 
     if (!any_compressed)
     {
@@ -132,8 +113,8 @@ TEST_CASE("TPF: double-write c1200.tpf produces identical bytes")
     }
     else
     {
-        TPF reread2 = TPF::FromBytes(written2.data(), written2.size());
-        CHECK(reread2.textures.size() == tpf->textures.size());
+        TPF::CPtr reread2 = TPF::FromBytes(written2.data(), written2.size());
+        CHECK(reread2->textures.size() == tpf->textures.size());
     }
 }
 
@@ -144,41 +125,13 @@ TEST_CASE("TPF: double-write c1200.tpf produces identical bytes")
 TEST_CASE("TPF: read TPF from c2300 split binder")
 {
     // Load split binder.
-    auto bhd_path = GetResourcePath("darksouls1r/c2300.chrtpfbhd");
-    auto bdt_path = GetResourcePath("darksouls1r/c2300.chrtpfbdt");
-    auto bhd_raw = LoadFile(bhd_path);
-    auto bdt_raw = LoadFile(bdt_path);
-    if (bhd_raw.empty() || bdt_raw.empty())
-    {
-        MESSAGE("Skipping — c2300.chrtpfbhd/bdt not available");
-        return;
-    }
+    auto binder = LoadSplitChrtpfbxf(
+        "darksouls1r/c2300.chrbnd.dcx", "darksouls1r/c2300.chrtpfbdt");
 
-    // Decompress if needed.
-    std::vector<std::byte> bhd_data, bdt_data;
-    if (IsDCX(bhd_raw.data(), bhd_raw.size()))
-    {
-        if (DetectDCX(bhd_raw.data(), bhd_raw.size()) == DCXType::DCX_KRAK && !Oodle::IsAvailable())
-        {
-            MESSAGE("Skipping — Oodle DLL not available");
-            return;
-        }
-        bhd_data = DecompressDCX(bhd_raw.data(), bhd_raw.size()).data;
-    }
-    else bhd_data = std::move(bhd_raw);
-
-    if (IsDCX(bdt_raw.data(), bdt_raw.size()))
-    {
-        bdt_data = DecompressDCX(bdt_raw.data(), bdt_raw.size()).data;
-    }
-    else bdt_data = std::move(bdt_raw);
-
-    auto binder = Binder::FromSplitBytes(
-        bhd_data.data(), bhd_data.size(), bdt_data.data(), bdt_data.size());
-    REQUIRE(binder.entries.size() > 0);
+    REQUIRE(binder->entries.size() > 0);
 
     // Find and parse first TPF entry.
-    for (auto& entry : binder.entries)
+    for (auto& entry : binder->entries)
     {
         const std::byte* tpf_ptr = entry.data.data();
         std::size_t tpf_sz = entry.data.size();
@@ -196,21 +149,21 @@ TEST_CASE("TPF: read TPF from c2300 split binder")
 
         if (tpf_sz >= 4 && std::memcmp(tpf_ptr, "TPF\0", 4) == 0)
         {
-            TPF tpf = TPF::FromBytes(tpf_ptr, tpf_sz);
-            CHECK(tpf.platform == TPFPlatform::PC);
-            CHECK(tpf.textures.size() > 0);
-            if (!tpf.textures.empty())
+            TPF::CPtr tpf = TPF::FromBytes(tpf_ptr, tpf_sz);
+            CHECK(tpf->platform == TPFPlatform::PC);
+            CHECK(tpf->textures.size() > 0);
+            if (!tpf->textures.empty())
             {
-                CHECK(!tpf.textures[0].stem.empty());
-                CHECK(!tpf.textures[0].data.empty());
-                MESSAGE("First TPF from split binder: " << tpf.textures[0].stem
-                    << " (" << tpf.textures[0].data.size() << " bytes)");
+                CHECK(!tpf->textures[0].stem.empty());
+                CHECK(!tpf->textures[0].data.empty());
+                MESSAGE("First TPF from split binder: " << tpf->textures[0].stem
+                    << " (" << tpf->textures[0].data.size() << " bytes)");
             }
 
-            // Round-trip this TPF.
-            auto written = tpf.ToBytes();
-            TPF reread = TPF::FromBytes(written.data(), written.size());
-            CHECK(reread.textures.size() == tpf.textures.size());
+            // Round-trip this tpf->
+            auto written = tpf->ToBytes();
+            TPF::CPtr reread = TPF::FromBytes(written.data(), written.size());
+            CHECK(reread->textures.size() == tpf->textures.size());
             return; // tested one TPF, done
         }
     }
@@ -225,15 +178,14 @@ TEST_CASE("TPF: read TPF from c2300 split binder")
 TEST_CASE("TPF: FindTexture case-insensitive")
 {
     auto tpf = LoadTPF("darksouls1r/c1200.tpf");
-    if (!tpf.has_value() || tpf->textures.empty())
+    if (!tpf || tpf->textures.empty())
     {
         MESSAGE("Skipping — c1200.tpf not available");
         return;
     }
 
     std::string stem = tpf->textures[0].stem;
-    std::string upper_stem = stem;
-    std::transform(upper_stem.begin(), upper_stem.end(), upper_stem.begin(), ::toupper);
+    std::string upper_stem = ToUpper(stem);
 
     auto* found = tpf->FindTexture(upper_stem);
     CHECK(found != nullptr);

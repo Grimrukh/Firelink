@@ -1,7 +1,7 @@
 // Binder (BND3/BND4) archive reader/writer implementation.
 
 #include <FirelinkCore/Binder.h>
-#include <FirelinkCore/BinaryReadWrite.h>
+
 #include <FirelinkCore/Logging.h>
 
 #include <algorithm>
@@ -30,7 +30,7 @@ namespace Firelink
         return r;
     }
 
-    BinderFlags BinderFlags::FromByte(std::uint8_t raw, bool bit_big_endian)
+    BinderFlags BinderFlags::FromByte(const std::uint8_t raw, const bool bit_big_endian)
     {
         BinderFlags f{raw};
         if (!bit_big_endian && !(f.is_big_endian() && !f.has_flag_7()))
@@ -38,7 +38,7 @@ namespace Firelink
         return f;
     }
 
-    std::uint8_t BinderFlags::ToByte(bool bit_big_endian) const
+    std::uint8_t BinderFlags::ToByte(const bool bit_big_endian) const
     {
         if (!bit_big_endian && !(is_big_endian() && !has_flag_7()))
             return ReverseBits(value);
@@ -51,36 +51,36 @@ namespace Firelink
 
     namespace
     {
-        std::string ReadCString(const BufferReader& r, std::size_t offset)
+        std::string ReadCString(const BufferReader& r, const std::size_t offset)
         {
-            auto bytes = r.ReadCStringAt(offset);
+            const auto bytes = r.ReadCStringAt(offset);
             return {reinterpret_cast<const char*>(bytes.data()), bytes.size()};
         }
 
-        std::string ReadUTF16LEString(const BufferReader& r, std::size_t offset)
+        std::string ReadUTF16LEString(const BufferReader& r, const std::size_t offset)
         {
-            auto bytes = r.ReadUTF16LEStringAt(offset);
+            const auto bytes = r.ReadUTF16LEStringAt(offset);
             return {reinterpret_cast<const char*>(bytes.data()), bytes.size()};
         }
 
-        void WriteString(BufferWriter& w, const std::string& s, bool unicode)
+        void WriteString(BufferWriter& w, const std::string& s, const bool unicode)
         {
             w.WriteRaw(s.data(), s.size());
             w.WritePad(unicode ? 2 : 1);
         }
 
         // Entry flags bit reversal (same as binder flags).
-        std::uint8_t EntryFlagsFromByte(std::uint8_t raw, bool bit_big_endian)
+        std::uint8_t EntryFlagsFromByte(const std::uint8_t raw, const bool bit_big_endian)
         {
             return bit_big_endian ? raw : ReverseBits(raw);
         }
 
-        std::uint8_t EntryFlagsToByte(std::uint8_t flags, bool bit_big_endian)
+        std::uint8_t EntryFlagsToByte(const std::uint8_t flags, const bool bit_big_endian)
         {
             return bit_big_endian ? flags : ReverseBits(flags);
         }
 
-        bool IsEntryCompressed(std::uint8_t flags)
+        bool IsEntryCompressed(const std::uint8_t flags)
         {
             return flags & 0x01;
         }
@@ -92,7 +92,7 @@ namespace Firelink
 
     namespace
     {
-        bool IsPrime(int p)
+        bool IsPrime(const int p)
         {
             if (p < 2) return false;
             if (p == 2) return true;
@@ -140,7 +140,7 @@ namespace Firelink
 
             for (auto& hl : hash_lists)
             {
-                auto first = static_cast<std::int32_t>(path_hashes.size());
+                const auto first = static_cast<std::int32_t>(path_hashes.size());
                 for (auto& [h, idx] : hl)
                     path_hashes.push_back({h, static_cast<std::int32_t>(idx)});
                 groups.push_back({static_cast<std::int32_t>(path_hashes.size()) - first, first});
@@ -150,18 +150,18 @@ namespace Firelink
             BufferWriter w(Endian::Little);
             // Header: 8 pad bytes, path_hashes_offset (long), group_count (uint), 0x00080810 (int).
             w.WritePad(8);
-            std::uint64_t path_hashes_offset = 24 + static_cast<std::uint64_t>(groups.size()) * 8;
+            const std::uint64_t path_hashes_offset = 24 + static_cast<std::uint64_t>(groups.size()) * 8;
             w.Write<std::uint64_t>(path_hashes_offset);
             w.Write<std::uint32_t>(static_cast<std::uint32_t>(group_count));
             w.Write<std::int32_t>(0x00080810);
             // Groups.
-            for (auto& g : groups)
+            for (const auto& g : groups)
             {
                 w.Write<std::int32_t>(g.length);
                 w.Write<std::int32_t>(g.index);
             }
             // Path hashes.
-            for (auto& ph : path_hashes)
+            for (const auto& ph : path_hashes)
             {
                 w.Write<std::uint32_t>(ph.hashed_value);
                 w.Write<std::int32_t>(ph.entry_index);
@@ -190,7 +190,7 @@ namespace Firelink
         };
 
         EntryHeader ReadEntryHeaderV3(
-            BufferReader& r, const BinderFlags& bf, bool bit_big_endian)
+            BufferReader& r, const BinderFlags& bf, const bool bit_big_endian)
         {
             EntryHeader eh{};
             eh.flags = EntryFlagsFromByte(r.Read<std::uint8_t>(), bit_big_endian);
@@ -202,7 +202,7 @@ namespace Firelink
             eh.has_path = bf.has_names();
             if (bf.has_names())
             {
-                auto path_offset = r.Read<std::uint32_t>();
+                const auto path_offset = r.Read<std::uint32_t>();
                 eh.path = ReadCString(r, path_offset);
             }
             eh.has_compression = bf.has_compression();
@@ -211,7 +211,7 @@ namespace Firelink
         }
 
         EntryHeader ReadEntryHeaderV4(
-            BufferReader& r, const BinderFlags& bf, bool bit_big_endian, bool unicode)
+            BufferReader& r, const BinderFlags& bf, const bool bit_big_endian, const bool unicode)
         {
             EntryHeader eh{};
             eh.flags = EntryFlagsFromByte(r.Read<std::uint8_t>(), bit_big_endian);
@@ -226,67 +226,123 @@ namespace Firelink
             eh.has_path = bf.has_names();
             if (bf.has_names())
             {
-                auto path_offset = r.Read<std::uint32_t>();
+                const auto path_offset = r.Read<std::uint32_t>();
                 eh.path = unicode ? ReadUTF16LEString(r, path_offset) : ReadCString(r, path_offset);
             }
             return eh;
         }
     } // anonymous namespace
 
-    // ========================================================================
-    // Binder::FromBytes
-    // ========================================================================
-
-    Binder Binder::FromBytes(const std::byte* data, std::size_t size)
+    void Binder::Deserialize(BufferReader& reader)
     {
-        if (size < 4)
+        if (reader.size() < 4)
             throw BinderError("Data too small to be a Binder.");
 
-        if (std::memcmp(data, "BND3", 4) == 0)
-            return ReadV3(data, size, data, size);
-        if (std::memcmp(data, "BND4", 4) == 0)
-            return ReadV4(data, size, data, size);
+        if (reader.IsRawAt("BND3"))
+        {
+            DeserializeV3(reader, reader);
+            return;
+        }
+        if (reader.IsRawAt("BND4"))
+        {
+            DeserializeV4(reader, reader);
+            return;
+        }
 
+        const int magic0 = reader.Read<std::uint8_t>();
+        const int magic1 = reader.Read<std::uint8_t>();
+        const int magic2 = reader.Read<std::uint8_t>();
+        const int magic3 = reader.Read<std::uint8_t>();
         throw BinderError(std::format(
             "Unrecognized Binder magic: {:02X} {:02X} {:02X} {:02X}",
-            static_cast<int>(data[0]), static_cast<int>(data[1]),
-            static_cast<int>(data[2]), static_cast<int>(data[3])));
+            magic0, magic1, magic2, magic3));
     }
 
-    // ========================================================================
-    // Binder::FromSplitBytes (BHF header + BDT data)
-    // ========================================================================
+    Binder::Ptr Binder::FromSplitBytes(std::vector<std::byte>&& bhdData, std::vector<std::byte>&& bdtData)
+    {
+        if (bhdData.size() < 4)
+            throw BinderError("BHD data too small.");
 
-    Binder Binder::FromSplitBytes(
-        const std::byte* bhd_data, std::size_t bhd_size,
-        const std::byte* bdt_data, std::size_t bdt_size)
+        auto [bhdReader, bhdDcxType] = GetBufferReaderForDCX(std::move(bhdData));
+        auto [bdtReader, bdtDcxType] = GetBufferReaderForDCX(std::move(bdtData));
+
+        auto ptr = std::make_unique<Binder>();
+        // We use BHD for DCX type.
+        ptr->SetDCXType(bhdDcxType);
+
+        if (bhdReader.IsRawAt("BHF3"))
+        {
+            bdtReader.Seek(0x10);  // skip useless BDT3 header
+            ptr->DeserializeV3(bhdReader, bdtReader);
+            return ptr;
+        }
+        if (bhdReader.IsRawAt("BHF4"))
+        {
+            bdtReader.Seek(0x30);  // skip useless BDT4 header
+            ptr->DeserializeV4(bhdReader, bdtReader);
+            return ptr;
+        }
+
+        const int magic0 = bhdReader.Read<std::uint8_t>();
+        const int magic1 = bhdReader.Read<std::uint8_t>();
+        const int magic2 = bhdReader.Read<std::uint8_t>();
+        const int magic3 = bhdReader.Read<std::uint8_t>();
+        throw BinderError(std::format(
+            "Unrecognized split Binder magic: {:02X} {:02X} {:02X} {:02X}. "
+            "Must be BHF3 or BHF4.",
+            magic0, magic1, magic2, magic3));
+    }
+
+    Binder::Ptr Binder::FromSplitBytes(
+        const std::byte* bhd_data, const std::size_t bhd_size,
+        const std::byte* bdt_data, const std::size_t bdt_size)
     {
         if (bhd_size < 4)
             throw BinderError("BHD data too small.");
 
-        if (std::memcmp(bhd_data, "BHF3", 4) == 0)
-            return ReadV3(bhd_data, bhd_size, bdt_data, bdt_size);
-        if (std::memcmp(bhd_data, "BHF4", 4) == 0)
-            return ReadV4(bhd_data, bhd_size, bdt_data, bdt_size);
+        auto [bhdReader, bhdDcxType] = GetBufferReaderForDCX(bhd_data, bhd_size);
+        auto [bdtReader, bdtDcxType] = GetBufferReaderForDCX(bdt_data, bdt_size);
 
-        throw BinderError("Unrecognized BHF magic.");
+        auto ptr = std::make_unique<Binder>();
+        // We use BHD for DCX type.
+        ptr->SetDCXType(bhdDcxType);
+
+        if (bhdReader.IsRawAt("BHF3"))
+        {
+            ptr->DeserializeV3(bhdReader, bdtReader);
+            return ptr;
+        }
+        if (bhdReader.IsRawAt("BHF4"))
+        {
+            ptr->DeserializeV4(bhdReader, bdtReader);
+            return ptr;
+        }
+
+        const int magic0 = bhdReader.Read<std::uint8_t>();
+        const int magic1 = bhdReader.Read<std::uint8_t>();
+        const int magic2 = bhdReader.Read<std::uint8_t>();
+        const int magic3 = bhdReader.Read<std::uint8_t>();
+        throw BinderError(std::format(
+            "Unrecognized split Binder BHD magic at: {:02X} {:02X} {:02X} {:02X}. "
+            "Must be BHF3 or BHF4.",
+            magic0, magic1, magic2, magic3));
     }
 
-    // ========================================================================
-    // ReadV3
-    // ========================================================================
+    Endian Binder::GetEndian() const
+    {
+        return (big_endian || flags.is_big_endian()) ? Endian::Big : Endian::Little;
+    }
 
-    Binder Binder::ReadV3(const std::byte* data, std::size_t size,
-                          const std::byte* entry_data, std::size_t entry_data_size)
+    void Binder::DeserializeV3(BufferReader& reader, BufferReader& entryReader)
     {
         // Peek endian info at fixed offsets before creating a properly-endianized reader.
-        bool big_endian = static_cast<bool>(data[0x0D]);
-        bool bit_big_endian = static_cast<bool>(data[0x0E]);
+        this->big_endian = reader.ReadAt<bool>(0x0D);
+        this->bit_big_endian = reader.ReadAt<bool>(0x0E);
 
-        auto flags = BinderFlags::FromByte(static_cast<std::uint8_t>(data[0x0C]), bit_big_endian);
-        Endian endian = (big_endian || flags.is_big_endian()) ? Endian::Big : Endian::Little;
-
-        BufferReader r(data, size, endian);
+        this->flags = BinderFlags::FromByte(reader.ReadAt<std::uint8_t>(0x0C), bit_big_endian);
+        const Endian endian = (big_endian || flags.is_big_endian()) ? Endian::Big : Endian::Little;
+        reader.SetEndian(endian);
+        BufferReader& r = reader;
 
         // Header: magic(4) + signature(8) + flags(1) + big_endian(1) + bit_big_endian(1) + pad(1)
         //         + entry_count(4) + file_size(4) + pad(8) = 32 bytes
@@ -296,27 +352,23 @@ namespace Firelink
         char sig_buf[9]{};
         r.ReadRaw(sig_buf, 8);
 
-        std::uint8_t raw_flags = r.Read<std::uint8_t>();
+        const std::uint8_t raw_flags = r.Read<std::uint8_t>();
         (void)raw_flags; // already read via peek
         r.Read<std::uint8_t>(); // big_endian
         r.Read<std::uint8_t>(); // bit_big_endian
         r.Skip(1); // pad
 
-        auto entry_count = r.Read<std::uint32_t>();
-        auto file_size = r.Read<std::uint32_t>();
+        const auto entry_count = r.Read<std::uint32_t>();
+        const auto file_size = r.Read<std::uint32_t>();
         (void)file_size;
         r.Skip(8); // pad
 
-        Binder binder;
-        binder.version = BinderVersion::V3;
-        binder.signature = std::string(sig_buf);
+        this->version = BinderVersion::V3;
+        this->signature = std::string(sig_buf);
         // Trim trailing nulls from signature.
-        while (!binder.signature.empty() && binder.signature.back() == '\0')
-            binder.signature.pop_back();
-        binder.flags = flags;
-        binder.big_endian = big_endian;
-        binder.bit_big_endian = bit_big_endian;
-        binder.v4_info = std::nullopt;
+        while (!this->signature.empty() && this->signature.back() == '\0')
+            this->signature.pop_back();
+        this->v4_info = std::nullopt;
 
         // Read entry headers.
         std::vector<EntryHeader> headers;
@@ -325,63 +377,56 @@ namespace Firelink
             headers.push_back(ReadEntryHeaderV3(r, flags, bit_big_endian));
 
         // Read entry data.
-        binder.entries.reserve(entry_count);
-        for (auto& eh : headers)
+        this->entries.reserve(entry_count);
+        for (const auto& eh : headers)
         {
             BinderEntry entry;
             entry.entry_id = eh.entry_id;
             entry.path = eh.path;
             entry.flags = eh.flags;
             entry.data.resize(static_cast<std::size_t>(eh.compressed_size));
-            std::memcpy(entry.data.data(), entry_data + eh.data_offset, entry.data.size());
-            binder.entries.push_back(std::move(entry));
+            entryReader.ReadRawAt(eh.data_offset, entry.data.data(), entry.data.size());
+            this->entries.push_back(std::move(entry));
         }
-
-        return binder;
     }
 
-    // ========================================================================
-    // ReadV4
-    // ========================================================================
-
-    Binder Binder::ReadV4(const std::byte* data, std::size_t size,
-                          const std::byte* entry_data, std::size_t entry_data_size)
+    void Binder::DeserializeV4(BufferReader& reader, BufferReader& entryReader)
     {
         // Peek endian from offset 9 (big_endian byte in V4 header).
-        bool header_big_endian = static_cast<bool>(data[0x09]);
-        Endian endian = header_big_endian ? Endian::Big : Endian::Little;
-
-        BufferReader r(data, size, endian);
+        const bool header_big_endian = reader.ReadAt<bool>(0x09);
+        const Endian endian = header_big_endian ? Endian::Big : Endian::Little;
+        reader.SetEndian(endian);
+        BufferReader& r = reader;
 
         // BND4/BHF4 header (0x40 bytes).
         r.Skip(4); // magic already validated by caller
-        bool unknown1 = r.Read<std::uint8_t>() != 0;
-        bool unknown2 = r.Read<std::uint8_t>() != 0;
+        const bool unknown1 = r.Read<std::uint8_t>() != 0;
+        const bool unknown2 = r.Read<std::uint8_t>() != 0;
         r.Skip(3); // pad
-        bool big_endian = r.Read<std::uint8_t>() != 0;
-        bool bit_little_endian = r.Read<std::uint8_t>() != 0;
+        this->big_endian = r.Read<std::uint8_t>() != 0;
+        const bool bit_little_endian = r.Read<std::uint8_t>() != 0;
         r.Skip(1); // pad
-        auto entry_count = r.Read<std::uint32_t>();
+        const auto entry_count = r.Read<std::uint32_t>();
         r.AssertValue<std::int64_t>(0x40, "BND4 header size");
 
         char sig_buf[9]{};
         r.ReadRaw(sig_buf, 8);
 
         auto entry_header_size = r.Read<std::int64_t>();
-        auto data_offset = r.Read<std::int64_t>();
-        bool unicode = r.Read<std::uint8_t>() != 0;
-        auto raw_flags = r.Read<std::uint8_t>();
-        auto hash_table_type = r.Read<std::uint8_t>();
+        const auto data_offset = r.Read<std::int64_t>();
+        const bool unicode = r.Read<std::uint8_t>() != 0;
+        const auto raw_flags = r.Read<std::uint8_t>();
+        const auto hash_table_type = r.Read<std::uint8_t>();
         r.Skip(5); // pad
-        auto hash_table_offset = r.Read<std::int64_t>();
+        const auto hash_table_offset = r.Read<std::int64_t>();
 
-        bool bit_big_endian = !bit_little_endian;
-        auto flags = BinderFlags::FromByte(raw_flags, bit_big_endian);
+        this->bit_big_endian = !bit_little_endian;
+        this->flags = BinderFlags::FromByte(raw_flags, bit_big_endian);
 
         // Validate entry header size.
         if (static_cast<std::uint32_t>(entry_header_size) != flags.entry_header_size())
         {
-            Firelink::Warning(std::format(
+            Warning(std::format(
                 "[binder] Entry header size mismatch: header says {}, flags imply {}.",
                 entry_header_size, flags.entry_header_size()));
         }
@@ -401,69 +446,53 @@ namespace Firelink
 
         if (hash_table_type == 4 && hash_table_offset > 0)
         {
-            std::size_t ht_size = (data_offset > 0)
+            const std::size_t ht_size = (data_offset > 0)
                 ? static_cast<std::size_t>(data_offset - hash_table_offset)
-                : static_cast<std::size_t>(size - hash_table_offset);
+                : reader.size() - hash_table_offset;
             v4.most_recent_hash_table.resize(ht_size);
-            std::memcpy(v4.most_recent_hash_table.data(), data + hash_table_offset, ht_size);
+            std::memcpy(v4.most_recent_hash_table.data(), reader.RawAt(hash_table_offset), ht_size);
         }
 
-        Binder binder;
-        binder.version = BinderVersion::V4;
-        binder.signature = std::string(sig_buf);
-        while (!binder.signature.empty() && binder.signature.back() == '\0')
-            binder.signature.pop_back();
-        binder.flags = flags;
-        binder.big_endian = big_endian;
-        binder.bit_big_endian = bit_big_endian;
+        this->version = BinderVersion::V4;
+        this->signature = std::string(sig_buf);
+        while (!this->signature.empty() && this->signature.back() == '\0')
+            this->signature.pop_back();
 
         // Read entry data.
-        binder.entries.reserve(entry_count);
-        for (auto& eh : headers)
+        this->entries.reserve(entry_count);
+        for (const auto& eh : headers)
         {
             BinderEntry entry;
             entry.entry_id = eh.entry_id;
             entry.path = eh.path;
             entry.flags = eh.flags;
             entry.data.resize(static_cast<std::size_t>(eh.compressed_size));
-            std::memcpy(entry.data.data(), entry_data + eh.data_offset, entry.data.size());
-            binder.entries.push_back(std::move(entry));
+            entryReader.ReadRawAt(eh.data_offset, entry.data.data(), entry.data.size());
+            this->entries.push_back(std::move(entry));
         }
 
-        v4.most_recent_entry_count = static_cast<std::uint32_t>(binder.entries.size());
-        for (auto& e : binder.entries)
+        v4.most_recent_entry_count = static_cast<std::uint32_t>(this->entries.size());
+        for (auto& e : this->entries)
             v4.most_recent_paths.push_back(e.path);
-        binder.v4_info = std::move(v4);
-
-        return binder;
+        this->v4_info = std::move(v4);
     }
 
-    // ========================================================================
-    // Binder::ToBytes
-    // ========================================================================
-
-    std::vector<std::byte> Binder::ToBytes() const
+    void Binder::Serialize(BufferWriter& w) const
     {
         if (version == BinderVersion::V3)
-            return WriteBND3();
-        if (version == BinderVersion::V4)
-            return WriteBND4();
-        throw BinderError("Unsupported binder version for writing.");
+            SerializeBND3(w);
+        else if (version == BinderVersion::V4)
+            SerializeBND4(w);
+        else
+            throw BinderError("Unsupported binder version for writing.");
     }
 
-    // ========================================================================
-    // WriteBND3
-    // ========================================================================
-
-    std::vector<std::byte> Binder::WriteBND3() const
+    void Binder::SerializeBND3(BufferWriter& w) const
     {
-        Endian endian = (big_endian || flags.is_big_endian()) ? Endian::Big : Endian::Little;
-        BufferWriter w(endian);
-
         // Sort entries by ID.
         std::vector<std::size_t> order(entries.size());
         std::iota(order.begin(), order.end(), 0);
-        std::sort(order.begin(), order.end(), [&](auto a, auto b) {
+        std::ranges::sort(order, [&](auto a, auto b) {
             return entries[a].entry_id < entries[b].entry_id;
         });
 
@@ -482,7 +511,7 @@ namespace Firelink
         w.WritePad(8);
 
         // Entry headers.
-        for (auto idx : order)
+        for (const auto idx : order)
         {
             const auto& e = entries[idx];
             w.Write<std::uint8_t>(EntryFlagsToByte(e.flags, bit_big_endian));
@@ -503,7 +532,7 @@ namespace Firelink
         // Paths.
         if (flags.has_names())
         {
-            for (auto idx : order)
+            for (const auto idx : order)
             {
                 const auto& e = entries[idx];
                 w.Fill<std::uint32_t>("path_offset", static_cast<std::uint32_t>(w.Position()), &entries[idx]);
@@ -512,7 +541,7 @@ namespace Firelink
         }
 
         // Entry data.
-        for (auto idx : order)
+        for (const auto idx : order)
         {
             const auto& e = entries[idx];
             w.PadAlign(16);
@@ -524,26 +553,21 @@ namespace Firelink
         }
 
         w.Fill<std::uint32_t>("file_size", static_cast<std::uint32_t>(w.Position()));
-        return w.Finalize();
     }
 
-    // ========================================================================
-    // WriteBND4
-    // ========================================================================
-
-    std::vector<std::byte> Binder::WriteBND4() const
+    void Binder::SerializeBND4(BufferWriter& w) const
     {
         if (!v4_info.has_value())
             throw BinderError("BND4 requires v4_info.");
 
+        // TODO: Is `flags.is_big_endian` not trusted for V4?
+
         const auto& v4 = v4_info.value();
-        Endian endian = big_endian ? Endian::Big : Endian::Little;
-        BufferWriter w(endian);
 
         // Sort entries by ID.
         std::vector<std::size_t> order(entries.size());
         std::iota(order.begin(), order.end(), 0);
-        std::sort(order.begin(), order.end(), [&](auto a, auto b) {
+        std::ranges::sort(order, [&](auto a, auto b) {
             return entries[a].entry_id < entries[b].entry_id;
         });
 
@@ -575,7 +599,7 @@ namespace Firelink
         char sig[8]{};
         std::memcpy(sig, signature.data(), std::min(signature.size(), std::size_t(8)));
         w.WriteRaw(sig, 8);
-        w.Write<std::int64_t>(static_cast<std::int64_t>(flags.entry_header_size()));
+        w.Write<std::int64_t>(flags.entry_header_size());
         w.Reserve<std::int64_t>("data_offset");
         w.Write<std::uint8_t>(v4.unicode ? 1 : 0);
         w.Write<std::uint8_t>(flags.ToByte(bit_big_endian));
@@ -584,7 +608,7 @@ namespace Firelink
         w.Reserve<std::int64_t>("hash_table_offset");
 
         // Entry headers.
-        for (auto idx : order)
+        for (const auto idx : order)
         {
             const auto& e = entries[idx];
             w.Write<std::uint8_t>(EntryFlagsToByte(e.flags, bit_big_endian));
@@ -606,7 +630,7 @@ namespace Firelink
         // Paths.
         if (flags.has_names())
         {
-            for (auto idx : order)
+            for (const auto idx : order)
             {
                 const auto& e = entries[idx];
                 w.Fill<std::uint32_t>("path_offset", static_cast<std::uint32_t>(w.Position()), &entries[idx]);
@@ -620,7 +644,7 @@ namespace Firelink
             w.Fill<std::int64_t>("hash_table_offset", static_cast<std::int64_t>(w.Position()));
             if (rebuild_hash)
             {
-                auto ht = BuildHashTable(entries);
+                const auto ht = BuildHashTable(entries);
                 w.WriteRaw(ht.data(), ht.size());
             }
             else
@@ -637,7 +661,7 @@ namespace Firelink
         w.Fill<std::int64_t>("data_offset", static_cast<std::int64_t>(w.Position()));
 
         // Entry data (with 10 trailing null bytes per entry, matching Python).
-        for (auto idx : order)
+        for (const auto idx : order)
         {
             const auto& e = entries[idx];
             if (flags.has_long_offsets())
@@ -647,22 +671,20 @@ namespace Firelink
             w.WriteRaw(e.data.data(), e.data.size());
             w.WritePad(10); // trailing null bytes for byte-perfect writes
         }
-
-        return w.Finalize();
     }
 
     // ========================================================================
     // Find helpers
     // ========================================================================
 
-    const BinderEntry* Binder::FindEntryByID(std::int32_t id) const
+    const BinderEntry* Binder::FindEntryByID(const std::int32_t id) const
     {
         for (auto& e : entries)
             if (e.entry_id == id) return &e;
         return nullptr;
     }
 
-    BinderEntry* Binder::FindEntryByID(std::int32_t id)
+    BinderEntry* Binder::FindEntryByID(const std::int32_t id)
     {
         for (auto& e : entries)
             if (e.entry_id == id) return &e;
@@ -684,4 +706,3 @@ namespace Firelink
     }
 
 } // namespace Firelink
-

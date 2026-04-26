@@ -6,7 +6,7 @@ target_link_libraries(FirelinkDSR INTERFACE
     FirelinkDSRHook
 )
 install(TARGETS FirelinkDSR
-        EXPORT FirelinkDSRTargets
+        EXPORT FirelinkTargets
 )
 
 # TODO: FirelinkDSR has no tests or Python bindings yet.
@@ -18,9 +18,3 @@ install(TARGETS FirelinkDSR
 #if(FIRELINK_BUILD_PYBIND)
 #    add_subdirectory(pybind)
 #endif()
-
-install(EXPORT FirelinkDSRTargets
-        FILE FirelinkDSRTargets.cmake
-        NAMESPACE FirelinkDSR::
-        DESTINATION lib/cmake/FirelinkDSR
-)

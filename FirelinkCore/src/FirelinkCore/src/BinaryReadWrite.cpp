@@ -7,6 +7,7 @@
 #include <vector>
 
 using namespace Firelink;
+using namespace Firelink::BinaryReadWrite;
 
 std::vector<std::byte> BinaryReadWrite::ReadFileBytes(const std::string& path)
 {
@@ -190,7 +191,7 @@ void BinaryReadWrite::WithStreamPosition(
 
 // Stores reserved offsets, under labels, for later filling. Call `Finish()` to prevent further reserving and
 // validate that no offsets remain unfilled.
-void BinaryReadWrite::Reserver::ReserveOffset(const std::string& label)
+void Reserver::ReserveOffset(const std::string& label)
 {
     if (m_finished)
         throw std::runtime_error("Cannot reserve offset after calling Finish().");
@@ -208,7 +209,7 @@ void BinaryReadWrite::Reserver::ReserveOffset(const std::string& label)
         WriteValue<uint32_t>(m_stream, 0);
 }
 
-void BinaryReadWrite::Reserver::ReserveInt32(const std::string& label)
+void Reserver::ReserveInt32(const std::string& label)
 {
     if (m_finished)
         throw std::runtime_error("Cannot reserve offset after calling Finish().");
@@ -223,7 +224,7 @@ void BinaryReadWrite::Reserver::ReserveInt32(const std::string& label)
     WriteValue<int32_t>(m_stream, 0);
 }
 
-void BinaryReadWrite::Reserver::ReserveValidatedStruct(const std::string& label, const std::streamsize& size)
+void Reserver::ReserveValidatedStruct(const std::string& label, const std::streamsize& size)
 {
     if (m_finished)
         throw std::runtime_error("Cannot reserve struct after calling Finish().");
@@ -239,7 +240,7 @@ void BinaryReadWrite::Reserver::ReserveValidatedStruct(const std::string& label,
     m_stream.write(reinterpret_cast<const char*>(zeroes.data()), size);
 }
 
-void BinaryReadWrite::Reserver::FillOffset(const std::string& label, const int64_t offset)
+void Reserver::FillOffset(const std::string& label, const int64_t offset)
 {
     if (m_finished)
         throw std::runtime_error("Cannot fill offset after calling Finish().");
@@ -257,7 +258,7 @@ void BinaryReadWrite::Reserver::FillOffset(const std::string& label, const int64
     m_reservedOffsetOffsets.erase(label);
 }
 
-void BinaryReadWrite::Reserver::FillOffset(const std::string& label, const int32_t offset)
+void Reserver::FillOffset(const std::string& label, const int32_t offset)
 {
     if (m_finished)
         throw std::runtime_error("Cannot fill offset after calling Finish().");
@@ -275,12 +276,12 @@ void BinaryReadWrite::Reserver::FillOffset(const std::string& label, const int32
     m_reservedOffsetOffsets.erase(label);
 }
 
-void BinaryReadWrite::Reserver::FillOffsetWithPosition(const std::string& label)
+void Reserver::FillOffsetWithPosition(const std::string& label)
 {
     return m_is64Bit ? FillOffset(label, m_stream.tellp()) : FillOffset(label, static_cast<int32_t>(m_stream.tellp()));
 }
 
-void BinaryReadWrite::Reserver::FillOffsetWithRelativePosition(const std::string& label)
+void Reserver::FillOffsetWithRelativePosition(const std::string& label)
 {
     if (m_relativePositionStart == 0)
         throw std::runtime_error("Cannot fill relative offset without setting relative position start.");
@@ -289,7 +290,7 @@ void BinaryReadWrite::Reserver::FillOffsetWithRelativePosition(const std::string
     return m_is64Bit ? FillOffset(label, relativePosition) : FillOffset(label, static_cast<int32_t>(relativePosition));
 }
 
-void BinaryReadWrite::Reserver::FillInt32(const std::string& label, const int32_t value)
+void Reserver::FillInt32(const std::string& label, const int32_t value)
 {
     if (m_finished)
         throw std::runtime_error("Cannot fill `int32_t` after calling Finish().");
@@ -304,7 +305,7 @@ void BinaryReadWrite::Reserver::FillInt32(const std::string& label, const int32_
     m_reservedInt32Offsets.erase(label);
 }
 
-void BinaryReadWrite::Reserver::Finish()
+void Reserver::Finish()
 {
     if (m_finished)
         throw std::runtime_error("Cannot call Finish() twice on Reserver.");
@@ -340,7 +341,7 @@ void BinaryReadWrite::Reserver::Finish()
     m_finished = true;
 }
 
-BinaryReadWrite::BufferReader::BufferReader(std::vector<std::byte>&& storage, const Endian endian)
+BufferReader::BufferReader(std::vector<std::byte>&& storage, const Endian endian)
     : m_endian(endian)
 {
     m_storage = std::move(storage);
@@ -349,7 +350,7 @@ BinaryReadWrite::BufferReader::BufferReader(std::vector<std::byte>&& storage, co
     m_position = 0;
 }
 
-BinaryReadWrite::BufferReader::BufferReader(const std::filesystem::path& path, const Endian endian)
+BufferReader::BufferReader(const std::filesystem::path& path, const Endian endian)
     : m_endian(endian)
 {
     // Read entire file into memory.
@@ -364,4 +365,62 @@ BinaryReadWrite::BufferReader::BufferReader(const std::filesystem::path& path, c
     m_data = m_storage.data();
     m_size = m_storage.size();
     m_position = 0;
+}
+
+// Read a null-terminated string at `offset` without moving the reader cursor.
+std::string BufferReader::ReadStringAt(const std::size_t offset, const bool utf16le_encoding) const
+{
+    if (utf16le_encoding)
+    {
+        // Read Unicode.
+        const auto bytes = ReadUTF16LEStringAt(offset);
+        return {reinterpret_cast<const char*>(bytes.data()), bytes.size()};
+    }
+
+    // Read raw.
+    const auto bytes = ReadCStringAt(offset);
+    return {reinterpret_cast<const char*>(bytes.data()), bytes.size()};
+}
+
+std::vector<std::byte> BufferReader::ReadCStringAt(std::size_t offset) const
+{
+    std::vector<std::byte> result;
+    while (offset < m_size && m_data[offset] != std::byte{0})
+    {
+        result.push_back(m_data[offset]);
+        ++offset;
+    }
+    return result;
+}
+
+std::vector<std::byte> BufferReader::ReadUTF16LEStringAt(std::size_t offset) const
+{
+    std::vector<std::byte> result;
+    while (offset + 1 < m_size)
+    {
+        auto lo = m_data[offset];
+        auto hi = m_data[offset + 1];
+        if (lo == std::byte{0} && hi == std::byte{0})
+            break;
+        result.push_back(lo);
+        result.push_back(hi);
+        offset += 2;
+    }
+    return result;
+}
+
+void BufferWriter::WriteString(const std::string& s, const bool utf16le_encoding)
+{
+    if (utf16le_encoding)
+    {
+        // String is stored as raw UTF-16 LE bytes already (round-trip).
+        WriteRaw(s.data(), s.size());
+        // Null terminator: two zero bytes.
+        WritePad(2);
+    }
+    else
+    {
+        WriteRaw(s.data(), s.size());
+        WritePad(1); // single null byte terminator
+    }
 }

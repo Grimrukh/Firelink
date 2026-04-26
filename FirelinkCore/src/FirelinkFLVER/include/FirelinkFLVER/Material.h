@@ -1,15 +1,25 @@
 #pragma once
 
+#include <FirelinkFLVER/Version.h>
+
 #include <FirelinkCore/Collections.h>
 
 #include <array>
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace Firelink
 {
+    class VertexArrayLayout;
+
+    namespace BinaryReadWrite
+    {
+        class BufferReader;
+    }
+
     struct Texture
     {
         std::string path;
@@ -25,6 +35,12 @@ namespace Firelink
         float f2_unk_x1c = 0.f;
 
         bool operator==(const Texture&) const = default;
+
+        /// @brief Read a FLVER0 texture.
+        static Texture ReadFLVER0(BinaryReadWrite::BufferReader& r, bool unicode_encoding);
+
+        /// @brief Read a FLVER2 texture.
+        static Texture ReadFLVER2(BinaryReadWrite::BufferReader& r, bool unicode_encoding);
     };
 
     struct GXItem
@@ -44,6 +60,9 @@ namespace Firelink
         }
 
         bool operator==(const GXItem&) const = default;
+
+        /// @brief Hash a GXItem list for deduplication.
+        static std::size_t GetListHash(const std::vector<GXItem>& items);
     };
 
     struct Material
@@ -63,5 +82,27 @@ namespace Firelink
         std::vector<GXItem> gx_items;
 
         bool operator==(const Material&) const = default;
+
+        /// @brief Simple hash combining for material deduplication.
+        [[nodiscard]] std::size_t GetHash() const;
+
+        static Material ReadFLVER2(
+            BinaryReadWrite::BufferReader& r,
+            bool unicode_encoding,
+            FLVERVersion version,
+            std::unordered_map<std::uint32_t, std::vector<GXItem>>& gx_item_lists_cache,
+            std::uint32_t& out_texture_count,
+            std::uint32_t& out_first_texture_index);
     };
+
+    /// @brief Temporary struct used while handing FLVER0 materials to meshes.
+    struct FLVER0MaterialRead
+    {
+        Material mat;
+        std::vector<VertexArrayLayout> layouts;
+
+        /// @brief Read a FLVER0 material header and its data (textures, layouts).
+        static FLVER0MaterialRead Read(BinaryReadWrite::BufferReader& r, bool unicode_encoding);
+    };
+
 } // namespace Firelink

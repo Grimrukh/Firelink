@@ -3,6 +3,8 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 
+#include "FirelinkCore/GameType.h"
+
 namespace py = pybind11;
 
 // ============================================================================
@@ -30,21 +32,34 @@ static py::bytes vector_to_bytes(const std::vector<std::byte>& v)
 #include "pyrelink_core_binder.cpp"
 #include "pyrelink_core_dcx.cpp"
 #include "pyrelink_core_dds.cpp"
-#include "pyrelink_core_image_import_manager.cpp"
 #include "pyrelink_core_tpf.cpp"
+
+void bind_firelink_core(py::module& m)
+{
+    py::enum_<GameType>(m, "GameType",
+        "Game type.")
+        .value("DemonsSouls", GameType::DemonsSouls)
+        .value("DarkSoulsPTDE", GameType::DarkSoulsPTDE)
+        .value("DarkSoulsDSR", GameType::DarkSoulsDSR)
+        .value("Bloodborne", GameType::Bloodborne)
+        .value("DarkSouls3", GameType::DarkSouls3)
+        .value("Sekiro", GameType::Sekiro)
+        .value("EldenRing", GameType::EldenRing)
+        .export_values();
+
+    // TODO: Bind GameFile base class methods.
+}
 
 // ============================================================================
 // Module definition
 // ============================================================================
 
-PYBIND11_MODULE(_pyrelink_core, m)
+PYBIND11_MODULE(_bindings, m)
 {
     m.doc() = "Python bindings for FirelinkCore (Binder, DCX, DDS, ImageImportManager, TPF).";
 
     bind_firelink_core_binder(m);
     bind_firelink_core_dcx(m);
     bind_firelink_core_dds(m);
-    bind_firelink_core_image_import_manager(m);
     bind_firelink_core_tpf(m);
 }
-

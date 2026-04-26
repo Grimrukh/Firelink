@@ -1,17 +1,17 @@
-// Unit tests for ImageImportManager.
+// Unit tests for TextureFinder.
 //
 // Tests lazy texture discovery and caching using test resource fixtures.
 
 #include <doctest/doctest.h>
 
 #include <FirelinkTestHelpers.h>
-#include <FirelinkCore/ImageImportManager.h>
-#include <FirelinkCore/DCX.h>
-#include <FirelinkCore/Oodle.h>
 
-#include <cstring>
+#include <FirelinkFLVER/TextureFinder.h>
+
+#include <FirelinkCore/DCX.h>
+#include <FirelinkCore/Paths.h>
+
 #include <filesystem>
-#include <fstream>
 #include <vector>
 
 using namespace Firelink;
@@ -25,10 +25,10 @@ namespace
 // Basic construction
 // ---------------------------------------------------------------------------
 
-TEST_CASE("ImageImportManager: construct with invalid root doesn't throw")
+TEST_CASE("TextureFinder: construct with invalid root doesn't throw")
 {
     // Should not throw even with a nonexistent directory — it just won't find any textures.
-    ImageImportManager mgr(GameType::EldenRing, "C:/nonexistent/path");
+    TextureFinder mgr(GameType::EldenRing, "C:/nonexistent/path");
     CHECK(mgr.CachedTextureCount() == 0);
 }
 
@@ -36,9 +36,9 @@ TEST_CASE("ImageImportManager: construct with invalid root doesn't throw")
 // DSR character textures via CHRBND + CHRTPFBDT
 // ---------------------------------------------------------------------------
 
-TEST_CASE("ImageImportManager: DSR character texture loading")
+TEST_CASE("TextureFinder: DSR character texture loading")
 {
-    if (!oodle_available())
+    if (!IsOodleAvailable())
     {
         MESSAGE("Skipping — Oodle DLL not available");
         return;
@@ -60,8 +60,8 @@ TEST_CASE("ImageImportManager: DSR character texture loading")
     auto dcx_result = DecompressDCX(raw.data(), raw.size());
     auto chrbnd = Binder::FromBytes(dcx_result.data.data(), dcx_result.data.size());
 
-    ImageImportManager mgr(GameType::DarkSoulsDSR, res.string());
-    mgr.RegisterFLVERSources(chrbnd_path, &chrbnd);
+    TextureFinder mgr(GameType::DarkSoulsDSR, res.string());
+    mgr.RegisterFLVERSources(chrbnd_path, chrbnd.get());
 
     // The CHRBND itself may contain TPF entries. Also, the CHRTPFBDT should be discovered.
     // Try to get any texture. We don't know exact names, but we can check the cache grew.
@@ -72,7 +72,7 @@ TEST_CASE("ImageImportManager: DSR character texture loading")
 // Standalone TPF texture lookup
 // ---------------------------------------------------------------------------
 
-TEST_CASE("ImageImportManager: standalone TPF via loose file registration")
+TEST_CASE("TextureFinder: standalone TPF via loose file registration")
 {
     auto tpf_path = GetResourcePath("darksouls1r/c1200.tpf");
     if (!fs::is_regular_file(tpf_path))
@@ -84,7 +84,7 @@ TEST_CASE("ImageImportManager: standalone TPF via loose file registration")
     // Create a manager and manually simulate loose TPF registration.
     // Since c1200.tpf is a loose TPF in the resources dir, we can test by using
     // a character FLVER source that would look for TPFs in the same directory.
-    ImageImportManager mgr(GameType::DemonsSouls, GetResourcePath("darksouls1r"));
+    TextureFinder mgr(GameType::DemonsSouls, GetResourcePath("darksouls1r"));
 
     // Register as if a loose character FLVER was in the resource dir.
     auto fake_flver_path = GetResourcePath("darksouls1r/c1200.flver");
@@ -94,9 +94,9 @@ TEST_CASE("ImageImportManager: standalone TPF via loose file registration")
     // one texture stem from it.
     auto raw = LoadFile(tpf_path);
     auto tpf = TPF::FromBytes(raw.data(), raw.size());
-    REQUIRE(tpf.textures.size() > 0);
+    REQUIRE(tpf->textures.size() > 0);
 
-    auto first_stem = tpf.textures[0].stem;
+    auto first_stem = tpf->textures[0].stem;
     MESSAGE("Looking for texture: " << first_stem);
 
     // The manager should find it via lazy loading.
@@ -114,7 +114,7 @@ TEST_CASE("ImageImportManager: standalone TPF via loose file registration")
 // Case insensitivity
 // ---------------------------------------------------------------------------
 
-TEST_CASE("ImageImportManager: case-insensitive texture lookup")
+TEST_CASE("TextureFinder: case-insensitive texture lookup")
 {
     auto tpf_path = GetResourcePath("darksouls1r/c1200.tpf");
     if (!fs::is_regular_file(tpf_path))
@@ -123,17 +123,16 @@ TEST_CASE("ImageImportManager: case-insensitive texture lookup")
         return;
     }
 
-    ImageImportManager mgr(GameType::DemonsSouls, GetResourcePath("darksouls1r"));
+    TextureFinder mgr(GameType::DemonsSouls, GetResourcePath("darksouls1r"));
     mgr.RegisterFLVERSources(GetResourcePath("darksouls1r/c1200.flver"));
 
     auto raw = LoadFile(tpf_path);
     auto tpf = TPF::FromBytes(raw.data(), raw.size());
-    REQUIRE(tpf.textures.size() > 0);
+    REQUIRE(tpf->textures.size() > 0);
 
     // Search with upper-case stem.
-    auto stem = tpf.textures[0].stem;
-    std::string upper_stem = stem;
-    std::transform(upper_stem.begin(), upper_stem.end(), upper_stem.begin(), ::toupper);
+    auto stem = tpf->textures[0].stem;
+    std::string upper_stem = ToUpper(stem);
 
     auto* tex = mgr.GetTexture(upper_stem);
     CHECK(tex != nullptr);
@@ -143,9 +142,9 @@ TEST_CASE("ImageImportManager: case-insensitive texture lookup")
 // Texture not found returns nullptr
 // ---------------------------------------------------------------------------
 
-TEST_CASE("ImageImportManager: returns nullptr for missing texture")
+TEST_CASE("TextureFinder: returns nullptr for missing texture")
 {
-    ImageImportManager mgr(GameType::EldenRing, GetResourcePath("eldenring"));
+    TextureFinder mgr(GameType::EldenRing, GetResourcePath("eldenring"));
     auto* tex = mgr.GetTexture("completely_nonexistent_texture_12345");
     CHECK(tex == nullptr);
 }

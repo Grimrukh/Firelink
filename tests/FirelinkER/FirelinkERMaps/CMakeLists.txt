@@ -2,8 +2,9 @@
 # pulls in the same .obj files as the shared/static targets (avoiding
 # duplicate compiles) and carries the PUBLIC include directories.
 add_executable(FirelinkERMaps_test
-        test_main.cpp
-        test_er_msb.cpp
+    main.cpp
+
+    EldenRingMSBTest.cpp
 )
 
 target_link_libraries(FirelinkERMaps_test PRIVATE

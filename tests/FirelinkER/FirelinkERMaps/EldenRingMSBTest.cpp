@@ -46,15 +46,15 @@ namespace
     }
 
     /// Lazily load and cache the original MSB (shared across read-only tests).
-    MSB& GetOriginalMSB()
+    const MSB& GetOriginalMSB()
     {
-        static std::unique_ptr<MSB> msb = [] {
+        static MSB::CPtr msb = [] {
             const auto start = std::chrono::high_resolution_clock::now();
-            auto ptr = MSB::FromPath(GetMSBPath());
+            MSB::CPtr ptr = MSB::FromPath(GetMSBPath());
             const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
                 std::chrono::high_resolution_clock::now() - start);
             MESSAGE("MSB loaded in " << elapsed.count() << " ms");
-            return ptr;
+            return std::move(ptr);
         }();
         return *msb;
     }
@@ -86,12 +86,12 @@ TEST_CASE("MSB: loads Siofra River (m12_02_00_00) without error")
 
 TEST_CASE("MSB: all param counts are positive")
 {
-    auto& msb = GetOriginalMSB();
-    CHECK(msb.GetModelParam().GetSize()  > 0);
-    CHECK(msb.GetEventParam().GetSize()  > 0);
-    CHECK(msb.GetRegionParam().GetSize() > 0);
-    CHECK(msb.GetRouteParam().GetSize()  > 0);
-    CHECK(msb.GetPartParam().GetSize()   > 0);
+    const MSB& msb = GetOriginalMSB();
+    CHECK(msb.GetModelParamConst().GetSize()  > 0);
+    CHECK(msb.GetEventParamConst().GetSize()  > 0);
+    CHECK(msb.GetRegionParamConst().GetSize() > 0);
+    CHECK(msb.GetRouteParamConst().GetSize()  > 0);
+    CHECK(msb.GetPartParamConst().GetSize()   > 0);
 }
 
 // ============================================================================
@@ -100,8 +100,8 @@ TEST_CASE("MSB: all param counts are positive")
 
 TEST_CASE("MSB: model subtype distribution is non-empty")
 {
-    auto& msb = GetOriginalMSB();
-    auto all = msb.GetModelParam().GetAllEntries();
+    const MSB& msb = GetOriginalMSB();
+    auto all = msb.GetModelParamConst().GetAllEntries();
 
     int mapPiece = 0, character = 0, collision = 0, asset = 0;
     for (const auto* m : all)
@@ -123,8 +123,8 @@ TEST_CASE("MSB: model subtype distribution is non-empty")
 
 TEST_CASE("MSB: part subtype distribution is non-empty")
 {
-    auto& msb = GetOriginalMSB();
-    auto all = msb.GetPartParam().GetAllEntries();
+    const MSB& msb = GetOriginalMSB();
+    auto all = msb.GetPartParamConst().GetAllEntries();
 
     int mapPiece = 0, character = 0, collision = 0, asset = 0;
     for (const auto* p : all)
@@ -146,14 +146,14 @@ TEST_CASE("MSB: part subtype distribution is non-empty")
 
 TEST_CASE("MSB: region count > 10 for Stormveil")
 {
-    auto& msb = GetOriginalMSB();
-    CHECK(msb.GetRegionParam().GetAllEntries().size() > 10);
+    const MSB& msb = GetOriginalMSB();
+    CHECK(msb.GetRegionParamConst().GetAllEntries().size() > 10);
 }
 
 TEST_CASE("MSB: at least one Treasure event")
 {
-    auto& msb = GetOriginalMSB();
-    auto all = msb.GetEventParam().GetAllEntries();
+    const MSB& msb = GetOriginalMSB();
+    const auto all = msb.GetEventParamConst().GetAllEntries();
     int treasures = 0;
     for (const auto* e : all)
         if (e->GetType() == EventType::Treasure) ++treasures;
@@ -166,30 +166,30 @@ TEST_CASE("MSB: at least one Treasure event")
 
 TEST_CASE("MSB: all entry names are non-empty except Routes")
 {
-    auto& msb = GetOriginalMSB();
+    const MSB& msb = GetOriginalMSB();
 
-    for (const auto* m : msb.GetModelParam().GetAllEntries())
+    for (const auto* m : msb.GetModelParamConst().GetAllEntries())
         CHECK_FALSE(m->GetNameUTF8().empty());
-    for (const auto* e : msb.GetEventParam().GetAllEntries())
+    for (const auto* e : msb.GetEventParamConst().GetAllEntries())
         CHECK_FALSE(e->GetNameUTF8().empty());
-    for (const auto* r : msb.GetRegionParam().GetAllEntries())
+    for (const auto* r : msb.GetRegionParamConst().GetAllEntries())
         CHECK_FALSE(r->GetNameUTF8().empty());
-    for (const auto* p : msb.GetPartParam().GetAllEntries())
+    for (const auto* p : msb.GetPartParamConst().GetAllEntries())
         CHECK_FALSE(p->GetNameUTF8().empty());
 }
 
 TEST_CASE("MSB: every part has a model reference")
 {
-    auto& msb = GetOriginalMSB();
-    for (const auto* p : msb.GetPartParam().GetAllEntries())
+    const MSB& msb = GetOriginalMSB();
+    for (const auto* p : msb.GetPartParamConst().GetAllEntries())
         CHECK_MESSAGE(p->GetModel() != nullptr, "Part '", p->GetNameUTF8(), "' has no model");
 }
 
 TEST_CASE("MSB: first part's model exists in model list")
 {
-    auto& msb = GetOriginalMSB();
-    auto allParts  = msb.GetPartParam().GetAllEntries();
-    auto allModels = msb.GetModelParam().GetAllEntries();
+    const MSB& msb = GetOriginalMSB();
+    auto allParts  = msb.GetPartParamConst().GetAllEntries();
+    auto allModels = msb.GetModelParamConst().GetAllEntries();
     REQUIRE_FALSE(allParts.empty());
     REQUIRE(allParts[0]->GetModel() != nullptr);
 
@@ -206,15 +206,15 @@ TEST_CASE("MSB: first part's model exists in model list")
 
 TEST_CASE("MSB: entry std::string conversion produces non-empty output")
 {
-    auto& msb = GetOriginalMSB();
-    auto allParts = msb.GetPartParam().GetAllEntries();
+    const MSB& msb = GetOriginalMSB();
+    auto allParts = msb.GetPartParamConst().GetAllEntries();
     REQUIRE_FALSE(allParts.empty());
 
     // Part -> string
     CHECK_FALSE(std::string(*allParts[0]).empty());
 
     // Character -> string
-    auto characters = msb.GetPartParam().GetSubtypeEntries<CharacterPart>();
+    auto characters = msb.GetPartParamConst().GetSubtypeEntries<CharacterPart>();
     REQUIRE_FALSE(characters.empty());
     CHECK_FALSE(std::string(*characters[0]).empty());
 
@@ -229,8 +229,8 @@ TEST_CASE("MSB: entry std::string conversion produces non-empty output")
 
 TEST_CASE("MSB: character part fields are valid")
 {
-    auto& msb = GetOriginalMSB();
-    auto characters = msb.GetPartParam().GetSubtypeEntries<CharacterPart>();
+    const MSB& msb = GetOriginalMSB();
+    auto characters = msb.GetPartParamConst().GetSubtypeEntries<CharacterPart>();
     REQUIRE_FALSE(characters.empty());
 
     const auto* chr = characters[0];
@@ -258,8 +258,8 @@ TEST_CASE("MSB: character part fields are valid")
 
 TEST_CASE("MSB: collision part fields are valid")
 {
-    auto& msb = GetOriginalMSB();
-    auto collisions = msb.GetPartParam().GetSubtypeEntries<CollisionPart>();
+    const MSB& msb = GetOriginalMSB();
+    auto collisions = msb.GetPartParamConst().GetSubtypeEntries<CollisionPart>();
     REQUIRE_FALSE(collisions.empty());
 
     const auto* col = collisions[0];
@@ -274,8 +274,8 @@ TEST_CASE("MSB: collision part fields are valid")
 
 TEST_CASE("MSB: all regions have a shape object")
 {
-    auto& msb = GetOriginalMSB();
-    auto allRegions = msb.GetRegionParam().GetAllEntries();
+    const MSB& msb = GetOriginalMSB();
+    const auto allRegions = msb.GetRegionParamConst().GetAllEntries();
     for (auto* r : allRegions)
         CHECK_MESSAGE(r->GetShape() != nullptr, "Region '", r->GetNameUTF8(), "' has no shape");
 }
@@ -287,9 +287,9 @@ TEST_CASE("MSB: all regions have a shape object")
 TEST_CASE("MSB: draw parent can be cleared and reassigned")
 {
     // Load a fresh copy so mutations don't pollute other tests.
-    auto msb = MSB::FromPath(GetMSBPath());
-    auto allParts   = msb->GetPartParam().GetAllEntries();
-    auto characters = msb->GetPartParam().GetSubtypeEntries<CharacterPart>();
+    const MSB::CPtr msb = MSB::FromPath(GetMSBPath());
+    auto allParts = msb->GetPartParamConst().GetAllEntries();
+    auto characters = msb->GetPartParamConst().GetSubtypeEntries<CharacterPart>();
     REQUIRE_FALSE(allParts.empty());
     REQUIRE_FALSE(characters.empty());
 
@@ -316,31 +316,31 @@ TEST_CASE("MSB: draw parent can be cleared and reassigned")
 
 TEST_CASE("MSB: round-trip preserves param counts")
 {
-    auto& original = GetOriginalMSB();
+    const MSB& original = GetOriginalMSB();
     const auto writePath = GetOutDir() / "m12_02_00_00_roundtrip.msb";
-    original.WriteToFilePath(writePath);
-    auto reloaded = MSB::FromPath(writePath);
-    REQUIRE(reloaded != nullptr);
+    original.WriteToPath(writePath);
+    MSB::CPtr reloaded = MSB::FromPath(writePath);
+    REQUIRE(reloaded->GetEntryCount() > 0);
 
-    CHECK(original.GetModelParam().GetSize()  == reloaded->GetModelParam().GetSize());
-    CHECK(original.GetEventParam().GetSize()  == reloaded->GetEventParam().GetSize());
-    CHECK(original.GetRegionParam().GetSize() == reloaded->GetRegionParam().GetSize());
-    CHECK(original.GetRouteParam().GetSize()  == reloaded->GetRouteParam().GetSize());
-    CHECK(original.GetPartParam().GetSize()   == reloaded->GetPartParam().GetSize());
+    CHECK(original.GetModelParamConst().GetSize()  == reloaded->GetModelParamConst().GetSize());
+    CHECK(original.GetEventParamConst().GetSize()  == reloaded->GetEventParamConst().GetSize());
+    CHECK(original.GetRegionParamConst().GetSize() == reloaded->GetRegionParamConst().GetSize());
+    CHECK(original.GetRouteParamConst().GetSize()  == reloaded->GetRouteParamConst().GetSize());
+    CHECK(original.GetPartParamConst().GetSize()   == reloaded->GetPartParamConst().GetSize());
 }
 
 TEST_CASE("MSB: round-trip preserves entry names")
 {
-    auto& original = GetOriginalMSB();
+    const MSB& original = GetOriginalMSB();
     const auto writePath = GetOutDir() / "m12_02_00_00_roundtrip.msb";
-    original.WriteToFilePath(writePath);
+    original.WriteToPath(writePath);
     auto reloaded = MSB::FromPath(writePath);
-    REQUIRE(reloaded != nullptr);
+    REQUIRE(reloaded->GetEntryCount() > 0);
 
     SUBCASE("part names")
     {
-        auto partsA = original.GetPartParam().GetAllEntries();
-        auto partsB = reloaded->GetPartParam().GetAllEntries();
+        auto partsA = original.GetPartParamConst().GetAllEntries();
+        auto partsB = reloaded->GetPartParamConst().GetAllEntries();
         REQUIRE(partsA.size() == partsB.size());
         for (size_t i = 0; i < partsA.size(); ++i)
             CHECK(partsA[i]->GetNameUTF8() == partsB[i]->GetNameUTF8());
@@ -348,8 +348,8 @@ TEST_CASE("MSB: round-trip preserves entry names")
 
     SUBCASE("model names")
     {
-        auto a = original.GetModelParam().GetAllEntries();
-        auto b = reloaded->GetModelParam().GetAllEntries();
+        auto a = original.GetModelParamConst().GetAllEntries();
+        auto b = reloaded->GetModelParamConst().GetAllEntries();
         REQUIRE(a.size() == b.size());
         for (size_t i = 0; i < a.size(); ++i)
             CHECK(a[i]->GetNameUTF8() == b[i]->GetNameUTF8());
@@ -357,8 +357,8 @@ TEST_CASE("MSB: round-trip preserves entry names")
 
     SUBCASE("event names")
     {
-        auto a = original.GetEventParam().GetAllEntries();
-        auto b = reloaded->GetEventParam().GetAllEntries();
+        auto a = original.GetEventParamConst().GetAllEntries();
+        auto b = reloaded->GetEventParamConst().GetAllEntries();
         REQUIRE(a.size() == b.size());
         for (size_t i = 0; i < a.size(); ++i)
             CHECK(a[i]->GetNameUTF8() == b[i]->GetNameUTF8());
@@ -366,8 +366,8 @@ TEST_CASE("MSB: round-trip preserves entry names")
 
     SUBCASE("region names")
     {
-        auto a = original.GetRegionParam().GetAllEntries();
-        auto b = reloaded->GetRegionParam().GetAllEntries();
+        auto a = original.GetRegionParamConst().GetAllEntries();
+        auto b = reloaded->GetRegionParamConst().GetAllEntries();
         REQUIRE(a.size() == b.size());
         for (size_t i = 0; i < a.size(); ++i)
             CHECK(a[i]->GetNameUTF8() == b[i]->GetNameUTF8());
@@ -376,14 +376,14 @@ TEST_CASE("MSB: round-trip preserves entry names")
 
 TEST_CASE("MSB: round-trip preserves character fields")
 {
-    auto& original = GetOriginalMSB();
+    const MSB& original = GetOriginalMSB();
     const auto writePath = GetOutDir() / "m12_02_00_00_roundtrip.msb";
-    original.WriteToFilePath(writePath);
+    original.WriteToPath(writePath);
     auto reloaded = MSB::FromPath(writePath);
-    REQUIRE(reloaded != nullptr);
+    REQUIRE(reloaded->GetEntryCount() > 0);
 
-    auto charsOrig     = original.GetPartParam().GetSubtypeEntries<CharacterPart>();
-    auto charsReloaded = reloaded->GetPartParam().GetSubtypeEntries<CharacterPart>();
+    auto charsOrig     = original.GetPartParamConst().GetSubtypeEntries<CharacterPart>();
+    auto charsReloaded = reloaded->GetPartParamConst().GetSubtypeEntries<CharacterPart>();
     REQUIRE(charsOrig.size() == charsReloaded.size());
 
     for (size_t i = 0; i < charsOrig.size(); ++i)
@@ -417,14 +417,14 @@ TEST_CASE("MSB: round-trip preserves character fields")
 
 TEST_CASE("MSB: round-trip preserves collision fields")
 {
-    auto& original = GetOriginalMSB();
+    const MSB& original = GetOriginalMSB();
     const auto writePath = GetOutDir() / "m12_02_00_00_roundtrip.msb";
-    original.WriteToFilePath(writePath);
+    original.WriteToPath(writePath);
     auto reloaded = MSB::FromPath(writePath);
-    REQUIRE(reloaded != nullptr);
+    REQUIRE(reloaded->GetEntryCount() > 0);
 
-    auto colsOrig     = original.GetPartParam().GetSubtypeEntries<CollisionPart>();
-    auto colsReloaded = reloaded->GetPartParam().GetSubtypeEntries<CollisionPart>();
+    auto colsOrig     = original.GetPartParamConst().GetSubtypeEntries<CollisionPart>();
+    auto colsReloaded = reloaded->GetPartParamConst().GetSubtypeEntries<CollisionPart>();
     REQUIRE(colsOrig.size() == colsReloaded.size());
 
     for (size_t i = 0; i < colsOrig.size(); ++i)
@@ -437,14 +437,14 @@ TEST_CASE("MSB: round-trip preserves collision fields")
 
 TEST_CASE("MSB: round-trip preserves asset fields")
 {
-    auto& original = GetOriginalMSB();
+    const MSB& original = GetOriginalMSB();
     const auto writePath = GetOutDir() / "m12_02_00_00_roundtrip.msb";
-    original.WriteToFilePath(writePath);
+    original.WriteToPath(writePath);
     auto reloaded = MSB::FromPath(writePath);
-    REQUIRE(reloaded != nullptr);
+    REQUIRE(reloaded->GetEntryCount() > 0);
 
-    auto assetsOrig     = original.GetPartParam().GetSubtypeEntries<AssetPart>();
-    auto assetsReloaded = reloaded->GetPartParam().GetSubtypeEntries<AssetPart>();
+    auto assetsOrig     = original.GetPartParamConst().GetSubtypeEntries<AssetPart>();
+    auto assetsReloaded = reloaded->GetPartParamConst().GetSubtypeEntries<AssetPart>();
     REQUIRE(assetsOrig.size() == assetsReloaded.size());
 
     for (size_t i = 0; i < assetsOrig.size(); ++i)
@@ -456,14 +456,14 @@ TEST_CASE("MSB: round-trip preserves asset fields")
 
 TEST_CASE("MSB: round-trip preserves region fields")
 {
-    auto& original = GetOriginalMSB();
+    const MSB& original = GetOriginalMSB();
     const auto writePath = GetOutDir() / "m12_02_00_00_roundtrip.msb";
-    original.WriteToFilePath(writePath);
+    original.WriteToPath(writePath);
     auto reloaded = MSB::FromPath(writePath);
-    REQUIRE(reloaded != nullptr);
+    REQUIRE(reloaded->GetEntryCount() > 0);
 
-    auto regionsOrig     = original.GetRegionParam().GetAllEntries();
-    auto regionsReloaded = reloaded->GetRegionParam().GetAllEntries();
+    auto regionsOrig     = original.GetRegionParamConst().GetAllEntries();
+    auto regionsReloaded = reloaded->GetRegionParamConst().GetAllEntries();
     REQUIRE(regionsOrig.size() == regionsReloaded.size());
 
     for (size_t i = 0; i < regionsOrig.size(); ++i)
@@ -476,14 +476,14 @@ TEST_CASE("MSB: round-trip preserves region fields")
 
 TEST_CASE("MSB: round-trip preserves event fields")
 {
-    auto& original = GetOriginalMSB();
+    const MSB& original = GetOriginalMSB();
     const auto writePath = GetOutDir() / "m12_02_00_00_roundtrip.msb";
-    original.WriteToFilePath(writePath);
+    original.WriteToPath(writePath);
     auto reloaded = MSB::FromPath(writePath);
-    REQUIRE(reloaded != nullptr);
+    REQUIRE(reloaded->GetEntryCount() > 0);
 
-    auto eventsOrig     = original.GetEventParam().GetAllEntries();
-    auto eventsReloaded = reloaded->GetEventParam().GetAllEntries();
+    auto eventsOrig     = original.GetEventParamConst().GetAllEntries();
+    auto eventsReloaded = reloaded->GetEventParamConst().GetAllEntries();
     REQUIRE(eventsOrig.size() == eventsReloaded.size());
 
     for (size_t i = 0; i < eventsOrig.size(); ++i)
@@ -499,18 +499,18 @@ TEST_CASE("MSB: round-trip preserves event fields")
 
 TEST_CASE("MSB: double write produces byte-identical files")
 {
-    auto& original = GetOriginalMSB();
+    const MSB& original = GetOriginalMSB();
     const auto path1 = GetOutDir() / "stable_write_1.msb";
     const auto path2 = GetOutDir() / "stable_write_2.msb";
 
     // First write.
-    original.WriteToFilePath(path1);
+    original.WriteToPath(path1);
     REQUIRE(exists(path1));
 
     // Re-read and second write.
     auto reloaded = MSB::FromPath(path1);
-    REQUIRE(reloaded != nullptr);
-    reloaded->WriteToFilePath(path2);
+    REQUIRE(reloaded->GetEntryCount() > 0);
+    reloaded->WriteToPath(path2);
     REQUIRE(exists(path2));
 
     // Byte-for-byte comparison.

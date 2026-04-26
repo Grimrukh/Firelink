@@ -681,6 +681,28 @@ namespace Firelink
         return {std::move(decompressed), type};
     }
 
+    DCXResult TryDecompressDCX(const std::filesystem::path& path)
+    {
+        // Read entire file into memory.
+        std::ifstream stream(path, std::ios::binary | std::ios::ate);
+        if (!stream)
+            throw BinaryReadWrite::BinaryReadError("Could not open file: " + path.string());
+        const auto fileSize = static_cast<size_t>(stream.tellg());
+        stream.seekg(0);
+        std::vector<std::byte> storage(fileSize);
+        stream.read(reinterpret_cast<char*>(storage.data()), static_cast<std::streamsize>(fileSize));
+        stream.close();
+
+        if (IsDCX(storage.data(), storage.size()))
+        {
+            auto [decompressedStorage, dcxType] = DecompressDCX(storage.data(), storage.size());
+            return {std::move(decompressedStorage), dcxType};
+        }
+
+        // Not compressed.
+        return {std::move(storage), DCXType::Null};
+    }
+
     // ========================================================================
     // CompressDCX
     // ========================================================================

@@ -41,12 +41,12 @@ namespace Firelink::EldenRing::Maps::MapStudio
 
         [[nodiscard]] const std::u16string& GetName() const { return m_name; }
         void SetName(const std::u16string& newName) { m_name = newName; }
-        [[nodiscard]] std::string GetNameUTF8() const { return Firelink::UTF16ToUTF8(m_name); }
+        [[nodiscard]] std::string GetNameUTF8() const { return UTF16ToUTF8(m_name); }
 
         /// @brief Deserialize an entry from a BufferReader.
-        virtual void Deserialize(Firelink::BinaryReadWrite::BufferReader& reader) = 0;
+        virtual void Deserialize(BinaryReadWrite::BufferReader& reader) = 0;
         // Supertype and/or subtype indices may not be used by all subclasses.
-        virtual void Serialize(Firelink::BinaryReadWrite::BufferWriter& writer, int supertypeIndex, int subtypeIndex) const = 0;
+        virtual void Serialize(BinaryReadWrite::BufferWriter& writer, int supertypeIndex, int subtypeIndex) const = 0;
 
         /// @brief Register an incoming reference from another `Entry`.
         void AddReferrer(EntryReferenceBase* referrer)

@@ -1,12 +1,12 @@
 // TPF (Texture Pack File) reader/writer implementation.
 
 #include <FirelinkCore/TPF.h>
+
 #include <FirelinkCore/BinaryReadWrite.h>
 #include <FirelinkCore/DCX.h>
+#include <FirelinkCore/Paths.h>
 
 #include <algorithm>
-#include <cctype>
-#include <cstring>
 
 namespace Firelink
 {
@@ -16,18 +16,6 @@ namespace Firelink
 
     namespace
     {
-        std::string ReadCString(const BufferReader& r, std::size_t offset)
-        {
-            auto bytes = r.ReadCStringAt(offset);
-            return {reinterpret_cast<const char*>(bytes.data()), bytes.size()};
-        }
-
-        std::string ReadUTF16LEString(const BufferReader& r, std::size_t offset)
-        {
-            auto bytes = r.ReadUTF16LEStringAt(offset);
-            return {reinterpret_cast<const char*>(bytes.data()), bytes.size()};
-        }
-
         void WriteString(BufferWriter& w, const std::string& s, bool unicode)
         {
             w.WriteRaw(s.data(), s.size());
@@ -44,16 +32,15 @@ namespace Firelink
     // TPF::FromBytes
     // ========================================================================
 
-    TPF TPF::FromBytes(const std::byte* data, std::size_t size)
+    void TPF::Deserialize(BufferReader& r)
     {
-        if (size < 16)
+        if (r.size() < 16)
             throw TPFError("Data too small to be a TPF.");
 
         // Peek platform byte at offset 0x0C to determine endianness.
-        auto platform = static_cast<TPFPlatform>(data[0x0C]);
+        this->platform = r.ReadAt<TPFPlatform>(0x0C);
         Endian endian = IsBigEndianPlatform(platform) ? Endian::Big : Endian::Little;
-
-        BufferReader r(data, size, endian);
+        r.SetEndian(endian);
 
         // Header: "TPF\0"(4) + data_size(4) + file_count(4) + platform(1) + tpf_flags(1) + encoding_type(1) + pad(1)
         r.AssertBytes("TPF\0", 4, "TPF magic");
@@ -61,17 +48,13 @@ namespace Firelink
         (void)data_size;
         auto file_count = r.Read<std::int32_t>();
         r.Read<std::uint8_t>(); // platform (already peeked)
-        auto tpf_flags = r.Read<std::uint8_t>();
-        auto encoding_type = r.Read<std::uint8_t>();
+        this->tpf_flags = r.Read<std::uint8_t>();
+        this->encoding_type = r.Read<std::uint8_t>();
         r.Skip(1); // pad
 
         bool unicode_encoding = (encoding_type == 1);
 
-        TPF tpf;
-        tpf.platform = platform;
-        tpf.tpf_flags = tpf_flags;
-        tpf.encoding_type = encoding_type;
-        tpf.textures.reserve(file_count);
+        textures.reserve(file_count);
 
         // Texture struct reading.
         struct TextureHeader
@@ -161,12 +144,10 @@ namespace Firelink
             tex.float_struct = std::move(th.float_struct);
 
             // Read stem.
-            tex.stem = unicode_encoding
-                ? ReadUTF16LEString(r, th.stem_offset)
-                : ReadCString(r, th.stem_offset);
+            tex.stem = r.ReadStringAt(th.stem_offset, unicode_encoding);
 
             // Read data.
-            const std::byte* tex_data = data + th.data_offset;
+            const std::byte* tex_data = r.RawAt(th.data_offset);
             auto tex_size = static_cast<std::size_t>(th.data_size);
 
             if (th.texture_flags == 2 || th.texture_flags == 3)
@@ -180,22 +161,13 @@ namespace Firelink
                 tex.data.assign(tex_data, tex_data + tex_size);
             }
 
-            tpf.textures.push_back(std::move(tex));
+            textures.push_back(std::move(tex));
         }
-
-        return tpf;
     }
 
-    // ========================================================================
-    // TPF::ToBytes
-    // ========================================================================
-
-    std::vector<std::byte> TPF::ToBytes() const
+    void TPF::Serialize(BufferWriter& w) const
     {
-        Endian endian = IsBigEndianPlatform(platform) ? Endian::Big : Endian::Little;
-        BufferWriter w(endian);
-
-        bool unicode = (encoding_type == 1);
+        const bool unicode = (encoding_type == 1);
 
         // Header.
         w.WriteRaw("TPF\0", 4);
@@ -267,7 +239,7 @@ namespace Firelink
         }
 
         // Data.
-        auto data_start = w.Position();
+        const auto data_start = w.Position();
         for (std::size_t i = 0; i < textures.size(); ++i)
         {
             const auto& tex = textures[i];
@@ -293,24 +265,18 @@ namespace Firelink
         }
 
         w.Fill<std::int32_t>("data_size", static_cast<std::int32_t>(w.Position() - data_start));
-        return w.Finalize();
     }
 
-    // ========================================================================
-    // Find helpers
-    // ========================================================================
+    Endian TPF::GetEndian() const noexcept
+    {
+        return IsBigEndianPlatform(platform) ? Endian::Big : Endian::Little;
+    }
 
     const TPFTexture* TPF::FindTexture(const std::string& stem) const
     {
-        // Case-insensitive comparison.
-        auto lower = [](const std::string& s) {
-            std::string r = s;
-            std::transform(r.begin(), r.end(), r.begin(), [](unsigned char c) { return std::tolower(c); });
-            return r;
-        };
-        auto target = lower(stem);
+        const auto target = ToLower(stem);
         for (auto& t : textures)
-            if (lower(t.stem) == target) return &t;
+            if (ToLower(t.stem) == target) return &t;
         return nullptr;
     }
 
@@ -320,4 +286,3 @@ namespace Firelink
     }
 
 } // namespace Firelink
-

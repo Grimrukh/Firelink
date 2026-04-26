@@ -28,8 +28,8 @@ namespace Firelink::EldenRing::Maps::MapStudio
 
         static LayerType GetType() { return LayerType::None; }
 
-        void Deserialize(Firelink::BinaryReadWrite::BufferReader& reader) override {}
-        void Serialize(Firelink::BinaryReadWrite::BufferWriter& writer, int supertypeIndex, int subtypeIndex) const override {}
+        void Deserialize(BinaryReadWrite::BufferReader& reader) override {}
+        void Serialize(BinaryReadWrite::BufferWriter& writer, int supertypeIndex, int subtypeIndex) const override {}
 
         explicit operator std::string() const { return "Layer[]"; }
     };

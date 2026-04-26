@@ -10,11 +10,8 @@
 #include <FirelinkERMaps/MapStudio/RouteParam.h>
 
 #include <FirelinkCore/BinaryReadWrite.h>
-#include <FirelinkCore/Endian.h>
 
 #include <cstdint>
-#include <filesystem>
-#include <fstream>
 #include <string>
 #include <vector>
 
@@ -32,9 +29,20 @@ struct MSBHeader
     uint8_t reserved = 255;
 };
 
+size_t MSB::GetEntryCount() const
+{
+    size_t count = 0;
+    count += m_modelParam.GetSize();
+    count += m_eventParam.GetSize();
+    count += m_regionParam.GetSize();
+    count += m_partParam.GetSize();
+    count += m_routeParam.GetSize();
+    return count;
+}
+
 void MSB::ReadHeader(BufferReader& reader)
 {
-    MSBHeader header = reader.Read<MSBHeader>();
+    const auto header = reader.Read<MSBHeader>();
     if (strncmp(header.signature, "MSB ", 4) != 0)
         throw MSBFormatError("Invalid MSB signature.");
     if (header.version != 1)
@@ -86,7 +94,7 @@ void MSB::Deserialize(BufferReader& reader)
 }
 
 // NOTE: Not a `const` method because it updates entry indices from current pointers (and model instance counts, etc.).
-void MSB::Serialize(BufferWriter& writer)
+void MSB::Serialize(BufferWriter& writer) const
 {
     const std::vector<Model*> models = m_modelParam.GetAllEntries();
     const std::vector<Event*> events = m_eventParam.GetAllEntries();
@@ -130,32 +138,6 @@ void MSB::Serialize(BufferWriter& writer)
     writer.Fill<int64_t>(nextLabel, static_cast<int64_t>(0)); // last offset is 0
 
     // Nothing extra at the end of the MSB file.
-}
-
-std::unique_ptr<MSB> MSB::FromPath(const std::filesystem::path& path)
-{
-    auto [reader, dcxType] = GetBufferReaderForDCX(path, Endian::Little);
-    auto msb = std::make_unique<MSB>();
-    msb->Deserialize(reader);
-    msb->m_dcxType = dcxType;
-    return msb;
-}
-
-void MSB::WriteToFilePath(const std::filesystem::path& path)
-{
-    BufferWriter writer;
-    writer.ReserveCapacity(1 << 20); // 1 MB initial capacity for typical MSB
-    Serialize(writer);
-
-    auto data = writer.Finalize();
-
-    // TODO: DCX compression.
-
-    std::ofstream stream(path, std::ios::binary);
-    if (!stream)
-        throw MSBFormatError("Could not open file for writing: " + path.string());
-    stream.write(reinterpret_cast<const char*>(data.data()), static_cast<std::streamsize>(data.size()));
-    stream.close();
 }
 
 void MSB::DeserializeEntryReferences(

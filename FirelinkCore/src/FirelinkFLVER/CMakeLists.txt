@@ -3,9 +3,14 @@ add_library(FirelinkFLVER)
 
 target_sources(FirelinkFLVER
     PRIVATE
+    src/Bone.cpp
+    src/Dummy.cpp
     src/FLVER.cpp
     src/LayoutRepair.cpp
+    src/Material.cpp
     src/MergedMesh.cpp
+    src/Mesh.cpp
+    src/TextureFinder.cpp
     src/Version.cpp
     src/VertexFormats.cpp
 )
@@ -24,6 +29,7 @@ target_sources(FirelinkFLVER
         include/FirelinkFLVER/Math.h
         include/FirelinkFLVER/Mesh.h
         include/FirelinkFLVER/MergedMesh.h
+        include/FirelinkFLVER/TextureFinder.h
         include/FirelinkFLVER/Version.h
         include/FirelinkFLVER/VertexFormats.h
 )
@@ -35,6 +41,6 @@ target_link_libraries(FirelinkFLVER
 )
 
 install(TARGETS FirelinkFLVER
-        EXPORT FirelinkCoreTargets
+        EXPORT FirelinkTargets
         FILE_SET HEADERS
 )

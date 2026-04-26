@@ -73,8 +73,8 @@ namespace Firelink::EldenRing::Maps::MapStudio
             unkC6 = 0;
         }
 
-        void Read(Firelink::BinaryReadWrite::BufferReader& reader);
-        void Write(Firelink::BinaryReadWrite::BufferWriter& writer) const;
+        void Read(BinaryReadWrite::BufferReader& reader);
+        void Write(BinaryReadWrite::BufferWriter& writer) const;
     };
 
     struct FIRELINK_ER_MAPS_API DrawInfo2
@@ -92,8 +92,8 @@ namespace Firelink::EldenRing::Maps::MapStudio
             unk26 = 0;
         }
 
-        void Read(Firelink::BinaryReadWrite::BufferReader& reader);
-        void Write(Firelink::BinaryReadWrite::BufferWriter& writer) const;
+        void Read(BinaryReadWrite::BufferReader& reader);
+        void Write(BinaryReadWrite::BufferWriter& writer) const;
     };
 
     // Used by all Parts except Player Starts and Connect Collisions.
@@ -104,8 +104,8 @@ namespace Firelink::EldenRing::Maps::MapStudio
         int lightScatteringId = 0;
         int environmentMapId = 0;
 
-        void Read(Firelink::BinaryReadWrite::BufferReader& reader);
-        void Write(Firelink::BinaryReadWrite::BufferWriter& writer) const;
+        void Read(BinaryReadWrite::BufferReader& reader);
+        void Write(BinaryReadWrite::BufferWriter& writer) const;
     };
 
     // Only used by Collisions.
@@ -121,8 +121,8 @@ namespace Firelink::EldenRing::Maps::MapStudio
         int8_t unk20 = -1;
         int8_t unk21 = -1;
 
-        void Read(Firelink::BinaryReadWrite::BufferReader& reader);
-        void Write(Firelink::BinaryReadWrite::BufferWriter& writer) const;
+        void Read(BinaryReadWrite::BufferReader& reader);
+        void Write(BinaryReadWrite::BufferWriter& writer) const;
     };
 
     // Only used by Map Pieces and Assets.
@@ -136,16 +136,16 @@ namespace Firelink::EldenRing::Maps::MapStudio
         int unk14 = 0;
         int unk18 = -1;
 
-        void Read(Firelink::BinaryReadWrite::BufferReader& reader);
-        void Write(Firelink::BinaryReadWrite::BufferWriter& writer) const;
+        void Read(BinaryReadWrite::BufferReader& reader);
+        void Write(BinaryReadWrite::BufferWriter& writer) const;
     };
 
     struct FIRELINK_ER_MAPS_API UnkPartStruct8
     {
         int unk00 = 0; // 0 or 1
 
-        void Read(Firelink::BinaryReadWrite::BufferReader& reader);
-        void Write(Firelink::BinaryReadWrite::BufferWriter& writer) const;
+        void Read(BinaryReadWrite::BufferReader& reader);
+        void Write(BinaryReadWrite::BufferWriter& writer) const;
     };
 
     // Only used by Map Pieces.
@@ -153,8 +153,8 @@ namespace Firelink::EldenRing::Maps::MapStudio
     {
         int unk00 = 0;
 
-        void Read(Firelink::BinaryReadWrite::BufferReader& reader);
-        void Write(Firelink::BinaryReadWrite::BufferWriter& writer) const;
+        void Read(BinaryReadWrite::BufferReader& reader);
+        void Write(BinaryReadWrite::BufferWriter& writer) const;
     };
 
     struct FIRELINK_ER_MAPS_API TileLoadConfig
@@ -165,8 +165,8 @@ namespace Firelink::EldenRing::Maps::MapStudio
         int unk10 = 0; // 0 or 1
         int unk14 = -1;
 
-        void Read(Firelink::BinaryReadWrite::BufferReader& reader);
-        void Write(Firelink::BinaryReadWrite::BufferWriter& writer) const;
+        void Read(BinaryReadWrite::BufferReader& reader);
+        void Write(BinaryReadWrite::BufferWriter& writer) const;
     };
 
     // Only used by Map Pieces, Collisions, and Connect Collisions.
@@ -175,8 +175,8 @@ namespace Firelink::EldenRing::Maps::MapStudio
         int unk00 = 0;
         int unk04 = 0;
 
-        void Read(Firelink::BinaryReadWrite::BufferReader& reader);
-        void Write(Firelink::BinaryReadWrite::BufferWriter& writer) const;
+        void Read(BinaryReadWrite::BufferReader& reader);
+        void Write(BinaryReadWrite::BufferWriter& writer) const;
     };
 
     class FIRELINK_ER_MAPS_API Part : public EntityEntry
@@ -229,7 +229,7 @@ namespace Firelink::EldenRing::Maps::MapStudio
         [[nodiscard]] int GetEventLayer() const { return eventLayer; }
         void SetEventLayer(const int eventLayer) { this->eventLayer = eventLayer; }
 
-        [[nodiscard]] std::string GetSibPathUTF8() const { return Firelink::UTF16ToUTF8(m_sibPath); }
+        [[nodiscard]] std::string GetSibPathUTF8() const { return UTF16ToUTF8(m_sibPath); }
 
         // Part data:
         [[nodiscard]] uint8_t GetUnk04() const { return unk04; }
@@ -300,8 +300,8 @@ namespace Firelink::EldenRing::Maps::MapStudio
         [[nodiscard]] int16_t GetUnk3E() const { return unk3E; }
         void SetUnk3E(const int16_t unk3E) { this->unk3E = unk3E; }
 
-        void Deserialize(Firelink::BinaryReadWrite::BufferReader& reader) override;
-        void Serialize(Firelink::BinaryReadWrite::BufferWriter& writer, int supertypeIndex, int subtypeIndex) const override;
+        void Deserialize(BinaryReadWrite::BufferReader& reader) override;
+        void Serialize(BinaryReadWrite::BufferWriter& writer, int supertypeIndex, int subtypeIndex) const override;
 
         virtual void DeserializeEntryReferences(
             const std::vector<Model*>& models, const std::vector<Part*>& parts, const std::vector<Region*>& regions);
@@ -352,19 +352,19 @@ namespace Firelink::EldenRing::Maps::MapStudio
         // Subtypes may define their own fields and some of the above structs.
 
         // Called from inside `DeserializeStructs()` override.
-        void ReadSupertypeData(Firelink::BinaryReadWrite::BufferReader& reader);
+        void ReadSupertypeData(BinaryReadWrite::BufferReader& reader);
         // Called from inside `SerializeStructs()` override.
-        void WriteSupertypeData(Firelink::BinaryReadWrite::BufferWriter& writer) const;
+        void WriteSupertypeData(BinaryReadWrite::BufferWriter& writer) const;
 
         // NOTE: All subclasses have subtype data, even if just padding (Map Pieces, Dummy Assets).
-        virtual bool DeserializeSubtypeData(Firelink::BinaryReadWrite::BufferReader& reader) = 0;
-        virtual bool SerializeSubtypeData(Firelink::BinaryReadWrite::BufferWriter& writer, int supertypeIndex, int subtypeIndex) const = 0;
+        virtual bool DeserializeSubtypeData(BinaryReadWrite::BufferReader& reader) = 0;
+        virtual bool SerializeSubtypeData(BinaryReadWrite::BufferWriter& writer, int supertypeIndex, int subtypeIndex) const = 0;
 
         // Supertype and subtype data structs are also read in here.
         virtual void DeserializeStructs(
-            Firelink::BinaryReadWrite::BufferReader& reader, const PartHeader& header, std::size_t entryStart) = 0;
+            BinaryReadWrite::BufferReader& reader, const PartHeader& header, std::size_t entryStart) = 0;
         virtual void SerializeStructs(
-            Firelink::BinaryReadWrite::BufferWriter& writer,
+            BinaryReadWrite::BufferWriter& writer,
             PartHeader& header,
             std::size_t entryStart,
             const int& supertypeIndex,
@@ -399,16 +399,16 @@ namespace Firelink::EldenRing::Maps::MapStudio
         // No real subtype data.
 
         void DeserializeStructs(
-            Firelink::BinaryReadWrite::BufferReader& reader, const PartHeader& header, std::size_t entryStart) override;
+            BinaryReadWrite::BufferReader& reader, const PartHeader& header, std::size_t entryStart) override;
         void SerializeStructs(
-            Firelink::BinaryReadWrite::BufferWriter& writer,
+            BinaryReadWrite::BufferWriter& writer,
             PartHeader& header,
             std::size_t entryStart,
             const int& supertypeIndex,
             const int& subtypeIndex) const override;
 
-        bool DeserializeSubtypeData(Firelink::BinaryReadWrite::BufferReader& reader) override;
-        bool SerializeSubtypeData(Firelink::BinaryReadWrite::BufferWriter& writer, int supertypeIndex, int subtypeIndex) const override;
+        bool DeserializeSubtypeData(BinaryReadWrite::BufferReader& reader) override;
+        bool SerializeSubtypeData(BinaryReadWrite::BufferWriter& writer, int supertypeIndex, int subtypeIndex) const override;
     };
 
     class FIRELINK_ER_MAPS_API CharacterPart : public Part
@@ -524,16 +524,16 @@ namespace Firelink::EldenRing::Maps::MapStudio
         float sUnk84 = 1.0f;
 
         void DeserializeStructs(
-            Firelink::BinaryReadWrite::BufferReader& reader, const PartHeader& header, std::size_t entryStart) override;
+            BinaryReadWrite::BufferReader& reader, const PartHeader& header, std::size_t entryStart) override;
         void SerializeStructs(
-            Firelink::BinaryReadWrite::BufferWriter& writer,
+            BinaryReadWrite::BufferWriter& writer,
             PartHeader& header,
             std::size_t entryStart,
             const int& supertypeIndex,
             const int& subtypeIndex) const override;
 
-        bool DeserializeSubtypeData(Firelink::BinaryReadWrite::BufferReader& reader) override;
-        bool SerializeSubtypeData(Firelink::BinaryReadWrite::BufferWriter& writer, int supertypeIndex, int subtypeIndex) const override;
+        bool DeserializeSubtypeData(BinaryReadWrite::BufferReader& reader) override;
+        bool SerializeSubtypeData(BinaryReadWrite::BufferWriter& writer, int supertypeIndex, int subtypeIndex) const override;
     };
 
     class FIRELINK_ER_MAPS_API PlayerStartPart final : public Part
@@ -542,16 +542,16 @@ namespace Firelink::EldenRing::Maps::MapStudio
         int sUnk00 = 0;
 
         void DeserializeStructs(
-            Firelink::BinaryReadWrite::BufferReader& reader, const PartHeader& header, std::size_t entryStart) override;
+            BinaryReadWrite::BufferReader& reader, const PartHeader& header, std::size_t entryStart) override;
         void SerializeStructs(
-            Firelink::BinaryReadWrite::BufferWriter& writer,
+            BinaryReadWrite::BufferWriter& writer,
             PartHeader& header,
             std::size_t entryStart,
             const int& supertypeIndex,
             const int& subtypeIndex) const override;
 
-        bool DeserializeSubtypeData(Firelink::BinaryReadWrite::BufferReader& reader) override;
-        bool SerializeSubtypeData(Firelink::BinaryReadWrite::BufferWriter& writer, int supertypeIndex, int subtypeIndex) const override;
+        bool DeserializeSubtypeData(BinaryReadWrite::BufferReader& reader) override;
+        bool SerializeSubtypeData(BinaryReadWrite::BufferWriter& writer, int supertypeIndex, int subtypeIndex) const override;
 
     public:
         static constexpr auto Type = PartType::PlayerStart;
@@ -600,16 +600,16 @@ namespace Firelink::EldenRing::Maps::MapStudio
         int16_t sUnk4E = -1;
 
         void DeserializeStructs(
-            Firelink::BinaryReadWrite::BufferReader& reader, const PartHeader& header, std::size_t entryStart) override;
+            BinaryReadWrite::BufferReader& reader, const PartHeader& header, std::size_t entryStart) override;
         void SerializeStructs(
-            Firelink::BinaryReadWrite::BufferWriter& writer,
+            BinaryReadWrite::BufferWriter& writer,
             PartHeader& header,
             std::size_t entryStart,
             const int& supertypeIndex,
             const int& subtypeIndex) const override;
 
-        bool DeserializeSubtypeData(Firelink::BinaryReadWrite::BufferReader& reader) override;
-        bool SerializeSubtypeData(Firelink::BinaryReadWrite::BufferWriter& writer, int supertypeIndex, int subtypeIndex) const override;
+        bool DeserializeSubtypeData(BinaryReadWrite::BufferReader& reader) override;
+        bool SerializeSubtypeData(BinaryReadWrite::BufferWriter& writer, int supertypeIndex, int subtypeIndex) const override;
 
     public:
         static constexpr auto Type = PartType::Collision;
@@ -708,16 +708,16 @@ namespace Firelink::EldenRing::Maps::MapStudio
         TileLoadConfig tileLoadConfig{};
 
         void DeserializeStructs(
-            Firelink::BinaryReadWrite::BufferReader& reader, const PartHeader& header, std::size_t entryStart) override;
+            BinaryReadWrite::BufferReader& reader, const PartHeader& header, std::size_t entryStart) override;
         void SerializeStructs(
-            Firelink::BinaryReadWrite::BufferWriter& writer,
+            BinaryReadWrite::BufferWriter& writer,
             PartHeader& header,
             std::size_t entryStart,
             const int& supertypeIndex,
             const int& subtypeIndex) const override;
 
-        bool DeserializeSubtypeData(Firelink::BinaryReadWrite::BufferReader& reader) override;
-        bool SerializeSubtypeData(Firelink::BinaryReadWrite::BufferWriter& writer, int supertypeIndex, int subtypeIndex) const override;
+        bool DeserializeSubtypeData(BinaryReadWrite::BufferReader& reader) override;
+        bool SerializeSubtypeData(BinaryReadWrite::BufferWriter& writer, int supertypeIndex, int subtypeIndex) const override;
     };
 
     // May still be used in cutscenes.
@@ -749,16 +749,16 @@ namespace Firelink::EldenRing::Maps::MapStudio
         bool sUnk0B = false;
 
         void DeserializeStructs(
-            Firelink::BinaryReadWrite::BufferReader& reader, const PartHeader& header, std::size_t entryStart) override;
+            BinaryReadWrite::BufferReader& reader, const PartHeader& header, std::size_t entryStart) override;
         void SerializeStructs(
-            Firelink::BinaryReadWrite::BufferWriter& writer,
+            BinaryReadWrite::BufferWriter& writer,
             PartHeader& header,
             std::size_t entryStart,
             const int& supertypeIndex,
             const int& subtypeIndex) const override;
 
-        bool DeserializeSubtypeData(Firelink::BinaryReadWrite::BufferReader& reader) override;
-        bool SerializeSubtypeData(Firelink::BinaryReadWrite::BufferWriter& writer, int supertypeIndex, int subtypeIndex) const override;
+        bool DeserializeSubtypeData(BinaryReadWrite::BufferReader& reader) override;
+        bool SerializeSubtypeData(BinaryReadWrite::BufferWriter& writer, int supertypeIndex, int subtypeIndex) const override;
 
     public:
         static constexpr auto Type = PartType::ConnectCollision;
@@ -817,8 +817,8 @@ namespace Firelink::EldenRing::Maps::MapStudio
         int unk28 = -1;
         int unk2C = -1;
 
-        void Read(Firelink::BinaryReadWrite::BufferReader& reader);
-        void Write(Firelink::BinaryReadWrite::BufferWriter& writer) const;
+        void Read(BinaryReadWrite::BufferReader& reader);
+        void Write(BinaryReadWrite::BufferWriter& writer) const;
     };
 
     struct FIRELINK_ER_MAPS_API ExtraAssetData2
@@ -831,8 +831,8 @@ namespace Firelink::EldenRing::Maps::MapStudio
         uint8_t unk1E = 255;
         uint8_t unk1F = 255;
 
-        void Read(Firelink::BinaryReadWrite::BufferReader& reader);
-        void Write(Firelink::BinaryReadWrite::BufferWriter& writer) const;
+        void Read(BinaryReadWrite::BufferReader& reader);
+        void Write(BinaryReadWrite::BufferWriter& writer) const;
     };
 
     struct FIRELINK_ER_MAPS_API ExtraAssetData3
@@ -852,8 +852,8 @@ namespace Firelink::EldenRing::Maps::MapStudio
         uint8_t unk24 = 255;
         bool unk25 = false;
 
-        void Read(Firelink::BinaryReadWrite::BufferReader& reader);
-        void Write(Firelink::BinaryReadWrite::BufferWriter& writer) const;
+        void Read(BinaryReadWrite::BufferReader& reader);
+        void Write(BinaryReadWrite::BufferWriter& writer) const;
     };
 
     struct FIRELINK_ER_MAPS_API ExtraAssetData4
@@ -863,8 +863,8 @@ namespace Firelink::EldenRing::Maps::MapStudio
         uint8_t unk02 = 255;
         bool unk03 = false;
 
-        void Read(Firelink::BinaryReadWrite::BufferReader& reader);
-        void Write(Firelink::BinaryReadWrite::BufferWriter& writer) const;
+        void Read(BinaryReadWrite::BufferReader& reader);
+        void Write(BinaryReadWrite::BufferWriter& writer) const;
     };
 
     class FIRELINK_ER_MAPS_API AssetPart final : public Part
@@ -994,15 +994,15 @@ namespace Firelink::EldenRing::Maps::MapStudio
         int sUnk64 = -1;
 
         void DeserializeStructs(
-            Firelink::BinaryReadWrite::BufferReader& reader, const PartHeader& header, std::size_t entryStart) override;
+            BinaryReadWrite::BufferReader& reader, const PartHeader& header, std::size_t entryStart) override;
         void SerializeStructs(
-            Firelink::BinaryReadWrite::BufferWriter& writer,
+            BinaryReadWrite::BufferWriter& writer,
             PartHeader& header,
             std::size_t entryStart,
             const int& supertypeIndex,
             const int& subtypeIndex) const override;
 
-        bool DeserializeSubtypeData(Firelink::BinaryReadWrite::BufferReader& reader) override;
-        bool SerializeSubtypeData(Firelink::BinaryReadWrite::BufferWriter& writer, int supertypeIndex, int subtypeIndex) const override;
+        bool DeserializeSubtypeData(BinaryReadWrite::BufferReader& reader) override;
+        bool SerializeSubtypeData(BinaryReadWrite::BufferWriter& writer, int supertypeIndex, int subtypeIndex) const override;
     };
 } // namespace Firelink::EldenRing::Maps::MapStudio

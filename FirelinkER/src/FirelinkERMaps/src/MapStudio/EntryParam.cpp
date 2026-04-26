@@ -117,7 +117,7 @@ std::vector<T*> EntryParam<T>::Deserialize(BufferReader& reader)
 }
 
 template <typename T>
-std::string EntryParam<T>::Serialize(BufferWriter& writer)
+std::string EntryParam<T>::Serialize(BufferWriter& writer) const
 {
     static_assert(std::is_base_of_v<Entry, T>, "EntryParam type must be an `Entry` subclass.");
     const size_t entryCount = GetSize();

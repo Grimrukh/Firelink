@@ -90,7 +90,7 @@ static void bind_shapes(py::module_& m)
         .def_property("radius", &Cylinder::GetRadius, &Cylinder::SetRadius)
         .def_property("height", &Cylinder::GetHeight, &Cylinder::SetHeight);
 
-    py::class_<Firelink::EldenRing::Maps::MapStudio::Rectangle, Shape>(m, "RectangleShape")
+    py::class_<EldenRing::Maps::MapStudio::Rectangle, Shape>(m, "RectangleShape")
         .def(py::init<>())
         .def(py::init<float, float>(), py::arg("width"), py::arg("depth"))
         .def_property("width", &Rectangle::GetWidth, &Rectangle::SetWidth)
@@ -250,7 +250,7 @@ static void bind_part_structs(py::module_& m)
 // Module definition
 // ============================================================================
 
-PYBIND11_MODULE(_pyrelink_er_maps, m)
+PYBIND11_MODULE(_bindings, m)
 {
     m.doc() = "C++ Elden Ring MSB (MapStudio) bindings";
 
@@ -356,21 +356,6 @@ PYBIND11_MODULE(_pyrelink_er_maps, m)
         .value("Default", HorseRideOverrideRegion::HorseRideOverrideType::Default)
         .value("Prevent", HorseRideOverrideRegion::HorseRideOverrideType::Prevent)
         .value("Allow", HorseRideOverrideRegion::HorseRideOverrideType::Allow);
-
-    py::enum_<Firelink::DCXType>(m, "DCXType")
-        .value("Unknown", Firelink::DCXType::Unknown)
-        .value("Null", Firelink::DCXType::Null)
-        .value("Zlib", Firelink::DCXType::Zlib)
-        .value("DCP_EDGE", Firelink::DCXType::DCP_EDGE)
-        .value("DCP_DFLT", Firelink::DCXType::DCP_DFLT)
-        .value("DCX_EDGE", Firelink::DCXType::DCX_EDGE)
-        .value("DCX_DFLT_10000_24_9", Firelink::DCXType::DCX_DFLT_10000_24_9)
-        .value("DCX_DFLT_10000_44_9", Firelink::DCXType::DCX_DFLT_10000_44_9)
-        .value("DCX_DFLT_11000_44_8", Firelink::DCXType::DCX_DFLT_11000_44_8)
-        .value("DCX_DFLT_11000_44_9", Firelink::DCXType::DCX_DFLT_11000_44_9)
-        .value("DCX_DFLT_11000_44_9_15", Firelink::DCXType::DCX_DFLT_11000_44_9_15)
-        .value("DCX_KRAK", Firelink::DCXType::DCX_KRAK)
-        .value("DCX_ZSTD", Firelink::DCXType::DCX_ZSTD);
 
     // ====================================================================
     // MODELS
@@ -1308,7 +1293,7 @@ PYBIND11_MODULE(_pyrelink_er_maps, m)
             const auto* raw_data = reinterpret_cast<const std::byte*>(raw_str.data());
             const std::size_t raw_size = raw_str.size();
 
-            std::unique_ptr<MSB> msb;
+            MSB::Ptr msb;
             {
                 py::gil_scoped_release release;
 
@@ -1343,7 +1328,7 @@ PYBIND11_MODULE(_pyrelink_er_maps, m)
                 py::gil_scoped_release release;
 
                 auto temp_path = std::filesystem::temp_directory_path() / "firelink_msb_to_bytes.msb";
-                self.WriteToFilePath(temp_path);
+                self.WriteToPath(temp_path);
 
                 std::vector<std::byte> raw = BinaryReadWrite::ReadFileBytes(temp_path.string());
                 std::filesystem::remove(temp_path);
@@ -1394,18 +1379,18 @@ PYBIND11_MODULE(_pyrelink_er_maps, m)
 
         .def("write_to_path", [](MSB& self, const py::object& path_obj, int dcx_type) {
             py::object os = py::module_::import("os");
-            std::string path_str = os.attr("fspath")(path_obj).cast<std::string>();
+            auto path_str = os.attr("fspath")(path_obj).cast<std::string>();
 
             py::gil_scoped_release release;
 
             if (dcx_type == 0)
             {
-                self.WriteToFilePath(path_str);
+                self.WriteToPath(path_str);
             }
             else
             {
                 auto temp_path = std::filesystem::temp_directory_path() / "firelink_msb_temp_write.msb";
-                self.WriteToFilePath(temp_path);
+                self.WriteToPath(temp_path);
 
                 std::vector<std::byte> raw = BinaryReadWrite::ReadFileBytes(temp_path.string());
                 std::filesystem::remove(temp_path);

@@ -1,8 +1,7 @@
 // Vertex format table + codec implementations.
 //
 // This is the authoritative table mapping (VertexUsage, VertexDataFormatEnum)
-// pairs to their compressed/decompressed layouts and codecs. It replaces the
-// per-subclass `formats` dicts in src/soulstruct/flver/vertex_array_layout.py.
+// pairs to their compressed/decompressed layouts and codecs.
 
 #include <FirelinkFLVER/VertexFormats.h>
 
@@ -29,9 +28,9 @@ namespace Firelink
         // Helper: make a single-field VertexFormatInfo.
         constexpr VertexFormatInfo single(
             const char* name,
-            VertexScalarType cs, std::uint8_t cc,
-            VertexScalarType ds, std::uint8_t dc,
-            VertexCodec codec)
+            const VertexScalarType cs, const std::uint8_t cc,
+            const VertexScalarType ds, const std::uint8_t dc,
+            const VertexCodec codec)
         {
             VertexFormatInfo fi{};
             fi.field_count = 1;
@@ -41,10 +40,10 @@ namespace Firelink
 
         // Helper: make a two-field VertexFormatInfo.
         constexpr VertexFormatInfo dual(
-            const char* n0, VertexScalarType cs0, std::uint8_t cc0, VertexScalarType ds0, std::uint8_t dc0,
-            VertexCodec codec0,
-            const char* n1, VertexScalarType cs1, std::uint8_t cc1, VertexScalarType ds1, std::uint8_t dc1,
-            VertexCodec codec1)
+            const char* n0, const VertexScalarType cs0, const std::uint8_t cc0, const VertexScalarType ds0, const std::uint8_t dc0,
+            const VertexCodec codec0,
+            const char* n1, const VertexScalarType cs1, const std::uint8_t cc1, const VertexScalarType ds1, const std::uint8_t dc1,
+            const VertexCodec codec1)
         {
             VertexFormatInfo fi{};
             fi.field_count = 2;
@@ -132,21 +131,7 @@ namespace Firelink
 
             // 0x12 (NormalWFirst): 1 unsigned byte (normal_w) + 3 signed bytes (normal)
             //   normal_w is FIRST on disk, normal second. Codec on normal is (val / 127.0).
-            //   Python uses INT_TO_FLOAT_127_SIGNED on the signed bytes: actually the signed bytes
-            //   represent -1..1 directly when divided by 127 (no offset subtraction needed since
-            //   they're already signed). But Python uses NULL_CODEC for normal_w (kept as U8).
-            //   Wait, looking again: Python source says codec=(NULL_CODEC, INT_TO_FLOAT_127_SIGNED)
-            //   with compressed_dtype [("normal_w", "B", (1,)), ("normal", "b", (3,))].
-            //   "b" = signed byte. INT_TO_FLOAT_127_SIGNED = (val - 127) / 127.
-            //   Hmm, but the input is already a signed byte (-128..127). So (val-127)/127 would
-            //   give values from (-255)/127 to 0/127. That seems wrong for a signed type.
-            //   Actually checking Python: the name says "SIGNED" but the formula is
-            //   (i - 127.0) / 127.0 applied to numpy "b" (int8). That gives range
-            //   (-128-127)/127=-2.0 to (127-127)/127=0.0. That's clearly the same codec
-            //   applied to unsigned data in the normal 0x10 path: U8 val 0->(-127/127)=-1,
-            //   U8 val 127->0, U8 val 254->1. For signed data it's just bizarre.
-            //   Looking at SoulsFormats: for 0x12 it reads normal_w as byte, then 3 bytes for normal
-            //   and divides by 127. Let me just match Python exactly.
+            // TODO: Double check this one is correct.
             {
                 VertexUsage::Normal, Fmt::FourBytesD_NormalW, dual(
                     "normal_w", S::U8, 1, S::U8, 1, C::Identity,
@@ -229,24 +214,22 @@ namespace Firelink
             // 0x13: same
             {VertexUsage::Color, Fmt::FourBytesC, single("color", S::U8, 4, S::F32, 4, C::IntTo255Float)},
         };
-
-        constexpr std::size_t kTableSize = sizeof(kTable) / sizeof(kTable[0]);
     } // namespace
 
     std::optional<VertexFormatInfo>
-    FindVertexFormatInfo(VertexUsage usage, VertexDataFormatEnum format) noexcept
+    FindVertexFormatInfo(const VertexUsage usage, const VertexDataFormatEnum format) noexcept
     {
-        for (std::size_t i = 0; i < kTableSize; ++i)
+        for (const auto& tableEntry : kTable)
         {
-            if (kTable[i].usage == usage && kTable[i].format == format)
+            if (tableEntry.usage == usage && tableEntry.format == format)
             {
-                return kTable[i].info;
+                return tableEntry.info;
             }
         }
         return std::nullopt;
     }
 
-    std::uint32_t FormatEnumSize(VertexDataFormatEnum format) noexcept
+    std::uint32_t FormatEnumSize(const VertexDataFormatEnum format) noexcept
     {
         switch (format)
         {
@@ -294,9 +277,9 @@ namespace Firelink
         template <typename SrcT, typename DstT, typename Func>
         void decompress_loop(
             const std::byte* src, std::byte* dst,
-            std::size_t vertex_count,
-            std::size_t compressed_stride, std::size_t compressed_offset,
-            std::uint8_t component_count, Func fn)
+            const std::size_t vertex_count,
+            const std::size_t compressed_stride, const std::size_t compressed_offset,
+            const std::uint8_t component_count, Func fn)
         {
             const std::size_t src_elem = sizeof(SrcT);
             const std::size_t dst_elem = sizeof(DstT);
@@ -317,9 +300,9 @@ namespace Firelink
         template <typename SrcT, typename DstT, typename Func>
         void compress_loop(
             const std::byte* src, std::byte* dst,
-            std::size_t vertex_count,
-            std::size_t compressed_stride, std::size_t compressed_offset,
-            std::uint8_t component_count, Func fn)
+            const std::size_t vertex_count,
+            const std::size_t compressed_stride, const std::size_t compressed_offset,
+            const std::uint8_t component_count, Func fn)
         {
             const std::size_t src_elem = sizeof(SrcT);
             const std::size_t dst_elem = sizeof(DstT);
@@ -340,8 +323,8 @@ namespace Firelink
         void identity_decompress(
             const VertexFieldSpec& spec,
             const std::byte* src, std::byte* dst,
-            std::size_t vertex_count,
-            std::size_t compressed_stride, std::size_t compressed_offset)
+            const std::size_t vertex_count,
+            const std::size_t compressed_stride, const std::size_t compressed_offset)
         {
             const std::size_t bytes = spec.GetCompressedSize();
             for (std::size_t v = 0; v < vertex_count; ++v)
@@ -356,8 +339,8 @@ namespace Firelink
         void identity_compress(
             const VertexFieldSpec& spec,
             const std::byte* src, std::byte* dst,
-            std::size_t vertex_count,
-            std::size_t compressed_stride, std::size_t compressed_offset)
+            const std::size_t vertex_count,
+            const std::size_t compressed_stride, const std::size_t compressed_offset)
         {
             const std::size_t bytes = spec.GetCompressedSize();
             for (std::size_t v = 0; v < vertex_count; ++v)
@@ -374,9 +357,9 @@ namespace Firelink
         const VertexFieldSpec& spec,
         const std::byte* src,
         std::byte* dst,
-        std::size_t vertex_count,
-        std::size_t compressed_stride,
-        std::size_t compressed_offset,
+        const std::size_t vertex_count,
+        const std::size_t compressed_stride,
+        const std::size_t compressed_offset,
         float uv_factor)
     {
         const auto cc = spec.compressed_count;
@@ -393,13 +376,13 @@ namespace Firelink
             {
                 decompress_loop<std::uint8_t, std::int32_t>(
                     src, dst, vertex_count, compressed_stride, compressed_offset, cc,
-                    [](std::uint8_t v) -> std::int32_t { return static_cast<std::int32_t>(v); });
+                    [](const std::uint8_t v) -> std::int32_t { return static_cast<std::int32_t>(v); });
             }
             else if (spec.compressed_scalar == S::S16 && spec.decompressed_scalar == S::S32)
             {
                 decompress_loop<std::int16_t, std::int32_t>(
                     src, dst, vertex_count, compressed_stride, compressed_offset, cc,
-                    [](std::int16_t v) -> std::int32_t { return static_cast<std::int32_t>(v); });
+                    [](const std::int16_t v) -> std::int32_t { return static_cast<std::int32_t>(v); });
             }
             else
             {
@@ -412,13 +395,13 @@ namespace Firelink
             {
                 decompress_loop<std::int8_t, float>(
                     src, dst, vertex_count, compressed_stride, compressed_offset, cc,
-                    [](std::int8_t v) -> float { return static_cast<float>(v) / 127.0f; });
+                    [](const std::int8_t v) -> float { return static_cast<float>(v) / 127.0f; });
             }
             else if (spec.compressed_scalar == S::U8)
             {
                 decompress_loop<std::uint8_t, float>(
                     src, dst, vertex_count, compressed_stride, compressed_offset, cc,
-                    [](std::uint8_t v) -> float { return static_cast<float>(v) / 127.0f; });
+                    [](const std::uint8_t v) -> float { return static_cast<float>(v) / 127.0f; });
             }
             else
             {
@@ -431,7 +414,7 @@ namespace Firelink
             {
                 decompress_loop<std::uint8_t, float>(
                     src, dst, vertex_count, compressed_stride, compressed_offset, cc,
-                    [](std::uint8_t v) -> float { return static_cast<float>(v) / 255.0f; });
+                    [](const std::uint8_t v) -> float { return static_cast<float>(v) / 255.0f; });
             }
             else
             {
@@ -444,7 +427,7 @@ namespace Firelink
             {
                 decompress_loop<std::int16_t, float>(
                     src, dst, vertex_count, compressed_stride, compressed_offset, cc,
-                    [](std::int16_t v) -> float { return static_cast<float>(v) / 32767.0f; });
+                    [](const std::int16_t v) -> float { return static_cast<float>(v) / 32767.0f; });
             }
             else
             {
@@ -458,13 +441,13 @@ namespace Firelink
             {
                 decompress_loop<std::uint8_t, float>(
                     src, dst, vertex_count, compressed_stride, compressed_offset, cc,
-                    [](std::uint8_t v) -> float { return (static_cast<float>(v) - 127.0f) / 127.0f; });
+                    [](const std::uint8_t v) -> float { return (static_cast<float>(v) - 127.0f) / 127.0f; });
             }
             else if (spec.compressed_scalar == S::S8)
             {
                 decompress_loop<std::int8_t, float>(
                     src, dst, vertex_count, compressed_stride, compressed_offset, cc,
-                    [](std::int8_t v) -> float { return (static_cast<float>(v) - 127.0f) / 127.0f; });
+                    [](const std::int8_t v) -> float { return (static_cast<float>(v) - 127.0f) / 127.0f; });
             }
             else
             {
@@ -477,7 +460,7 @@ namespace Firelink
             {
                 decompress_loop<std::uint8_t, float>(
                     src, dst, vertex_count, compressed_stride, compressed_offset, cc,
-                    [](std::uint8_t v) -> float { return (static_cast<float>(v) - 255.0f) / 255.0f; });
+                    [](const std::uint8_t v) -> float { return (static_cast<float>(v) - 255.0f) / 255.0f; });
             }
             else
             {
@@ -491,13 +474,13 @@ namespace Firelink
             {
                 decompress_loop<std::int16_t, float>(
                     src, dst, vertex_count, compressed_stride, compressed_offset, cc,
-                    [](std::int16_t v) -> float { return (static_cast<float>(v) - 32767.0f) / 32767.0f; });
+                    [](const std::int16_t v) -> float { return (static_cast<float>(v) - 32767.0f) / 32767.0f; });
             }
             else if (spec.compressed_scalar == S::U16)
             {
                 decompress_loop<std::uint16_t, float>(
                     src, dst, vertex_count, compressed_stride, compressed_offset, cc,
-                    [](std::uint16_t v) -> float { return (static_cast<float>(v) - 32767.0f) / 32767.0f; });
+                    [](const std::uint16_t v) -> float { return (static_cast<float>(v) - 32767.0f) / 32767.0f; });
             }
             else
             {
@@ -510,7 +493,7 @@ namespace Firelink
             {
                 decompress_loop<std::int16_t, float>(
                     src, dst, vertex_count, compressed_stride, compressed_offset, cc,
-                    [uv_factor](std::int16_t v) -> float { return static_cast<float>(v) / uv_factor; });
+                    [uv_factor](const std::int16_t v) -> float { return static_cast<float>(v) / uv_factor; });
             }
             else
             {
@@ -525,9 +508,9 @@ namespace Firelink
         const VertexFieldSpec& spec,
         const std::byte* src,
         std::byte* dst,
-        std::size_t vertex_count,
-        std::size_t compressed_stride,
-        std::size_t compressed_offset,
+        const std::size_t vertex_count,
+        const std::size_t compressed_stride,
+        const std::size_t compressed_offset,
         float uv_factor)
     {
         const auto cc = spec.compressed_count;
@@ -543,13 +526,13 @@ namespace Firelink
             {
                 compress_loop<std::int32_t, std::uint8_t>(
                     src, dst, vertex_count, compressed_stride, compressed_offset, cc,
-                    [](std::int32_t v) -> std::uint8_t { return static_cast<std::uint8_t>(v); });
+                    [](const std::int32_t v) -> std::uint8_t { return static_cast<std::uint8_t>(v); });
             }
             else if (spec.compressed_scalar == S::S16 && spec.decompressed_scalar == S::S32)
             {
                 compress_loop<std::int32_t, std::int16_t>(
                     src, dst, vertex_count, compressed_stride, compressed_offset, cc,
-                    [](std::int32_t v) -> std::int16_t { return static_cast<std::int16_t>(v); });
+                    [](const std::int32_t v) -> std::int16_t { return static_cast<std::int16_t>(v); });
             }
             else
             {
@@ -562,13 +545,13 @@ namespace Firelink
             {
                 compress_loop<float, std::int8_t>(
                     src, dst, vertex_count, compressed_stride, compressed_offset, cc,
-                    [](float v) -> std::int8_t { return static_cast<std::int8_t>(std::round(v * 127.0f)); });
+                    [](const float v) -> std::int8_t { return static_cast<std::int8_t>(std::round(v * 127.0f)); });
             }
             else if (spec.compressed_scalar == S::U8)
             {
                 compress_loop<float, std::uint8_t>(
                     src, dst, vertex_count, compressed_stride, compressed_offset, cc,
-                    [](float v) -> std::uint8_t { return static_cast<std::uint8_t>(std::round(v * 127.0f)); });
+                    [](const float v) -> std::uint8_t { return static_cast<std::uint8_t>(std::round(v * 127.0f)); });
             }
             else
             {
@@ -579,13 +562,13 @@ namespace Firelink
         case VertexCodec::IntTo255Float:
             compress_loop<float, std::uint8_t>(
                 src, dst, vertex_count, compressed_stride, compressed_offset, cc,
-                [](float v) -> std::uint8_t { return static_cast<std::uint8_t>(std::round(v * 255.0f)); });
+                [](const float v) -> std::uint8_t { return static_cast<std::uint8_t>(std::round(v * 255.0f)); });
             return;
 
         case VertexCodec::IntTo32767Float:
             compress_loop<float, std::int16_t>(
                 src, dst, vertex_count, compressed_stride, compressed_offset, cc,
-                [](float v) -> std::int16_t { return static_cast<std::int16_t>(std::round(v * 32767.0f)); });
+                [](const float v) -> std::int16_t { return static_cast<std::int16_t>(std::round(v * 32767.0f)); });
             return;
 
         case VertexCodec::SignedIntTo127Float:
@@ -593,13 +576,13 @@ namespace Firelink
             {
                 compress_loop<float, std::uint8_t>(
                     src, dst, vertex_count, compressed_stride, compressed_offset, cc,
-                    [](float v) -> std::uint8_t { return static_cast<std::uint8_t>(std::round(v * 127.0f + 127.0f)); });
+                    [](const float v) -> std::uint8_t { return static_cast<std::uint8_t>(std::round(v * 127.0f + 127.0f)); });
             }
             else if (spec.compressed_scalar == S::S8)
             {
                 compress_loop<float, std::int8_t>(
                     src, dst, vertex_count, compressed_stride, compressed_offset, cc,
-                    [](float v) -> std::int8_t { return static_cast<std::int8_t>(std::round(v * 127.0f + 127.0f)); });
+                    [](const float v) -> std::int8_t { return static_cast<std::int8_t>(std::round(v * 127.0f + 127.0f)); });
             }
             else
             {
@@ -610,7 +593,7 @@ namespace Firelink
         case VertexCodec::SignedIntTo255Float:
             compress_loop<float, std::uint8_t>(
                 src, dst, vertex_count, compressed_stride, compressed_offset, cc,
-                [](float v) -> std::uint8_t { return static_cast<std::uint8_t>(std::round(v * 255.0f + 255.0f)); });
+                [](const float v) -> std::uint8_t { return static_cast<std::uint8_t>(std::round(v * 255.0f + 255.0f)); });
             return;
 
         case VertexCodec::SignedIntTo32767Float:
@@ -618,7 +601,7 @@ namespace Firelink
             {
                 compress_loop<float, std::int16_t>(
                     src, dst, vertex_count, compressed_stride, compressed_offset, cc,
-                    [](float v) -> std::int16_t
+                    [](const float v) -> std::int16_t
                     {
                         return static_cast<std::int16_t>(std::round(v * 32767.0f + 32767.0f));
                     });
@@ -627,7 +610,7 @@ namespace Firelink
             {
                 compress_loop<float, std::uint16_t>(
                     src, dst, vertex_count, compressed_stride, compressed_offset, cc,
-                    [](float v) -> std::uint16_t
+                    [](const float v) -> std::uint16_t
                     {
                         return static_cast<std::uint16_t>(std::round(v * 32767.0f + 32767.0f));
                     });
@@ -641,7 +624,7 @@ namespace Firelink
         case VertexCodec::UvFactor:
             compress_loop<float, std::int16_t>(
                 src, dst, vertex_count, compressed_stride, compressed_offset, cc,
-                [uv_factor](float v) -> std::int16_t { return static_cast<std::int16_t>(std::round(v * uv_factor)); });
+                [uv_factor](const float v) -> std::int16_t { return static_cast<std::int16_t>(std::round(v * uv_factor)); });
             return;
         }
         throw FLVERError("compress_field: unknown codec");

@@ -28,15 +28,15 @@
 #include <FirelinkFLVER/Bone.h>
 #include <FirelinkFLVER/Dummy.h>
 #include <FirelinkFLVER/Export.h>
+#include <FirelinkFLVER/MergedMesh.h>
 #include <FirelinkFLVER/Mesh.h>
 #include <FirelinkFLVER/Version.h>
 
 #include <FirelinkCore/Collections.h>
-#include <FirelinkCore/DCX.h>
+#include <FirelinkCore/Endian.h>
+#include <FirelinkCore/GameFile.h>
 
-#include <cstddef>
 #include <cstdint>
-#include <filesystem>
 #include <vector>
 
 namespace Firelink
@@ -50,25 +50,10 @@ namespace Firelink
         UTF16BE = 2,
     };
 
-    class FIRELINK_FLVER_API FLVER
+    class FIRELINK_FLVER_API FLVER : public GameFile<FLVER>
     {
     public:
         FLVER() = default;
-
-        // Read a FLVER from an already-decompressed byte buffer. Dispatches on
-        // the detected version (FLVER0 vs FLVER2) inside. Phase 2 implements
-        // FLVER2; Phase 4 adds FLVER0.
-        static FLVER FromBytes(const std::byte* data, std::size_t size);
-
-        // Read a FLVER from a file path. The file is read into memory and
-        // parsed via `FromBytes`. Note that this does NOT handle DCX
-        // decompression — callers that need DCX support should decompress
-        // first (the Python bindings do this automatically).
-        static FLVER FromPath(const std::filesystem::path& path);
-
-        // Serialise to a byte buffer in the format matching `version`. Implemented
-        // in Phase 3 (FLVER2) and Phase 4 (FLVER0).
-        [[nodiscard]] std::vector<std::byte> ToBytes() const;
 
         // --- header-level metadata --------------------------------------------
 
@@ -99,13 +84,33 @@ namespace Firelink
         std::vector<Dummy> dummies;
         std::vector<Mesh> meshes;
 
-        // --- non-serialized properties set by caller -------------------------
+        /// @brief Get endianness of this FLVER.
+        [[nodiscard]] BinaryReadWrite::Endian GetEndian() const noexcept;
 
-        std::filesystem::path path;
-        DCXType dcx_type = DCXType::Null;
+        /// @brief Deserialize FLVER (GameFile).
+        void Deserialize(BinaryReadWrite::BufferReader& r);
+
+        /// @brief Serialize FLVER (GameFile).
+        void Serialize(BinaryReadWrite::BufferWriter& w) const;
+
+        /// @brief Create and cache a Merged Mesh suitable for external model import.
+        MergedMesh GetMergedMesh(
+            const std::vector<std::uint32_t>& meshMaterialIndices = {},
+            const std::vector<std::vector<std::string>>& materialUVLayerNames = {},
+            bool merge_vertices = true);
+
+        /// @brief Clear the cached Merged Mesh for re-computation.
+        void ClearCachedMergedMesh();
 
     private:
-        [[nodiscard]] std::vector<std::byte> ToBytesFLVER0() const;
-        [[nodiscard]] std::vector<std::byte> ToBytesFLVER2() const;
+
+        /// @brief Cached MergedMesh for this FLVER.
+        std::unique_ptr<MergedMesh> m_cachedMergedMesh;
+
+        /// @brief Dispatched serialization for FLVER0.
+        void SerializeFLVER0(BinaryReadWrite::BufferWriter& w) const;
+
+        /// @brief Dispatched serialization for FLVER2.
+        void SerializeFLVER2(BinaryReadWrite::BufferWriter& w) const;
     };
 } // namespace Firelink

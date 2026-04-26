@@ -63,17 +63,17 @@ namespace Firelink::EldenRing::Maps::MapStudio
         /// @brief Read fixed Param header data and create all subtypes entries in their owning `EntrySubParam`s.
         ///
         /// @return List of non-owning pointers to all entries, in order, for reference deserialization.
-        std::vector<T*> Deserialize(Firelink::BinaryReadWrite::BufferReader& reader);
+        std::vector<T*> Deserialize(BinaryReadWrite::BufferReader& reader);
 
         /// @brief Write fixed Param header and all subtype lists, in subtype enum order.
         ///
         /// @return Reservation label for the next entry param offset (caller must fill it).
-        std::string Serialize(Firelink::BinaryReadWrite::BufferWriter& writer);
+        std::string Serialize(BinaryReadWrite::BufferWriter& writer) const;
 
         /// @brief Deserialize and create a new entry of this list's supertype.
         ///
         /// @return A non-owning pointer to the created `Entry`.
-        T* DeserializeEntry(Firelink::BinaryReadWrite::BufferReader& reader);
+        T* DeserializeEntry(BinaryReadWrite::BufferReader& reader);
 
         /// @brief Retrieve non-owning pointers to all entries of all subtypes in MSB order.
         ///
@@ -100,9 +100,9 @@ namespace Firelink::EldenRing::Maps::MapStudio
             using reference = value_type&;
 
             Iterator(
-                std::vector<int>::const_iterator keyIt,
+                const std::vector<int>::const_iterator keyIt,
                 std::unordered_map<int, std::vector<std::unique_ptr<T>>>& container)
-            : m_keyIt(std::move(keyIt))
+            : m_keyIt(keyIt)
             , m_container(container)
             {
             }

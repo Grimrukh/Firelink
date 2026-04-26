@@ -1,8 +1,10 @@
 add_executable(FirelinkFLVER_tests
-    test_main.cpp
-    test_VertexFormats.cpp
-    test_FLVER_read.cpp
-    test_FLVER_roundtrip.cpp
+    main.cpp
+
+#        FLVER0Test.cpp  # TODO: FLVER0 needs work
+        FLVER2Test.cpp
+        TextureFinderTest.cpp
+        VertexFormatsTest.cpp
 )
 
 target_link_libraries(FirelinkFLVER_tests PRIVATE

@@ -477,7 +477,7 @@ namespace Firelink::BinaryReadWrite
         }
 
         /// @brief Get a BufferReader with its own managed storage.
-        explicit BufferReader(std::vector<std::byte>&& storage, const Endian endian = Endian::Little);
+        explicit BufferReader(std::vector<std::byte>&& storage, Endian endian = Endian::Little);
 
         /// @brief Get a BufferReader from a file path with its own managed storage.
         explicit BufferReader(const std::filesystem::path& part, Endian endian = Endian::Little);
@@ -536,6 +536,27 @@ namespace Firelink::BinaryReadWrite
             return value;
         }
 
+        /// @brief Read a trivially-copyable value, byte-swapping if big-endian.
+        /// For scalars and small uniform-width POD structs. For mixed-width
+        /// structs, read each field individually so the swap is per-field.
+        template <typename T>
+            requires std::is_trivially_copyable_v<T>
+        T ReadAt(const std::size_t offset)
+        {
+            if (offset + sizeof(T) > m_size)
+                throw BinaryReadError("BufferReader::ReadAt past end of buffer");
+            auto guard = TempOffset(offset);
+            T value;
+            std::memcpy(&value, m_data + m_position, sizeof(T));
+            m_position += sizeof(T);
+            if constexpr (PrimitiveType<T>)
+            {
+                if (m_endian == Endian::Big && sizeof(T) > 1)
+                    value = detail::ByteSwap(value);
+            }
+            return value;
+        }
+
         /// @brief Read N elements into a vector (applies per-element endian swap for primitives).
         template <typename T>
             requires std::is_trivially_copyable_v<T>
@@ -550,6 +571,16 @@ namespace Firelink::BinaryReadWrite
         /// @brief Read raw bytes into a destination buffer.
         void ReadRaw(void* dest, const std::size_t count)
         {
+            if (m_position + count > m_size)
+                throw BinaryReadError("BufferReader::ReadRaw past end of buffer");
+            std::memcpy(dest, m_data + m_position, count);
+            m_position += count;
+        }
+
+        /// @brief Read raw bytes at a given offset into a destination buffer.
+        void ReadRawAt(const std::size_t offset, void* dest, const std::size_t count)
+        {
+            auto guard = TempOffset(offset);
             if (m_position + count > m_size)
                 throw BinaryReadError("BufferReader::ReadRaw past end of buffer");
             std::memcpy(dest, m_data + m_position, count);
@@ -585,8 +616,11 @@ namespace Firelink::BinaryReadWrite
                     + " != expected " + std::to_string(expected));
         }
 
-        void SetEndian(const Endian e) noexcept { m_endian = e; }
+        /// @brief Get endianness of reader.
         [[nodiscard]] Endian GetEndian() const noexcept { return m_endian; }
+
+        /// @brief Set endianness of reader.
+        void SetEndian(const Endian e) noexcept { m_endian = e; }
 
         /// @brief Get a raw pointer into the buffer at the given offset.
         [[nodiscard]] const std::byte* RawAt(const std::size_t offset) const
@@ -594,6 +628,16 @@ namespace Firelink::BinaryReadWrite
             if (offset > m_size)
                 throw BinaryReadError("BufferReader::RawAt offset past end of buffer");
             return m_data + offset;
+        }
+
+        /// @brief Check if the asserted bytes are at the given (or current) position.
+        [[nodiscard]] bool IsRawAt(const std::string& asserted, const std::size_t offset = -1) const
+        {
+            if (offset == -1)
+                return std::memcmp(RawAt(Position()), asserted.c_str(), asserted.size()) == 0;
+            if (offset > m_size)
+                throw BinaryReadError("BufferReader::IsRawAt offset past end of buffer");
+            return std::memcmp(RawAt(offset), asserted.c_str(), asserted.size()) == 0;
         }
 
         /// @brief Assert that the next `count` bytes are all zero, advancing past them.
@@ -670,33 +714,13 @@ namespace Firelink::BinaryReadWrite
         // -- String reading (const — does not affect current position) ---
 
         /// @brief Read a null-terminated byte string at `offset` (does not move the cursor).
-        [[nodiscard]] std::vector<std::byte> ReadCStringAt(std::size_t offset) const
-        {
-            std::vector<std::byte> result;
-            while (offset < m_size && m_data[offset] != std::byte{0})
-            {
-                result.push_back(m_data[offset]);
-                ++offset;
-            }
-            return result;
-        }
+        [[nodiscard]] std::vector<std::byte> ReadCStringAt(std::size_t offset) const;
 
         /// @brief Read a null-terminated UTF-16 LE string at `offset` as raw bytes (does not move the cursor).
-        [[nodiscard]] std::vector<std::byte> ReadUTF16LEStringAt(std::size_t offset) const
-        {
-            std::vector<std::byte> result;
-            while (offset + 1 < m_size)
-            {
-                auto lo = m_data[offset];
-                auto hi = m_data[offset + 1];
-                if (lo == std::byte{0} && hi == std::byte{0})
-                    break;
-                result.push_back(lo);
-                result.push_back(hi);
-                offset += 2;
-            }
-            return result;
-        }
+        [[nodiscard]] std::vector<std::byte> ReadUTF16LEStringAt(std::size_t offset) const;
+
+        /// @brief Dispatch to either raw or UTF-16 LE string reader.
+        [[nodiscard]] std::string ReadStringAt(std::size_t offset, bool utf16le_encoding) const;
 
         [[nodiscard]] size_t size() const noexcept { return m_size; }
 
@@ -754,6 +778,9 @@ namespace Firelink::BinaryReadWrite
             std::memcpy(m_buffer.data() + m_position, data, size);
             m_position += size;
         }
+
+        /// @brief Write a string, with null terminator size depending on encoding.
+        void WriteString(const std::string& s, bool utf16le_encoding);
 
         /// @brief Write `count` zero bytes.
         void WritePad(const std::size_t count)

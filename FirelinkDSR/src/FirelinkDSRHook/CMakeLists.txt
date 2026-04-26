@@ -25,6 +25,6 @@ target_link_libraries(FirelinkDSRHook
 )
 
 install(TARGETS FirelinkDSRHook
-        EXPORT FirelinkDSRTargets
+        EXPORT FirelinkTargets
         FILE_SET HEADERS
 )

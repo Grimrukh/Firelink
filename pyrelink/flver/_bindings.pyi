@@ -14,29 +14,22 @@ __all__ = [
     "FLVER",
     "batch_from_path",
     "batch_from_bytes",
+    # TextureFinder
+    "ImageFormat",
+    "TextureFinder",
 ]
 
+from enum import IntEnum
 from pathlib import Path
 
 import numpy as np
 from numpy.typing import NDArray
 
-from soulstruct.flver.base import (
-    BaseFLVER,
-    BaseFLVERBone,
-    BaseFLVERDummy,
-    BaseFLVERTexture,
-    BaseFLVERGXItem,
-    BaseFLVERMaterial,
-    BaseFLVERFaceSet,
-    BaseFLVERMesh,
-    BaseMergedMesh,
-)
+from pyrelink.core import GameFile, GameType, Binder, TPFTexture
 
 # --- Bone --------------------------------------------------------------------
 
-class Bone(BaseFLVERBone):
-    """Read-only view of a C++ FLVERBone. Strings decoded in-place to UTF-8."""
+class Bone:
 
     name: str
     usage_flags: int
@@ -58,8 +51,7 @@ class Bone(BaseFLVERBone):
 
 # --- Dummy -------------------------------------------------------------------
 
-class Dummy(BaseFLVERDummy):
-    """Read-only view of a C++ FLVER Dummy."""
+class Dummy:
 
     reference_id: int
     parent_bone_index: int
@@ -82,7 +74,7 @@ class Dummy(BaseFLVERDummy):
 
 # --- Texture -----------------------------------------------------------------
 
-class Texture(BaseFLVERTexture):
+class Texture:
     """Read-only view of a C++ FLVER Texture. Strings decoded in-place."""
 
     path: str
@@ -101,7 +93,7 @@ class Texture(BaseFLVERTexture):
 
 # --- GXItem ------------------------------------------------------------------
 
-class GXItem(BaseFLVERGXItem):
+class GXItem:
     """Read-only view of a C++ FLVER GXItem."""
 
     index: int
@@ -119,7 +111,7 @@ class GXItem(BaseFLVERGXItem):
 
 # --- Material ----------------------------------------------------------------
 
-class Material(BaseFLVERMaterial):
+class Material:
     """Read-only view of a C++ FLVER Material. Strings decoded in-place."""
 
     name: str
@@ -134,7 +126,7 @@ class Material(BaseFLVERMaterial):
 
 # --- FaceSet -----------------------------------------------------------------
 
-class FaceSet(BaseFLVERFaceSet):
+class FaceSet:
     """Read-only view of a C++ FLVER FaceSet."""
 
     flags: int
@@ -149,7 +141,7 @@ class FaceSet(BaseFLVERFaceSet):
 
 # --- Mesh --------------------------------------------------------------------
 
-class Mesh(BaseFLVERMesh):
+class Mesh:
     """Read-only view of a C++ FLVERMesh."""
 
     is_dynamic: bool
@@ -178,7 +170,7 @@ class Mesh(BaseFLVERMesh):
 
 # --- MergedMesh --------------------------------------------------------------
 
-class MergedMesh(BaseMergedMesh):
+class MergedMesh:
     """Merged mesh built from all FLVER meshes, with deduplicated vertices.
 
     Array properties are zero-copy numpy views into C++ memory. They remain
@@ -237,53 +229,7 @@ class MergedMesh(BaseMergedMesh):
 
 # --- FLVER (main entry point) -----------------------------------------------
 
-class FLVER(BaseFLVER):
-    """C++ FLVER reader. Construct from raw (decompressed) FLVER bytes.
-
-    After parsing, all string fields on bones, materials, and textures are
-    decoded in-place to UTF-8, so ``bone.name``, ``material.name``, etc.
-    are proper Python ``str`` values.
-    """
-
-    def __init__(self, data: bytes) -> None:
-        """Parse a FLVER from raw (decompressed) bytes."""
-        ...
-
-    @staticmethod
-    def from_path(path: str | Path) -> FLVER:
-        """Read a FLVER from a file path, automatically decompressing DCX if needed.
-
-        Sets ``path`` and ``dcx_type`` on the returned object.
-        """
-        ...
-
-    @property
-    def dcx_type(self) -> int: ...
-    @dcx_type.setter
-    def dcx_type(self, dcx_type: int) -> None: ...
-
-    @property
-    def path(self) -> Path | None:
-        """Must be set by caller."""
-        ...
-
-    @path.setter
-    def path(self, path: Path | None) -> None:
-        """Set the FLVER's path (for error reporting)."""
-        ...
-
-    @property
-    def path_name(self) -> str | None:
-        """Get name of `path`."""
-        ...
-    @property
-    def path_stem(self) -> str | None:
-        """NOTE: Like `path.stem`, this only removes the LAST suffix, e.g. 'c1000.chrbnd.dcx' -> 'c1000.chrbnd'."""
-        ...
-    @property
-    def path_minimal_stem(self) -> str | None:
-        """Removes ALL suffixes from `path` name, e.g. 'c1000.chrbnd.dcx' -> 'c1000'."""
-        ...
+class FLVER(GameFile):
 
     @property
     def version(self) -> int: ...
@@ -353,6 +299,7 @@ class FLVER(BaseFLVER):
 def batch_from_path(
     paths: list[str | Path],
     max_threads: int = 0,
+    cache_merged_mesh: bool = False,
 ) -> list[FLVER]:
     """Load multiple FLVERs from file paths in parallel.
 
@@ -363,6 +310,7 @@ def batch_from_path(
         paths: List of file paths (``str`` or ``Path``).
         max_threads: Maximum number of threads. ``0`` (default) uses
             ``std::thread::hardware_concurrency()``.
+        cache_merged_mesh: Automatically build MergedMesh at the same time.
 
     Returns:
         List of ``FLVER`` objects in the same order as the input paths.
@@ -391,3 +339,34 @@ def batch_from_bytes(
     ...
 
 
+# ---------------------------------------------------------------------------
+# TextureFinder
+# ---------------------------------------------------------------------------
+
+class ImageFormat(IntEnum):
+    DDS = 0
+    PNG = 1
+    TGA = 2
+
+
+class TextureFinder:
+
+    def __init__(self, game: GameType, data_root: str) -> None: ...
+
+    def register_flver_sources(
+        self,
+        flver_source_path: str,
+        flver_binder: Binder | None = None,
+        prefer_hi_res: bool = True,
+    ) -> None: ...
+
+    def get_texture(self, texture_stem: str, model_name: str = "") -> TPFTexture | None: ...
+
+    def get_texture_as(self, texture_stem: str, format: ImageFormat, model_name: str = "") -> bytes: ...
+
+    def set_aet_root(self, aet_root: str) -> None: ...
+
+    @property
+    def cached_texture_count(self) -> int: ...
+
+    def __repr__(self) -> str: ...

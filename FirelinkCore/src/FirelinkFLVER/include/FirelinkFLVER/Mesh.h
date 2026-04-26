@@ -10,6 +10,15 @@
 
 namespace Firelink
 {
+    // PIMPL type for handing FLVER0 materials to `Mesh::ReadFLVER0`,
+    struct FLVER0MaterialRead;
+
+    namespace BinaryReadWrite
+    {
+        class BufferReader;
+        class BufferWriter;
+    }
+
     // A single field in a vertex layout. `usage` identifies what the field is
     // (Position, Normal, etc.) and `format` names the on-disk byte shape.
     // `decompressed_offset` and `decompressed_size` are computed on load.
@@ -29,6 +38,9 @@ namespace Firelink
         {
             return FormatEnumSize(format);
         }
+
+        /// @brief Serialize to a FLVER BufferWriter.
+        void Write(BinaryReadWrite::BufferWriter& w) const;
     };
 
     struct VertexArrayLayout
@@ -40,6 +52,17 @@ namespace Firelink
         std::uint32_t decompressed_vertex_size = 0; // stride of the decompressed interleaved buffer
 
         bool operator==(const VertexArrayLayout&) const = default;
+
+        /// @brief Compute compressed vertex size for writing.
+        [[nodiscard]] std::uint32_t GetCompressedVertexSize() const;
+
+        [[nodiscard]] std::size_t GetHash() const;
+
+        /// @brief Read a FLVER0 layout (types follow immediately after header).
+        static VertexArrayLayout ReadFLVER0(BinaryReadWrite::BufferReader& r);
+
+        /// @brief Read a FLVER2 layout.
+        static VertexArrayLayout ReadFLVER2(BinaryReadWrite::BufferReader& r);
     };
 
     // Holds the decompressed vertex data for one Mesh as a single flat
@@ -55,6 +78,15 @@ namespace Firelink
         std::vector<std::byte> decompressed_data;
 
         bool operator==(const VertexArray&) const = default;
+
+        [[nodiscard]] std::vector<std::byte> Compress(float uv_factor) const;
+
+        /// @brief Decompress a vertex array given its raw on-disk data and layout.
+        static VertexArray FromCompressedData(
+            const std::byte* raw_data,
+            std::uint32_t vertex_count,
+            const VertexArrayLayout& layout,
+            float uv_factor);
     };
 
     // --- FaceSetFlags -----------------------------------------------------------
@@ -81,6 +113,11 @@ namespace Firelink
         std::vector<std::uint32_t> vertex_indices;
 
         bool operator==(const FaceSet&) const = default;
+
+        static FaceSet ReadFLVER2(
+            BinaryReadWrite::BufferReader& r,
+            std::uint8_t header_vertex_index_bit_size,
+            std::uint32_t vertex_data_offset);
     };
 
     struct Mesh
@@ -89,7 +126,7 @@ namespace Firelink
         std::int32_t default_bone_index = 0;
         std::vector<std::int32_t> bone_indices; // may be empty in FLVER2
 
-        // Denormalised: each mesh owns its material/vertex_arrays/face_sets.
+        // Denormalized: each mesh owns its material/vertex_arrays/face_sets.
         // Deduplication into global tables happens at write time.
         Material material;
         std::vector<VertexArray> vertex_arrays; // in practice always exactly one
@@ -111,5 +148,29 @@ namespace Firelink
         bool invalid_layout = false;
 
         bool operator==(const Mesh&) const = default;
+
+        static Mesh ReadFLVER0(
+            BinaryReadWrite::BufferReader& r,
+            std::uint8_t vertex_index_bit_size,
+            std::uint32_t vertex_data_offset,
+            const std::vector<FLVER0MaterialRead>& materials,
+            FLVERVersion version,
+            float uv_factor,
+            std::int32_t mesh_index);
+    };
+
+    // Read mesh header for FLVER2 — returns a partially-constructed Mesh
+    // with indices that need post-read dereferencing.
+    struct MeshReadState
+    {
+        Mesh mesh;
+        std::uint32_t material_index;
+        std::vector<std::uint32_t> face_set_indices;
+        std::vector<std::uint32_t> vertex_array_indices;
+
+        static MeshReadState ReadFLVER2(
+            BinaryReadWrite::BufferReader& r,
+            bool bounding_box_has_unknown,
+            std::int32_t index);
     };
 } // namespace Firelink

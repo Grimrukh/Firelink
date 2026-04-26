@@ -6,14 +6,10 @@ target_link_libraries(FirelinkER INTERFACE
     FirelinkERHook
     FirelinkERMaps
 )
-install(TARGETS FirelinkER EXPORT FirelinkERTargets)
+install(TARGETS FirelinkER
+        EXPORT FirelinkTargets
+)
 
 if(FIRELINK_BUILD_PYBIND)
     add_subdirectory(pybind)
 endif()
-
-install(EXPORT FirelinkERTargets
-        FILE FirelinkERTargets.cmake
-        NAMESPACE Firelink::EldenRing::
-        DESTINATION lib/cmake/FirelinkER
-)

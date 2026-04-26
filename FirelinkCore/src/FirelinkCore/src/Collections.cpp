@@ -1,5 +1,6 @@
-﻿#include <FirelinkCore/BinaryReadWrite.h>
-#include <FirelinkCore/Collections.h>
+﻿#include <FirelinkCore/Collections.h>
+
+#include <FirelinkCore/BinaryReadWrite.h>
 #include <FirelinkCore/Export.h>
 
 #include <set>

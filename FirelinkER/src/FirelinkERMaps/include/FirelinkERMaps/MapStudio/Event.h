@@ -95,8 +95,8 @@ namespace Firelink::EldenRing::Maps::MapStudio
         [[nodiscard]] int32_t GetEUnk0C() const { return eUnk0C; }
         void SetEUnk0C(const int32_t eUnk0C) { this->eUnk0C = eUnk0C; }
 
-        void Deserialize(Firelink::BinaryReadWrite::BufferReader& reader) override;
-        void Serialize(Firelink::BinaryReadWrite::BufferWriter& writer, int supertypeIndex, int subtypeIndex) const override;
+        void Deserialize(BinaryReadWrite::BufferReader& reader) override;
+        void Serialize(BinaryReadWrite::BufferWriter& writer, int supertypeIndex, int subtypeIndex) const override;
 
         virtual void DeserializeEntryReferences(const std::vector<Part*>& parts, const std::vector<Region*>& regions);
         virtual void SerializeEntryIndices(const std::vector<Part*>& parts, const std::vector<Region*>& regions);
@@ -121,8 +121,8 @@ namespace Firelink::EldenRing::Maps::MapStudio
         int32_t eUnk08 = 0;
         int32_t eUnk0C = 0;
 
-        virtual bool DeserializeSubtypeData(Firelink::BinaryReadWrite::BufferReader& reader) { return false; }
-        virtual bool SerializeSubtypeData(Firelink::BinaryReadWrite::BufferWriter& writer) const { return false; }
+        virtual bool DeserializeSubtypeData(BinaryReadWrite::BufferReader& reader) { return false; }
+        virtual bool SerializeSubtypeData(BinaryReadWrite::BufferWriter& writer) const { return false; }
     };
 
     class FIRELINK_ER_MAPS_API TreasureEvent final : public Event
@@ -170,8 +170,8 @@ namespace Firelink::EldenRing::Maps::MapStudio
         bool inChest = false;
         bool startsDisabled = false;
 
-        bool DeserializeSubtypeData(Firelink::BinaryReadWrite::BufferReader& reader) override;
-        bool SerializeSubtypeData(Firelink::BinaryReadWrite::BufferWriter& writer) const override;
+        bool DeserializeSubtypeData(BinaryReadWrite::BufferReader& reader) override;
+        bool SerializeSubtypeData(BinaryReadWrite::BufferWriter& writer) const override;
     };
 
     class FIRELINK_ER_MAPS_API SpawnerEvent final : public Event
@@ -254,8 +254,8 @@ namespace Firelink::EldenRing::Maps::MapStudio
         std::array<EntryReference<Part>, 32> spawnParts{};
         std::array<EntryReference<Region>, 8> spawnRegions{};
 
-        bool DeserializeSubtypeData(Firelink::BinaryReadWrite::BufferReader& reader) override;
-        bool SerializeSubtypeData(Firelink::BinaryReadWrite::BufferWriter& writer) const override;
+        bool DeserializeSubtypeData(BinaryReadWrite::BufferReader& reader) override;
+        bool SerializeSubtypeData(BinaryReadWrite::BufferWriter& writer) const override;
     };
 
     class FIRELINK_ER_MAPS_API NavigationEvent final : public Event
@@ -282,8 +282,8 @@ namespace Firelink::EldenRing::Maps::MapStudio
         EntryReference<Region> navigationRegion;
         int32_t navigationRegionIndex = -1;
 
-        bool DeserializeSubtypeData(Firelink::BinaryReadWrite::BufferReader& reader) override;
-        bool SerializeSubtypeData(Firelink::BinaryReadWrite::BufferWriter& writer) const override;
+        bool DeserializeSubtypeData(BinaryReadWrite::BufferReader& reader) override;
+        bool SerializeSubtypeData(BinaryReadWrite::BufferWriter& writer) const override;
     };
 
     class FIRELINK_ER_MAPS_API ObjActEvent final : public Event
@@ -327,8 +327,8 @@ namespace Firelink::EldenRing::Maps::MapStudio
         uint8_t objActState = 0;
         int32_t objActFlag = 0;
 
-        bool DeserializeSubtypeData(Firelink::BinaryReadWrite::BufferReader& reader) override;
-        bool SerializeSubtypeData(Firelink::BinaryReadWrite::BufferWriter& writer) const override;
+        bool DeserializeSubtypeData(BinaryReadWrite::BufferReader& reader) override;
+        bool SerializeSubtypeData(BinaryReadWrite::BufferWriter& writer) const override;
     };
 
     class FIRELINK_ER_MAPS_API NPCInvasionEvent final : public Event
@@ -342,8 +342,8 @@ namespace Firelink::EldenRing::Maps::MapStudio
         int32_t unk18 = 0;
         int32_t unk1c = 0;
 
-        bool DeserializeSubtypeData(Firelink::BinaryReadWrite::BufferReader& reader) override;
-        bool SerializeSubtypeData(Firelink::BinaryReadWrite::BufferWriter& writer) const override;
+        bool DeserializeSubtypeData(BinaryReadWrite::BufferReader& reader) override;
+        bool SerializeSubtypeData(BinaryReadWrite::BufferWriter& writer) const override;
 
     public:
         static constexpr auto Type = EventType::NPCInvasion;
@@ -422,8 +422,8 @@ namespace Firelink::EldenRing::Maps::MapStudio
         std::array<EntryReference<Part>, 32> platoonParts{};
         std::array<int32_t, 32> platoonPartsIndices{};
 
-        bool DeserializeSubtypeData(Firelink::BinaryReadWrite::BufferReader& reader) override;
-        bool SerializeSubtypeData(Firelink::BinaryReadWrite::BufferWriter& writer) const override;
+        bool DeserializeSubtypeData(BinaryReadWrite::BufferReader& reader) override;
+        bool SerializeSubtypeData(BinaryReadWrite::BufferWriter& writer) const override;
     };
 
     class FIRELINK_ER_MAPS_API PatrolRouteEvent final : public Event
@@ -459,8 +459,8 @@ namespace Firelink::EldenRing::Maps::MapStudio
         std::array<EntryReference<Region>, 64> patrolRegions{};
         std::array<int16_t, 64> patrolRegionsIndices{};
 
-        bool DeserializeSubtypeData(Firelink::BinaryReadWrite::BufferReader& reader) override;
-        bool SerializeSubtypeData(Firelink::BinaryReadWrite::BufferWriter& writer) const override;
+        bool DeserializeSubtypeData(BinaryReadWrite::BufferReader& reader) override;
+        bool SerializeSubtypeData(BinaryReadWrite::BufferWriter& writer) const override;
     };
 
     class FIRELINK_ER_MAPS_API MountEvent final : public Event
@@ -494,8 +494,8 @@ namespace Firelink::EldenRing::Maps::MapStudio
         EntryReference<Part> mountPart;
         int32_t mountPartIndex = -1;
 
-        bool DeserializeSubtypeData(Firelink::BinaryReadWrite::BufferReader& reader) override;
-        bool SerializeSubtypeData(Firelink::BinaryReadWrite::BufferWriter& writer) const override;
+        bool DeserializeSubtypeData(BinaryReadWrite::BufferReader& reader) override;
+        bool SerializeSubtypeData(BinaryReadWrite::BufferWriter& writer) const override;
     };
 
     class FIRELINK_ER_MAPS_API SignPoolEvent final : public Event
@@ -527,8 +527,8 @@ namespace Firelink::EldenRing::Maps::MapStudio
         int32_t signPartIndex = -1;
         int32_t signPoolUnk04 = 0;
 
-        bool DeserializeSubtypeData(Firelink::BinaryReadWrite::BufferReader& reader) override;
-        bool SerializeSubtypeData(Firelink::BinaryReadWrite::BufferWriter& writer) const override;
+        bool DeserializeSubtypeData(BinaryReadWrite::BufferReader& reader) override;
+        bool SerializeSubtypeData(BinaryReadWrite::BufferWriter& writer) const override;
     };
 
     class FIRELINK_ER_MAPS_API RetryPointEvent final : public Event
@@ -570,8 +570,8 @@ namespace Firelink::EldenRing::Maps::MapStudio
         EntryReference<Region> retryRegion;
         int16_t retryRegionIndex = -1;
 
-        bool DeserializeSubtypeData(Firelink::BinaryReadWrite::BufferReader& reader) override;
-        bool SerializeSubtypeData(Firelink::BinaryReadWrite::BufferWriter& writer) const override;
+        bool DeserializeSubtypeData(BinaryReadWrite::BufferReader& reader) override;
+        bool SerializeSubtypeData(BinaryReadWrite::BufferWriter& writer) const override;
     };
 
     class FIRELINK_ER_MAPS_API AreaTeamEvent final : public Event
@@ -643,8 +643,8 @@ namespace Firelink::EldenRing::Maps::MapStudio
         int32_t sUnk24 = 0;
         int32_t sUnk28 = 0;
 
-        bool DeserializeSubtypeData(Firelink::BinaryReadWrite::BufferReader& reader) override;
-        bool SerializeSubtypeData(Firelink::BinaryReadWrite::BufferWriter& writer) const override;
+        bool DeserializeSubtypeData(BinaryReadWrite::BufferReader& reader) override;
+        bool SerializeSubtypeData(BinaryReadWrite::BufferWriter& writer) const override;
     };
 
     class FIRELINK_ER_MAPS_API OtherEvent final : public Event

@@ -13,18 +13,20 @@
 #include <pybind11/numpy.h>
 #include <pybind11/stl.h>
 
-#include <FirelinkCore/BinaryReadWrite.h>
-#include <FirelinkCore/DCX.h>
 #include <FirelinkFLVER/FLVER.h>
 #include <FirelinkFLVER/MergedMesh.h>
 
-#include <atomic>
+#include <FirelinkCore/BinaryReadWrite.h>
+#include <FirelinkCore/DCX.h>
+
 #include <cstring>
 #include <memory>
 #include <string>
-#include <thread>
 #include <unordered_set>
 #include <vector>
+
+// Amalgamated source
+#include "pyrelink_texture_finder.cpp"
 
 namespace py = pybind11;
 using namespace Firelink;
@@ -123,7 +125,7 @@ static int py_object_to_int(const py::object& val)
 
 struct PyFLVER
 {
-    std::unique_ptr<FLVER> flver;
+    FLVER::Ptr flver;
 
     // Decode all in-place string fields from raw on-disk encoding to UTF-8.
     // Must be called with the GIL held (uses Python codecs).
@@ -161,9 +163,7 @@ struct PyFLVER
     explicit PyFLVER(const py::bytes& data)
     {
         const std::string buf = data;
-        flver = std::make_unique<FLVER>(
-            FLVER::FromBytes(reinterpret_cast<const std::byte*>(buf.data()), buf.size())
-        );
+        flver = FLVER::FromBytes(reinterpret_cast<const std::byte*>(buf.data()), buf.size());
         decode_strings(*flver);
     }
 
@@ -186,7 +186,7 @@ struct PyFLVER
 // Module definition
 // ============================================================================
 
-PYBIND11_MODULE(_pyrelink_flver, m)
+void bind_firelink_flver(py::module& m)
 {
     m.doc() = "C++ FLVER reader with pybind11 bindings";
 
@@ -653,7 +653,7 @@ PYBIND11_MODULE(_pyrelink_flver, m)
             const bool merge_vertices)
             {
                 return std::make_unique<MergedMesh>(
-                    MergedMesh::from_flver(*f.flver, mesh_material_indices, material_uv_layer_names, merge_vertices)
+                    MergedMesh(*f.flver, mesh_material_indices, material_uv_layer_names, merge_vertices)
                 );
             },
             py::arg("mesh_material_indices") = std::vector<std::uint32_t>{},
@@ -672,37 +672,37 @@ PYBIND11_MODULE(_pyrelink_flver, m)
             "path",
             [](const PyFLVER& f) -> py::object
             {
-                if (f.flver->path.empty()) return py::none();
-                return py::module_::import("pathlib").attr("Path")(f.flver->path.string());
+                if (f.flver->GetPath().empty()) return py::none();
+                return py::module_::import("pathlib").attr("Path")(f.flver->GetPath().string());
             },
             [](PyFLVER& f, const py::object& val)
             {
-                if (val.is_none()) { f.flver->path.clear(); return; }
+                if (val.is_none()) { f.flver->GetPath().clear(); return; }
                 // Accept anything os.fspath-compatible (Path, str, etc.)
                 py::object os = py::module_::import("os");
-                f.flver->path = os.attr("fspath")(val).cast<std::string>();
+                f.flver->SetPath(os.attr("fspath")(val).cast<std::string>());
             },
             "Source filesystem path as pathlib.Path (not serialised)."
         )
         .def_property_readonly(
             "path_name", [](const PyFLVER& f) -> py::object
             {
-                if (f.flver->path.empty()) return py::none();
-                return py::str(f.flver->path.filename().string());
+                if (f.flver->GetPath().empty()) return py::none();
+                return py::str(f.flver->GetPath().filename().string());
             },
             "Filename portion of path, or None.")
         .def_property_readonly(
             "path_stem", [](const PyFLVER& f) -> py::object
             {
-                if (f.flver->path.empty()) return py::none();
-                return py::str(f.flver->path.stem().string());
+                if (f.flver->GetPath().empty()) return py::none();
+                return py::str(f.flver->GetPath().stem().string());
             },
             "Stem of path (removes last suffix only), or None.")
         .def_property_readonly(
             "path_minimal_stem", [](const PyFLVER& f) -> py::object
             {
-                if (f.flver->path.empty()) return py::none();
-                auto stem = f.flver->path.stem().string();
+                if (f.flver->GetPath().empty()) return py::none();
+                auto stem = f.flver->GetPath().stem().string();
                 auto dot = stem.find('.');
                 if (dot != std::string::npos) stem = stem.substr(0, dot);
                 return py::str(stem);
@@ -714,12 +714,12 @@ PYBIND11_MODULE(_pyrelink_flver, m)
             "dcx_type",
             [](const PyFLVER& f) -> py::object
             {
-                return py::int_(static_cast<int>(f.flver->dcx_type));
+                return py::int_(static_cast<int>(f.flver->GetDCXType()));
             },
             [](PyFLVER& f, const py::object& val)
             {
-                if (val.is_none()) { f.flver->dcx_type = DCXType::Null; return; }
-                f.flver->dcx_type = static_cast<DCXType>(py_object_to_int(val));
+                if (val.is_none()) { f.flver->SetDCXType(DCXType::Null); return; }
+                f.flver->SetDCXType(static_cast<DCXType>(py_object_to_int(val)));
             },
             "DCX compression type as an integer (accepts int, IntEnum, or Enum).")
 
@@ -729,24 +729,13 @@ PYBIND11_MODULE(_pyrelink_flver, m)
             {
                 // Resolve path to string under the GIL.
                 py::object os = py::module_::import("os");
-                std::string path_str = os.attr("fspath")(path_obj).cast<std::string>();
+                auto path_str = os.attr("fspath")(path_obj).cast<std::string>();
 
                 // Release GIL for file I/O, DCX decompression, and FLVER parsing.
                 std::unique_ptr<FLVER> flver;
                 {
                     py::gil_scoped_release release;
-                    const std::filesystem::path path(path_str);
-                    const std::vector<std::byte> data = BinaryReadWrite::ReadFileBytes(path_str);
-                    flver = std::make_unique<FLVER>(FLVER::FromBytes(data.data(), data.size()));
-                    // If `path_str` ends in '.bak', strip that first.
-                    if (path.has_filename() && path.filename().string().ends_with(".bak"))
-                    {
-                        flver->path = path.parent_path() / path.stem();
-                    }
-                    else
-                    {
-                        flver->path = path_str;
-                    }
+                    flver = FLVER::FromPath(path_str);
                 }
                 // GIL re-acquired: decode strings.
                 return std::make_unique<PyFLVER>(std::move(flver));
@@ -758,99 +747,51 @@ PYBIND11_MODULE(_pyrelink_flver, m)
     // --- batch loaders (module-level parallel loader) -------------------------
 
     m.def(
-        "batch_from_path", [](const py::list& paths, int max_threads)
+        "batch_from_path", [](
+            const py::list& paths,
+            int max_threads,
+            bool cache_merged_mesh = false)
         {
             const auto count = py::len(paths);
             if (count == 0) return py::list();
 
-            // Phase 1 (GIL held): resolve all Python path objects to strings.
-            std::vector<std::string> path_strings;
-            path_strings.reserve(count);
+            // Phase 1 (GIL held): resolve all Python path objects to paths.
+            std::vector<std::filesystem::path> fs_paths;
+            fs_paths.reserve(count);
             {
                 py::object os = py::module_::import("os");
                 for (std::size_t i = 0; i < count; ++i)
                 {
-                    path_strings.push_back(
-                        os.attr("fspath")(paths[i]).cast<std::string>());
+                    fs_paths.emplace_back(os.attr("fspath")(paths[i]).cast<std::string>());
                 }
             }
 
-            // Phase 2 (GIL released): read files, decompress DCX, and parse
-            // FLVERs — all in parallel with no Python involvement.
-            std::vector<std::unique_ptr<FLVER>> flvers(count);
-            std::vector<std::exception_ptr> errors(count, nullptr);
-
+            // Phase 2 (GIL released): parse all FLVERs in parallel.
+            std::vector<FLVER::Ptr> flvers;
             {
                 py::gil_scoped_release release;
 
-                int hw_threads = static_cast<int>(std::thread::hardware_concurrency());
-                if (hw_threads < 1) hw_threads = 4;
-                int num_threads = (max_threads > 0)
-                    ? std::min(max_threads, static_cast<int>(count))
-                    : std::min(hw_threads, static_cast<int>(count));
-
-                std::atomic<std::size_t> next_index{0};
-                auto worker = [&]()
+                if (cache_merged_mesh)
                 {
-                    while (true)
+                    auto callback = [](FLVER& f)
                     {
-                        std::size_t idx = next_index.fetch_add(1);
-                        if (idx >= count) break;
-                        try
-                        {
-                            const std::filesystem::path path = path_strings[idx];
-                            const std::vector<std::byte> data = BinaryReadWrite::ReadFileBytes(path_strings[idx]);
-                            flvers[idx] = std::make_unique<FLVER>(
-                                FLVER::FromBytes(data.data(), data.size()));
-                            // Strip '.bak' from path if present, for consistency with single-file loader.
-                            if (path.has_filename() && path.filename().string().ends_with(".bak"))
-                            {
-                                flvers[idx]->path = path.parent_path() / path.stem();
-                            }
-                            else
-                            {
-                                flvers[idx]->path = path;
-                            }
-                        }
-                        catch (...)
-                        {
-                            errors[idx] = std::current_exception();
-                        }
-                    }
-                };
-
-                std::vector<std::thread> threads;
-                threads.reserve(num_threads);
-                for (int t = 0; t < num_threads; ++t)
-                {
-                    threads.emplace_back(worker);
+                        f.GetMergedMesh();
+                    };
+                    flvers = FLVER::FromPathsParallel(fs_paths, max_threads, callback);
                 }
-                for (auto& th : threads)
+                else
                 {
-                    th.join();
+                    flvers = FLVER::FromPathsParallel(fs_paths, max_threads);
                 }
             }
             // GIL is re-acquired here.
-
-            // Check for errors from the parallel phase.
-            for (std::size_t i = 0; i < count; ++i)
-            {
-                if (errors[i])
-                {
-                    try { std::rethrow_exception(errors[i]); }
-                    catch (const std::exception& e)
-                    {
-                        throw std::runtime_error(
-                            "Error loading FLVER from '" + path_strings[i] + "': " + e.what());
-                    }
-                }
-            }
 
             // Phase 3 (GIL held): decode strings and build Python list.
             py::list out;
             for (std::size_t i = 0; i < count; ++i)
             {
-                auto py_flver = std::make_unique<PyFLVER>(std::move(flvers[i]), PyFLVER::NoDecode{});
+                auto py_flver = std::make_unique<PyFLVER>(std::move(flvers[i]),
+                    PyFLVER::NoDecode{});
                 PyFLVER::decode_strings(*py_flver->flver);
                 out.append(py::cast(std::move(py_flver)));
             }
@@ -858,18 +799,23 @@ PYBIND11_MODULE(_pyrelink_flver, m)
         },
         py::arg("paths"),
         py::arg("max_threads") = 0,
+        py::arg("cache_merged_mesh") = false,
         "Load multiple FLVERs from file paths in parallel.\n\n"
         "Reads, DCX-decompresses, and parses all FLVERs in parallel\n"
         "using C++ threads (releasing the GIL during I/O and parsing).\n\n"
         "Args:\n"
         "    paths: List of file paths (str or Path).\n"
         "    max_threads: Maximum number of threads. 0 (default) uses hardware_concurrency.\n\n"
+        "    cache_merged_mesh: Automatically cache merged mesh.\n\n"
         "Returns:\n"
         "    List of FLVER objects in the same order as the input paths."
     );
 
     m.def(
-        "batch_from_bytes", [](const py::list& byte_list, int max_threads)
+        "batch_from_bytes", [](
+            const py::list& byte_list,
+            int max_threads,
+            bool cache_merged_mesh = false)
         {
             const auto count = py::len(byte_list);
             if (count == 0) return py::list();
@@ -890,63 +836,24 @@ PYBIND11_MODULE(_pyrelink_flver, m)
             }
 
             // Phase 2 (GIL released): parse all FLVERs in parallel.
-            std::vector<std::unique_ptr<FLVER>> flvers(count);
-            std::vector<std::exception_ptr> errors(count, nullptr);
-
+            std::vector<FLVER::Ptr> flvers;
             {
                 py::gil_scoped_release release;
 
-                int hw_threads = static_cast<int>(std::thread::hardware_concurrency());
-                if (hw_threads < 1) hw_threads = 4;
-                int num_threads = (max_threads > 0)
-                    ? std::min(max_threads, static_cast<int>(count))
-                    : std::min(hw_threads, static_cast<int>(count));
-
-                std::atomic<std::size_t> next_index{0};
-                auto worker = [&]()
+                if (cache_merged_mesh)
                 {
-                    while (true)
+                    auto callback = [](FLVER& f)
                     {
-                        std::size_t idx = next_index.fetch_add(1);
-                        if (idx >= count) break;
-                        try
-                        {
-                            flvers[idx] = std::make_unique<FLVER>(
-                                FLVER::FromBytes(buffers[idx].data(), buffers[idx].size()));
-                        }
-                        catch (...)
-                        {
-                            errors[idx] = std::current_exception();
-                        }
-                    }
-                };
-
-                std::vector<std::thread> threads;
-                threads.reserve(num_threads);
-                for (int t = 0; t < num_threads; ++t)
-                {
-                    threads.emplace_back(worker);
+                        f.GetMergedMesh();
+                    };
+                    flvers = FLVER::FromBytesParallel(std::move(buffers), max_threads, callback);
                 }
-                for (auto& th : threads)
+                else
                 {
-                    th.join();
+                    flvers = FLVER::FromBytesParallel(std::move(buffers), max_threads);
                 }
             }
             // GIL is re-acquired here.
-
-            // Check for errors from the parallel phase.
-            for (std::size_t i = 0; i < count; ++i)
-            {
-                if (errors[i])
-                {
-                    try { std::rethrow_exception(errors[i]); }
-                    catch (const std::exception& e)
-                    {
-                        throw std::runtime_error(
-                            "Error parsing FLVER at index " + std::to_string(i) + ": " + e.what());
-                    }
-                }
-            }
 
             // Phase 3 (GIL held): decode strings and build Python list.
             py::list out;
@@ -960,6 +867,7 @@ PYBIND11_MODULE(_pyrelink_flver, m)
         },
         py::arg("data_list"),
         py::arg("max_threads") = 0,
+        py::arg("cache_merged_mesh") = false,
         "Parse multiple FLVERs from raw (decompressed) byte buffers in parallel.\n\n"
         "Each element of `data_list` should be a `bytes` object containing\n"
         "already-decompressed FLVER data.  Parsing happens in parallel using\n"
@@ -967,7 +875,21 @@ PYBIND11_MODULE(_pyrelink_flver, m)
         "Args:\n"
         "    data_list: List of raw FLVER bytes objects.\n"
         "    max_threads: Maximum number of threads. 0 (default) uses hardware_concurrency.\n\n"
+        "    cache_merged_mesh: Automatically cache merged mesh.\n\n"
         "Returns:\n"
         "    List of FLVER objects in the same order as the input list."
     );
+}
+
+
+// ============================================================================
+// Module definition
+// ============================================================================
+
+PYBIND11_MODULE(_bindings, m)
+{
+    m.doc() = "Python bindings for FirelinkFLVER (FLVER, MergedMesh, TextureFinder).";
+
+    bind_firelink_flver(m);
+    bind_firelink_flver_texture_finder(m);
 }

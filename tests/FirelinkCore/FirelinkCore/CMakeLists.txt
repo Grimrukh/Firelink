@@ -1,12 +1,13 @@
 add_executable(FirelinkCore_tests
-    test_main.cpp
-    test_Binder.cpp
-    test_BinaryReadWrite.cpp
-    test_DCX.cpp
-    test_DDS.cpp
-    test_ImageImportManager.cpp
-    test_Logging.cpp
-    test_TPF.cpp
+    main.cpp
+
+    BinderTest.cpp
+    BinaryReadWriteTest.cpp
+    DCXTest.cpp
+    DDSTest.cpp
+    FirelinkCoreTestHelpers.h
+    LoggingTest.cpp
+    TPFTest.cpp
 )
 
 target_link_libraries(FirelinkCore_tests PRIVATE

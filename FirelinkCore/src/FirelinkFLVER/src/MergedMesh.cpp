@@ -329,20 +329,16 @@ namespace Firelink
         }
     } // namespace
 
-    // ============================================================================
-    // MergedMesh::from_flver
-    // ============================================================================
-
-    MergedMesh MergedMesh::from_flver(
+    MergedMesh::MergedMesh(
         const FLVER& flver,
         const std::vector<std::uint32_t>& mesh_material_indices_in,
-        const std::vector<std::vector<std::string>>& material_uv_layer_names,
-        bool merge_vertices)
+        const std::vector<std::vector<std::string>>& materialUVLayerNames,
+        bool mergeVertices)
     {
-        MergedMesh result;
-        result.vertices_merged = merge_vertices;
+        vertices_merged = mergeVertices;
 
-        if (flver.meshes.empty()) return result;
+        if (flver.meshes.empty()) 
+            return;
 
         // Assign material indices.
         std::vector<std::uint32_t> mat_indices = mesh_material_indices_in;
@@ -394,7 +390,8 @@ namespace Firelink
             }
         }
 
-        if (valid_meshes.empty()) return result;
+        if (valid_meshes.empty()) 
+            return;
 
         // ========================================================================
         // Phase 1: Compute total loop count and discover all field names.
@@ -489,9 +486,9 @@ namespace Firelink
         bool has_normal_w = all_field_names.contains("normal_w");
         bool has_bitangent = all_field_names.contains("bitangent");
 
-        result.loop_normals.resize(has_normal ? total_loops * 3 : 0, 0.f);
-        result.loop_normals_w.resize(has_normal_w ? total_loops : 0, 127);
-        result.loop_bitangents.resize(has_bitangent ? total_loops * 4 : 0, 0.f);
+        this->loop_normals.resize(has_normal ? total_loops * 3 : 0, 0.f);
+        this->loop_normals_w.resize(has_normal_w ? total_loops : 0, 127);
+        this->loop_bitangents.resize(has_bitangent ? total_loops * 4 : 0, 0.f);
 
         // Count tangent and color slots.
         int max_tangent = -1, max_color = -1;
@@ -508,13 +505,13 @@ namespace Firelink
                 max_color = std::max(max_color, idx);
             }
         }
-        result.loop_tangents.resize(max_tangent + 1);
-        for (auto& t : result.loop_tangents) t.resize(total_loops * 4, 0.f);
-        result.loop_vertex_colors.resize(max_color + 1);
-        for (auto& c : result.loop_vertex_colors) c.resize(total_loops * 4, 0.f);
+        this->loop_tangents.resize(max_tangent + 1);
+        for (auto& t : this->loop_tangents) t.resize(total_loops * 4, 0.f);
+        this->loop_vertex_colors.resize(max_color + 1);
+        for (auto& c : this->loop_vertex_colors) c.resize(total_loops * 4, 0.f);
 
         // UV layers: we'll build them on-the-fly, keyed by layer name.
-        // Map from UV layer name -> index in result.loop_uvs.
+        // Map from UV layer name -> index in this->loop_uvs.
         std::unordered_map<std::string, std::uint32_t> uv_layer_index;
 
         // Default tangent/bitangent/color values for meshes missing the field.
@@ -605,11 +602,11 @@ namespace Firelink
                     if (norm_src)
                     {
                         auto [vdata, stride] = get_va_data(mesh, *norm_src);
-                        read_floats(vdata, stride, v, norm_src->info, &result.loop_normals[li * 3]);
+                        read_floats(vdata, stride, v, norm_src->info, &this->loop_normals[li * 3]);
                     }
                     else
                     {
-                        std::memcpy(&result.loop_normals[li * 3], default_normal, 12);
+                        std::memcpy(&this->loop_normals[li * 3], default_normal, 12);
                     }
                 }
 
@@ -619,11 +616,11 @@ namespace Firelink
                     if (nw_src)
                     {
                         auto [vdata, stride] = get_va_data(mesh, *nw_src);
-                        read_uint8s(vdata, stride, v, nw_src->info, &result.loop_normals_w[li]);
+                        read_uint8s(vdata, stride, v, nw_src->info, &this->loop_normals_w[li]);
                     }
                     else
                     {
-                        result.loop_normals_w[li] = 127;
+                        this->loop_normals_w[li] = 127;
                     }
                 }
 
@@ -633,11 +630,11 @@ namespace Firelink
                     if (bt_src)
                     {
                         auto [vdata, stride] = get_va_data(mesh, *bt_src);
-                        read_floats(vdata, stride, v, bt_src->info, &result.loop_bitangents[li * 4]);
+                        read_floats(vdata, stride, v, bt_src->info, &this->loop_bitangents[li * 4]);
                     }
                     else
                     {
-                        std::memcpy(&result.loop_bitangents[li * 4], default_bitangent, 16);
+                        std::memcpy(&this->loop_bitangents[li * 4], default_bitangent, 16);
                     }
                 }
             }
@@ -647,7 +644,7 @@ namespace Firelink
             {
                 std::string tangent_name = "tangent_" + std::to_string(ti);
                 auto* t_src = find_src(cache, tangent_name);
-                auto& tarr = result.loop_tangents[ti];
+                auto& tarr = this->loop_tangents[ti];
                 for (std::uint32_t v = 0; v < vc; ++v)
                 {
                     std::uint32_t li = loop_offset + v;
@@ -668,7 +665,7 @@ namespace Firelink
             {
                 std::string cname = "color_" + std::to_string(ci);
                 auto* c_src = find_src(cache, cname);
-                auto& carr = result.loop_vertex_colors[ci];
+                auto& carr = this->loop_vertex_colors[ci];
                 for (std::uint32_t v = 0; v < vc; ++v)
                 {
                     std::uint32_t li = loop_offset + v;
@@ -693,11 +690,11 @@ namespace Firelink
 
                 // Determine UV layer name.
                 std::string layer_name;
-                if (!material_uv_layer_names.empty() &&
-                    material_index < material_uv_layer_names.size() &&
-                    uv_i < static_cast<int>(material_uv_layer_names[material_index].size()))
+                if (!materialUVLayerNames.empty() &&
+                    material_index < materialUVLayerNames.size() &&
+                    uv_i < static_cast<int>(materialUVLayerNames[material_index].size()))
                 {
-                    layer_name = material_uv_layer_names[material_index][uv_i];
+                    layer_name = materialUVLayerNames[material_index][uv_i];
                 }
                 else
                 {
@@ -710,7 +707,7 @@ namespace Firelink
                 if (it != uv_layer_index.end())
                 {
                     layer_idx = it->second;
-                    if (auto& layer = result.loop_uvs[layer_idx];
+                    if (auto& layer = this->loop_uvs[layer_idx];
                         uv_dim > layer.dim)
                     {
                         std::vector new_data(total_loops * uv_dim, 0.f);
@@ -727,14 +724,14 @@ namespace Firelink
                 }
                 else
                 {
-                    layer_idx = static_cast<std::uint32_t>(result.loop_uvs.size());
+                    layer_idx = static_cast<std::uint32_t>(this->loop_uvs.size());
                     uv_layer_index[layer_name] = layer_idx;
-                    result.loop_uvs.push_back({layer_name, uv_dim, {}});
-                    result.loop_uvs.back().data.resize(total_loops * uv_dim, 0.f);
+                    this->loop_uvs.push_back({layer_name, uv_dim, {}});
+                    this->loop_uvs.back().data.resize(total_loops * uv_dim, 0.f);
                 }
 
                 auto [vdata, stride] = get_va_data(mesh, field_src);
-                auto& layer = result.loop_uvs[layer_idx];
+                auto& layer = this->loop_uvs[layer_idx];
                 for (std::uint32_t v = 0; v < vc; ++v)
                 {
                     std::uint32_t li = loop_offset + v;
@@ -750,7 +747,7 @@ namespace Firelink
             loop_offset += vc;
         }
 
-        result.total_loop_count = total_loops;
+        this->total_loop_count = total_loops;
 
         // ========================================================================
         // Phase 3: Triangulate and build faces.
@@ -787,30 +784,30 @@ namespace Firelink
             loop_offset += mesh.vertex_arrays[0].vertex_count;
         }
 
-        result.face_count = static_cast<std::uint32_t>(all_triangles.size());
-        result.faces.resize(result.face_count * 4);
-        for (std::uint32_t fi = 0; fi < result.face_count; ++fi)
+        this->face_count = static_cast<std::uint32_t>(all_triangles.size());
+        this->faces.resize(this->face_count * 4);
+        for (std::uint32_t fi = 0; fi < this->face_count; ++fi)
         {
-            result.faces[fi * 4 + 0] = all_triangles[fi][0];
-            result.faces[fi * 4 + 1] = all_triangles[fi][1];
-            result.faces[fi * 4 + 2] = all_triangles[fi][2];
-            result.faces[fi * 4 + 3] = triangle_materials[fi];
+            this->faces[fi * 4 + 0] = all_triangles[fi][0];
+            this->faces[fi * 4 + 1] = all_triangles[fi][1];
+            this->faces[fi * 4 + 2] = all_triangles[fi][2];
+            this->faces[fi * 4 + 3] = triangle_materials[fi];
         }
 
         // ========================================================================
         // Phase 4: Merge vertices (or simple stack).
         // ========================================================================
 
-        if (!merge_vertices)
+        if (!mergeVertices)
         {
             // No merging — vertices and loops are 1:1.
-            result.positions = std::move(all_positions);
-            result.bone_weights = std::move(all_bone_weights);
-            result.bone_indices = std::move(all_bone_indices);
-            result.vertex_count = total_loops;
-            result.loop_vertex_indices.resize(total_loops);
-            std::iota(result.loop_vertex_indices.begin(), result.loop_vertex_indices.end(), 0u);
-            return result;
+            this->positions = std::move(all_positions);
+            this->bone_weights = std::move(all_bone_weights);
+            this->bone_indices = std::move(all_bone_indices);
+            this->vertex_count = total_loops;
+            this->loop_vertex_indices.resize(total_loops);
+            std::iota(this->loop_vertex_indices.begin(), this->loop_vertex_indices.end(), 0u);
+            return;
         }
 
         // Merge: identify unique vertices by (position, bone_indices, bone_weights)
@@ -875,17 +872,17 @@ namespace Firelink
         std::unordered_map<MaskKey, std::uint32_t, MaskKeyHash> inv_vertex_map;
 
         std::vector<std::uint32_t> reduced_indices; // loop indices of unique vertices
-        result.loop_vertex_indices.resize(total_loops, UINT32_MAX);
+        this->loop_vertex_indices.resize(total_loops, UINT32_MAX);
         std::uint32_t vert_count = 0;
 
         // Process faces to determine merge targets.
         std::unordered_set<std::uint32_t> resolved_loops;
 
-        for (std::uint32_t fi = 0; fi < result.face_count; ++fi)
+        for (std::uint32_t fi = 0; fi < this->face_count; ++fi)
         {
             for (int corner = 0; corner < 3; ++corner)
             {
-                std::uint32_t li = result.faces[fi * 4 + corner];
+                std::uint32_t li = this->faces[fi * 4 + corner];
 
                 if (resolved_loops.contains(li)) continue;
                 resolved_loops.insert(li);
@@ -893,9 +890,9 @@ namespace Firelink
 
                 MaskKey mk{loop_display_masks[li], loop_keys[li]};
                 float loop_normal[3] = {0.f, 1.f, 0.f};
-                if (!result.loop_normals.empty())
+                if (!this->loop_normals.empty())
                 {
-                    std::memcpy(loop_normal, &result.loop_normals[li * 3], 12);
+                    std::memcpy(loop_normal, &this->loop_normals[li * 3], 12);
                 }
 
                 auto it = vertex_map.find(mk);
@@ -904,7 +901,7 @@ namespace Firelink
                     // New unique vertex.
                     std::uint32_t vi = vert_count++;
                     vertex_map[mk] = {vi, {loop_normal[0], loop_normal[1], loop_normal[2]}};
-                    result.loop_vertex_indices[li] = vi;
+                    this->loop_vertex_indices[li] = vi;
                     reduced_indices.push_back(li);
                     continue;
                 }
@@ -919,44 +916,42 @@ namespace Firelink
                     {
                         std::uint32_t vi = vert_count++;
                         inv_vertex_map[mk] = vi;
-                        result.loop_vertex_indices[li] = vi;
+                        this->loop_vertex_indices[li] = vi;
                         reduced_indices.push_back(li);
                     }
                     else
                     {
-                        result.loop_vertex_indices[li] = inv_it->second;
+                        this->loop_vertex_indices[li] = inv_it->second;
                     }
                     continue;
                 }
 
                 // Suitable existing vertex.
-                result.loop_vertex_indices[li] = vertex_index;
+                this->loop_vertex_indices[li] = vertex_index;
             }
         }
 
         // Handle unreferenced loops (not used by any face).
         for (std::uint32_t li = 0; li < total_loops; ++li)
         {
-            if (result.loop_vertex_indices[li] == UINT32_MAX)
+            if (this->loop_vertex_indices[li] == UINT32_MAX)
             {
-                result.loop_vertex_indices[li] = UINT32_MAX; // mark unused
+                this->loop_vertex_indices[li] = UINT32_MAX; // mark unused
             }
         }
 
         // Build reduced vertex arrays.
-        result.vertex_count = vert_count;
-        result.positions.resize(vert_count * 3);
-        result.bone_weights.resize(vert_count * 4);
-        result.bone_indices.resize(vert_count * 4);
+        this->vertex_count = vert_count;
+        this->positions.resize(vert_count * 3);
+        this->bone_weights.resize(vert_count * 4);
+        this->bone_indices.resize(vert_count * 4);
 
         for (std::uint32_t vi = 0; vi < vert_count; ++vi)
         {
             std::uint32_t li = reduced_indices[vi];
-            std::memcpy(&result.positions[vi * 3], &all_positions[li * 3], 12);
-            std::memcpy(&result.bone_weights[vi * 4], &all_bone_weights[li * 4], 16);
-            std::memcpy(&result.bone_indices[vi * 4], &all_bone_indices[li * 4], 16);
+            std::memcpy(&this->positions[vi * 3], &all_positions[li * 3], 12);
+            std::memcpy(&this->bone_weights[vi * 4], &all_bone_weights[li * 4], 16);
+            std::memcpy(&this->bone_indices[vi * 4], &all_bone_indices[li * 4], 16);
         }
-
-        return result;
     }
 } // namespace Firelink

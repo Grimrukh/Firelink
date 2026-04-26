@@ -22,6 +22,6 @@ target_link_libraries(FirelinkERHook
 )
 
 install(TARGETS FirelinkERHook
-        EXPORT FirelinkERTargets
+        EXPORT FirelinkTargets
         FILE_SET HEADERS
 )

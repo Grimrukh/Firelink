@@ -160,7 +160,7 @@ namespace Firelink
         // MTD name extraction from raw mat_def_path bytes
         // =============================================================
 
-        // The path is stored as raw bytes (UTF-16 LE for unicode, Shift-JIS
+        // The path is stored as raw bytes (UTF-16 LE for Unicode, Shift-JIS
         // otherwise). We only need the filename after the last separator.
         std::string extract_mtd_name(const std::string& raw)
         {

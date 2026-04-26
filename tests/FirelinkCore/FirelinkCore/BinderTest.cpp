@@ -12,28 +12,28 @@
 #include <FirelinkCore/DCX.h>
 #include <FirelinkCore/Oodle.h>
 #include <FirelinkCore/TPF.h>
+#include "FirelinkCoreTestHelpers.h"
 
 #include <filesystem>
-#include <fstream>
 #include <vector>
 
 using namespace Firelink;
 
 namespace
 {
-
-
     // Decompress a DCX file and parse as Binder.
-    std::optional<Binder> LoadBinderDCX(const char* name)
+    Binder::Ptr LoadBinderDCX(const char* name)
     {
         auto path = GetResourcePath(name);
+        
         auto raw = LoadFile(path);
-        if (raw.empty()) return std::nullopt;
+        if (raw.empty())
+            return nullptr;
 
         // Detect DCX type; skip if KRAK and no Oodle.
         auto dcx_type = DetectDCX(raw.data(), raw.size());
         if (dcx_type == DCXType::DCX_KRAK && !Oodle::IsAvailable())
-            return std::nullopt;
+            return nullptr;
 
         auto result = DecompressDCX(raw.data(), raw.size());
         return Binder::FromBytes(result.data.data(), result.data.size());
@@ -47,7 +47,7 @@ namespace
 TEST_CASE("Binder: read c2300.chrbnd.dcx")
 {
     auto binder = LoadBinderDCX("darksouls1r/c2300.chrbnd.dcx");
-    if (!binder.has_value())
+    if (!binder)
     {
         MESSAGE("Skipping — c2300.chrbnd.dcx not available (missing fixture or Oodle DLL)");
         return;
@@ -70,7 +70,7 @@ TEST_CASE("Binder: read c2300.chrbnd.dcx")
 TEST_CASE("Binder: round-trip c2300.chrbnd.dcx")
 {
     auto binder = LoadBinderDCX("darksouls1r/c2300.chrbnd.dcx");
-    if (!binder.has_value())
+    if (!binder)
     {
         MESSAGE("Skipping — c2300.chrbnd.dcx not available");
         return;
@@ -80,13 +80,13 @@ TEST_CASE("Binder: round-trip c2300.chrbnd.dcx")
     auto written = binder->ToBytes();
     REQUIRE(!written.empty());
 
-    Binder reread = Binder::FromBytes(written.data(), written.size());
-    REQUIRE(reread.entries.size() == binder->entries.size());
+    const Binder::CPtr reread = Binder::FromBytes(written.data(), written.size());
+    REQUIRE(reread->entries.size() == binder->entries.size());
 
     for (std::size_t i = 0; i < binder->entries.size(); ++i)
     {
         const auto& a = binder->entries[i];
-        const auto& b = reread.entries[i];
+        const auto& b = reread->entries[i];
         CHECK(a.entry_id == b.entry_id);
         CHECK(a.path == b.path);
         CHECK(a.flags == b.flags);
@@ -103,7 +103,7 @@ TEST_CASE("Binder: round-trip c2300.chrbnd.dcx")
 TEST_CASE("Binder: read c2010.anibnd.dcx")
 {
     auto binder = LoadBinderDCX("eldenring/c2010.anibnd.dcx");
-    if (!binder.has_value())
+    if (!binder)
     {
         MESSAGE("Skipping — c2010.anibnd.dcx not available");
         return;
@@ -118,7 +118,7 @@ TEST_CASE("Binder: read c2010.anibnd.dcx")
 TEST_CASE("Binder: round-trip c2010.anibnd.dcx")
 {
     auto binder = LoadBinderDCX("eldenring/c2010.anibnd.dcx");
-    if (!binder.has_value())
+    if (!binder)
     {
         MESSAGE("Skipping — c2010.anibnd.dcx not available");
         return;
@@ -127,13 +127,13 @@ TEST_CASE("Binder: round-trip c2010.anibnd.dcx")
     auto written = binder->ToBytes();
     REQUIRE(!written.empty());
 
-    Binder reread = Binder::FromBytes(written.data(), written.size());
-    REQUIRE(reread.entries.size() == binder->entries.size());
+    Binder::CPtr reread = Binder::FromBytes(written.data(), written.size());
+    REQUIRE(reread->entries.size() == binder->entries.size());
 
     for (std::size_t i = 0; i < binder->entries.size(); ++i)
     {
         const auto& a = binder->entries[i];
-        const auto& b = reread.entries[i];
+        const auto& b = reread->entries[i];
         CHECK(a.entry_id == b.entry_id);
         CHECK(a.path == b.path);
         CHECK(a.data.size() == b.data.size());
@@ -147,15 +147,15 @@ TEST_CASE("Binder: round-trip c2010.anibnd.dcx")
 TEST_CASE("Binder: double-write produces identical bytes")
 {
     auto binder = LoadBinderDCX("darksouls1r/c2300.chrbnd.dcx");
-    if (!binder.has_value())
+    if (!binder)
     {
         MESSAGE("Skipping — c2300.chrbnd.dcx not available");
         return;
     }
 
     auto written1 = binder->ToBytes();
-    Binder reread = Binder::FromBytes(written1.data(), written1.size());
-    auto written2 = reread.ToBytes();
+    Binder::CPtr reread = Binder::FromBytes(written1.data(), written1.size());
+    auto written2 = reread->ToBytes();
 
     CHECK(written1.size() == written2.size());
     if (written1.size() == written2.size())
@@ -168,52 +168,15 @@ TEST_CASE("Binder: double-write produces identical bytes")
 
 namespace
 {
-    std::optional<Binder> load_split_binder(const char* bhd_name, const char* bdt_name)
-    {
-        auto bhd_path = GetResourcePath(bhd_name);
-        auto bdt_path = GetResourcePath(bdt_name);
-        auto bhd_raw = LoadFile(bhd_path);
-        auto bdt_raw = LoadFile(bdt_path);
-        if (bhd_raw.empty() || bdt_raw.empty()) return std::nullopt;
 
-        // Both files may be DCX-compressed.
-        std::vector<std::byte> bhd_data, bdt_data;
-        if (IsDCX(bhd_raw.data(), bhd_raw.size()))
-        {
-            auto dcx_type = DetectDCX(bhd_raw.data(), bhd_raw.size());
-            if (dcx_type == DCXType::DCX_KRAK && !Oodle::IsAvailable())
-                return std::nullopt;
-            bhd_data = DecompressDCX(bhd_raw.data(), bhd_raw.size()).data;
-        }
-        else
-        {
-            bhd_data = std::move(bhd_raw);
-        }
-
-        if (IsDCX(bdt_raw.data(), bdt_raw.size()))
-        {
-            auto dcx_type = DetectDCX(bdt_raw.data(), bdt_raw.size());
-            if (dcx_type == DCXType::DCX_KRAK && !Oodle::IsAvailable())
-                return std::nullopt;
-            bdt_data = DecompressDCX(bdt_raw.data(), bdt_raw.size()).data;
-        }
-        else
-        {
-            bdt_data = std::move(bdt_raw);
-        }
-
-        return Binder::FromSplitBytes(
-            bhd_data.data(), bhd_data.size(),
-            bdt_data.data(), bdt_data.size());
-    }
 } // namespace
 
 TEST_CASE("Binder: read split c2300.chrtpfbhd + chrtpfbdt")
 {
-    auto binder = load_split_binder("darksouls1r/c2300.chrtpfbhd", "darksouls1r/c2300.chrtpfbdt");
-    if (!binder.has_value())
+    auto binder = LoadSplitChrtpfbxf("darksouls1r/c2300.chrbnd.dcx", "darksouls1r/c2300.chrtpfbdt");
+    if (!binder)
     {
-        MESSAGE("Skipping — c2300.chrtpfbhd/bdt not available (missing fixture or Oodle DLL)");
+        MESSAGE("Skipping — c2300.chrbnd/chrtpfbdt not available (missing fixture or Oodle DLL)");
         return;
     }
 
@@ -231,11 +194,10 @@ TEST_CASE("Binder: read split c2300.chrtpfbhd + chrtpfbdt")
 
 TEST_CASE("Binder: split c2300.chrtpfbhd contains TPF entries")
 {
-    // TODO: CHRTPFBHD lives inside CHRBND.
-    auto binder = load_split_binder("darksouls1r/c2300.chrtpfbhd", "darksouls1r/c2300.chrtpfbdt");
-    if (!binder.has_value())
+    auto binder = LoadSplitChrtpfbxf("darksouls1r/c2300.chrbnd.dcx", "darksouls1r/c2300.chrtpfbdt");
+    if (!binder)
     {
-        MESSAGE("Skipping — c2300.chrtpfbhd/bdt not available");
+        MESSAGE("Skipping — c2300.chrbnd/chrtpfbdt not available");
         return;
     }
 
@@ -246,7 +208,7 @@ TEST_CASE("Binder: split c2300.chrtpfbhd contains TPF entries")
         auto name = entry.name();
         bool is_tpf = false;
 
-        // Check for .tpf or .tpf.dcx
+        // Check for .tpf or .tpf->dcx
         if (entry.data.size() >= 4)
         {
             if (std::memcmp(entry.data.data(), "TPF\0", 4) == 0)
@@ -282,9 +244,9 @@ TEST_CASE("Binder: split c2300.chrtpfbhd contains TPF entries")
                     tpf_size = decompressed.size();
                 }
 
-                TPF tpf = TPF::FromBytes(tpf_data, tpf_size);
-                CHECK(tpf.textures.size() > 0);
-                MESSAGE("  First TPF has " << tpf.textures.size() << " texture(s): " << tpf.textures[0].stem);
+                TPF::CPtr tpf = TPF::FromBytes(tpf_data, tpf_size);
+                CHECK(tpf->textures.size() > 0);
+                MESSAGE("  First TPF has " << tpf->textures.size() << " texture(s): " << tpf->textures[0].stem);
             }
         }
     }

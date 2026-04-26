@@ -6,6 +6,12 @@
 
 namespace Firelink
 {
+    namespace BinaryReadWrite
+    {
+        class BufferReader;
+        class BufferWriter;
+    }
+
     struct Dummy
     {
         Vector3 translate{};
@@ -21,5 +27,10 @@ namespace Firelink
         std::int32_t unk_x34 = 0;
 
         bool operator==(const Dummy&) const = default;
+
+        void Write(BinaryReadWrite::BufferWriter& w) const;
+
+        static Dummy Read(BinaryReadWrite::BufferReader& r);
     };
+
 } // namespace Firelink

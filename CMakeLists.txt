@@ -66,3 +66,14 @@ if(FIRELINK_BUILD_TESTS)
     set(FIRELINK_TEST_RESOURCES_DIR "${CMAKE_CURRENT_SOURCE_DIR}/test_resources")
     add_subdirectory(tests)
 endif()
+
+install(EXPORT FirelinkTargets
+        FILE FirelinkTargets.cmake
+        NAMESPACE Firelink::
+        DESTINATION lib/cmake/Firelink
+)
+
+# If this is not scikit-build, install `pyrelink` folder of bindings.
+if(NOT DEFINED SKBUILD)
+    install(DIRECTORY pyrelink DESTINATION ${CMAKE_INSTALL_PREFIX})
+endif()

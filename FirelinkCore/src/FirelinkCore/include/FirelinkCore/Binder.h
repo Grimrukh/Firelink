@@ -6,10 +6,14 @@
 
 #pragma once
 
+#include <FirelinkCore/BinaryReadWrite.h>
+#include <FirelinkCore/Endian.h>
 #include <FirelinkCore/Export.h>
+#include <FirelinkCore/GameFile.h>
 
 #include <cstddef>
 #include <cstdint>
+#include <filesystem>
 #include <optional>
 #include <stdexcept>
 #include <string>
@@ -92,14 +96,22 @@ namespace Firelink
 
         [[nodiscard]] std::string name() const
         {
-            auto pos = path.find_last_of("\\/");
-            return (pos == std::string::npos) ? path : path.substr(pos + 1);
+            const auto pos = path.find_last_of("\\/");
+            return pos == std::string::npos ? path : path.substr(pos + 1);
+        }
+
+        [[nodiscard]] std::string stem() const
+        {
+            const std::string _name = name();
+            // Get substring before first '.' in name.
+            const auto pos = _name.find_first_of('.');
+            return pos == std::string::npos ? path : _name.substr(0, pos);
         }
     };
 
     // --- Binder ---
 
-    class FIRELINK_CORE_API Binder
+    class FIRELINK_CORE_API Binder : public GameFile<Binder>
     {
     public:
         BinderVersion version = BinderVersion::V4;
@@ -109,18 +121,26 @@ namespace Firelink
         bool bit_big_endian = false;
         std::optional<BinderVersion4Info> v4_info = BinderVersion4Info{};
 
+        std::filesystem::path path;
+
         std::vector<BinderEntry> entries;
 
-        /// @brief Parse a BND3 or BND4 archive from raw (already decompressed) bytes.
-        static Binder FromBytes(const std::byte* data, std::size_t size);
+        /// @brief Parse a split BHF3/BHF4 header + BDT data pair (managed storage).
+        static Ptr FromSplitBytes(std::vector<std::byte>&& bhdData, std::vector<std::byte>&& bdtData);
 
-        /// @brief Parse a split BHF3/BHF4 header + BDT data pair.
-        static Binder FromSplitBytes(
+        /// @brief Parse a split BHF3/BHF4 header + BDT data pair (raw data).
+        static Ptr FromSplitBytes(
             const std::byte* bhd_data, std::size_t bhd_size,
             const std::byte* bdt_data, std::size_t bdt_size);
 
-        /// @brief Serialize this Binder back to BND3 or BND4 bytes.
-        [[nodiscard]] std::vector<std::byte> ToBytes() const;
+        /// @brief Get endianness of Binder.
+        BinaryReadWrite::Endian GetEndian() const;
+
+        /// @brief Deserialize a Binder. Dispatches to V3 or V4 method.
+        void Deserialize(BinaryReadWrite::BufferReader& reader);
+
+        /// @brief Serialize a Binder. Dispatches to V3 or V4 method.
+        void Serialize(BinaryReadWrite::BufferWriter& w) const;
 
         /// @brief Get entry count.
         [[nodiscard]] std::size_t EntryCount() const { return entries.size(); }
@@ -134,13 +154,10 @@ namespace Firelink
         [[nodiscard]] BinderEntry* FindEntryByName(const std::string& name);
 
     private:
-        static Binder ReadV3(const std::byte* data, std::size_t size,
-                             const std::byte* entry_data, std::size_t entry_data_size);
-        static Binder ReadV4(const std::byte* data, std::size_t size,
-                             const std::byte* entry_data, std::size_t entry_data_size);
-        [[nodiscard]] std::vector<std::byte> WriteBND3() const;
-        [[nodiscard]] std::vector<std::byte> WriteBND4() const;
+        void DeserializeV3(BinaryReadWrite::BufferReader& reader, BinaryReadWrite::BufferReader& entryReader);
+        void DeserializeV4(BinaryReadWrite::BufferReader& reader, BinaryReadWrite::BufferReader& entryReader);
+        void SerializeBND3(BinaryReadWrite::BufferWriter& w) const;
+        void SerializeBND4(BinaryReadWrite::BufferWriter& writer) const;
     };
 
 } // namespace Firelink
-

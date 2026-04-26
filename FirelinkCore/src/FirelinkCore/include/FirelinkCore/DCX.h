@@ -74,12 +74,11 @@ namespace Firelink
     /// @brief Detect the DCXType from the header without decompressing.
     [[nodiscard]] FIRELINK_CORE_API DCXType DetectDCX(const std::byte* data, std::size_t size);
 
-    /// @brief Decompress DCX/DCP/raw-zlib data.
+    /// @brief Decompress DCX/DCP/raw-zlib data. Data MUST be compressed with a non-Null DCX type.
     [[nodiscard]] FIRELINK_CORE_API DCXResult DecompressDCX(const std::byte* data, std::size_t size);
 
-    /// @brief Compress data into the given DCX format.
-    [[nodiscard]] FIRELINK_CORE_API std::vector<std::byte> CompressDCX(
-        const std::byte* data, std::size_t size, DCXType type);
+    /// @brief Decompress DCX/DCP/raw-zlib data from a path. Data may not be compressed.
+    [[nodiscard]] FIRELINK_CORE_API DCXResult TryDecompressDCX(const std::filesystem::path& path);
 
     /// @brief Decompress data if required and return a BufferReader and DCXType.
     /// @note  BufferReader will use `data` directly if already decompressed, or manage its own
@@ -95,4 +94,9 @@ namespace Firelink
     /// @brief Decompress data if required and return a BufferReader and DCXType.
     [[nodiscard]] FIRELINK_CORE_API std::pair<BinaryReadWrite::BufferReader, DCXType> GetBufferReaderForDCX(
         const std::filesystem::path& path, BinaryReadWrite::Endian endian = BinaryReadWrite::Endian::Little);
+
+    /// @brief Compress data into the given DCX format.
+    [[nodiscard]] FIRELINK_CORE_API std::vector<std::byte> CompressDCX(
+        const std::byte* data, std::size_t size, DCXType type);
+
 } // namespace Firelink

@@ -11,9 +11,9 @@ target_sources(FirelinkCore
     src/Collections.cpp
     src/DCX.cpp
     src/DDS.cpp
-    src/ImageImportManager.cpp
     src/Logging.cpp
     src/Oodle.cpp
+    src/Paths.cpp
     src/Pointer.cpp
     src/Process.cpp
     src/TPF.cpp
@@ -32,10 +32,12 @@ target_sources(FirelinkCore
         include/FirelinkCore/Collections.h
         include/FirelinkCore/DCX.h
         include/FirelinkCore/DDS.h
-        include/FirelinkCore/ImageImportManager.h
+        include/FirelinkCore/GameFile.h
+        include/FirelinkCore/GameType.h
         include/FirelinkCore/Logging.h
         include/FirelinkCore/Logging.h
         include/FirelinkCore/Oodle.h
+        include/FirelinkCore/Paths.h
         include/FirelinkCore/Pointer.h
         include/FirelinkCore/Process.h
         include/FirelinkCore/TPF.h
@@ -106,6 +108,6 @@ FetchContent_MakeAvailable(DirectXTex)
 target_link_libraries(FirelinkCore PRIVATE zlibstatic libzstd_static DirectXTex ole32.lib d3d11.lib dxgi.lib)
 
 install(TARGETS FirelinkCore
-        EXPORT FirelinkCoreTargets
+        EXPORT FirelinkTargets
         FILE_SET HEADERS
 )

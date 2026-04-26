@@ -1,4 +1,4 @@
-// Test FLVER write → re-read round-trip for FLVER2 fixtures.
+// Test FLVER0 write → re-read round-trip for FLVER0 fixtures.
 //
 // For each fixture, we:
 //   1. Read the original FLVER from bytes.
@@ -24,12 +24,7 @@ using namespace Firelink;
 namespace
 {
     // TODO: Add a FLVER0 fixture from DeS.
-    const char* FLVER2_FIXTURES[] = {
-        "eldenring/c2010.flver",
-        "darksouls1r/m5020B2A10.flver",
-        "darksouls1r/m5030B2A10.flver",
-        "darksouls1r/m8101B2A10.flver",
-    };
+    const char* FLVER0_FIXTURES[] = {};
 
     // Compare two Bone vectors.
     void check_bones_equal(const std::vector<Bone>& a, const std::vector<Bone>& b)
@@ -211,100 +206,6 @@ namespace
         }
     }
 } // namespace
-
-// ---------------------------------------------------------------------------
-// FLVER2 round-trip tests
-// ---------------------------------------------------------------------------
-
-TEST_CASE("FLVER2 round-trip: write and re-read")
-{
-    for (const auto* name : FLVER2_FIXTURES)
-    {
-        SUBCASE(name)
-        {
-            auto path = GetResourcePath(name);
-            auto buf = LoadFile(path);
-            if (buf.empty())
-            {
-                MESSAGE("Skipping " << name << " — fixture not found");
-                return;
-            }
-
-            // 1. Read original.
-            FLVER orig = FLVER::FromBytes(buf.data(), buf.size());
-
-            // 2. Write to bytes.
-            std::vector<std::byte> written = orig.ToBytes();
-            REQUIRE(written.size() > 128); // at least a header
-
-            // 3. Re-read from written bytes.
-            FLVER reread = FLVER::FromBytes(written.data(), written.size());
-
-            // 4. Compare.
-            check_flver_equal(orig, reread);
-        }
-    }
-}
-
-TEST_CASE("FLVER2 round-trip: DCX compressed fixture")
-{
-    auto path = GetResourcePath("m0100B2A10.flver.dcx");
-    auto raw = LoadFile(path);
-    if (raw.empty())
-    {
-        MESSAGE("Skipping — fixture not found");
-        return;
-    }
-
-    // Read (handles DCX internally).
-    FLVER orig = FLVER::FromBytes(raw.data(), raw.size());
-
-    // Write (produces uncompressed FLVER bytes).
-    std::vector<std::byte> written = orig.ToBytes();
-    REQUIRE(written.size() > 128);
-
-    // Re-read the uncompressed FLVER.
-    FLVER reread = FLVER::FromBytes(written.data(), written.size());
-
-    check_flver_equal(orig, reread);
-}
-
-TEST_CASE("FLVER2 round-trip: double write produces identical bytes")
-{
-    // Write → re-read → write again. The two written byte buffers should be identical,
-    // proving the writer is deterministic.
-    for (const auto* name : FLVER2_FIXTURES)
-    {
-        SUBCASE(name)
-        {
-            auto path = GetResourcePath(name);
-            auto buf = LoadFile(path);
-            if (buf.empty())
-            {
-                MESSAGE("Skipping " << name << " — fixture not found");
-                return;
-            }
-
-            FLVER orig = FLVER::FromBytes(buf.data(), buf.size());
-            std::vector<std::byte> written1 = orig.ToBytes();
-
-            // First write may normalize (e.g. strip Ignore layout types from repair).
-            // Determinism is proven by write2 == write3.
-            FLVER reread1 = FLVER::FromBytes(written1.data(), written1.size());
-            std::vector<std::byte> written2 = reread1.ToBytes();
-
-            FLVER reread2 = FLVER::FromBytes(written2.data(), written2.size());
-            std::vector<std::byte> written3 = reread2.ToBytes();
-
-            // The second and third written buffers should be byte-identical.
-            CHECK(written2.size() == written3.size());
-            if (written2.size() == written3.size())
-            {
-                CHECK(std::memcmp(written2.data(), written3.data(), written2.size()) == 0);
-            }
-        }
-    }
-}
 
 // ---------------------------------------------------------------------------
 // FLVER0 synthetic round-trip test

@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 __all__ = [
+    # Core
+    "GameFile",
+    "GameType",
     # Binder
     "BinderVersion",
     "BinderFlags",
@@ -29,10 +32,6 @@ __all__ = [
     "convert_dds_to_png",
     "convert_tga_to_dds",
     "convert_png_to_dds",
-    # ImageImportManager
-    "GameType",
-    "ImageFormat",
-    "ImageImportManager",
     # TPF
     "TPFPlatform",
     "TextureType",
@@ -42,7 +41,58 @@ __all__ = [
 ]
 
 from enum import IntEnum
+from pathlib import Path
 from typing import Union, Optional
+
+# ---------------------------------------------------------------------------
+# GameFile (ABC)
+# ---------------------------------------------------------------------------
+
+class GameFile:
+
+    @classmethod
+    def from_path(cls, path: Union[str, Path]) -> GameFile: ...
+
+    @classmethod
+    def from_bytes(cls, data: Union[bytes, bytearray, memoryview]) -> GameFile: ...
+
+    def to_bytes(self) -> bytes: ...
+
+    def write_to_path(self, path: Union[str | Path | None] = None) -> None: ...
+
+    @property
+    def dcx_type(self) -> DCXType: ...
+    @dcx_type.setter
+    def dcx_type(self, value: DCXType) -> None: ...
+
+    @property
+    def path(self) -> Path | None: ...
+    @path.setter
+    def path(self, value: Path | None) -> None: ...
+
+    @property
+    def path_name(self) -> str | None:
+        """Get name of `path`."""
+        ...
+    @property
+    def path_stem(self) -> str | None:
+        """NOTE: Like `path.stem`, this only removes the LAST suffix, e.g. 'c1000.chrbnd.dcx' -> 'c1000.chrbnd'."""
+        ...
+    @property
+    def path_minimal_stem(self) -> str | None:
+        """Removes ALL suffixes from `path` name, e.g. 'c1000.chrbnd.dcx' -> 'c1000'."""
+        ...
+
+
+class GameType(IntEnum):
+    """Game identifier for ImageImportManager."""
+    DemonsSouls = 0
+    DarkSoulsPTDE = 1
+    DarkSoulsDSR = 2
+    Bloodborne = 3
+    DarkSouls3 = 4
+    Sekiro = 5
+    EldenRing = 6
 
 # ---------------------------------------------------------------------------
 # Binder
@@ -89,7 +139,7 @@ class BinderError(RuntimeError):
     """Error raised by Binder operations."""
     ...
 
-class Binder:
+class Binder(GameFile):
     """A FromSoftware BND3/BND4 multi-file archive."""
     version: BinderVersion
     signature: str
@@ -99,20 +149,11 @@ class Binder:
     entries: list[BinderEntry]
 
     @staticmethod
-    def from_bytes(data: Union[bytes, bytearray, memoryview]) -> "Binder":
-        """Parse a BND3 or BND4 archive from raw bytes (must already be DCX-decompressed)."""
-        ...
-
-    @staticmethod
     def from_split_bytes(
         bhd_data: Union[bytes, bytearray, memoryview],
         bdt_data: Union[bytes, bytearray, memoryview],
     ) -> "Binder":
         """Parse a split BHF/BDT binder from raw bytes."""
-        ...
-
-    def to_bytes(self) -> bytes:
-        """Serialize the Binder back to BND3 or BND4 bytes."""
         ...
 
     @property
@@ -284,89 +325,6 @@ def convert_png_to_dds(
     """
     ...
 
-
-# ---------------------------------------------------------------------------
-# ImageImportManager
-# ---------------------------------------------------------------------------
-
-class GameType(IntEnum):
-    """Game identifier for ImageImportManager."""
-    DemonsSouls = 0
-    DarkSoulsPTDE = 1
-    DarkSoulsDSR = 2
-    Bloodborne = 3
-    DarkSouls3 = 4
-    Sekiro = 5
-    EldenRing = 6
-
-
-class ImageFormat(IntEnum):
-    DDS = 0
-    PNG = 1
-    TGA = 2
-
-
-class ImportImageManager:
-    """
-    /// @brief Construct a manager for the given game.
-        /// @param game       Which FromSoftware game.
-        /// @param data_root  Root of unpacked game data (e.g. "DARK SOULS REMASTERED", "ELDEN RING/Game").
-        ImageImportManager(GameType game, std::filesystem::path data_root);
-
-        /// @brief Register texture source locations for a FLVER loaded from `flver_source_path`.
-        ///
-        /// `flver_source_path` is the path to the file the FLVER was loaded from
-        /// (e.g. "chr/c2300.chrbnd.dcx" or a loose "map/.../m1234.flver").
-        ///
-        /// If the FLVER came from a Binder that has already been opened, pass it as
-        /// `flver_binder` so its TPF entries can be scanned without re-reading the file.
-        void RegisterFLVERSources(
-            const std::filesystem::path& flver_source_path,
-            const Binder* flver_binder = nullptr,
-            bool prefer_hi_res = true);
-
-        /// @brief Look up a texture by stem (case-insensitive). Returns nullptr if not found.
-        ///
-        /// Lazily loads pending TPFs and Binders as needed.
-        const TPFTexture* GetTexture(const std::string& texture_stem,
-                                     const std::string& model_name = "");
-
-        /// @brief Get texture data converted to the requested format.
-        ///
-        /// Returns empty vector if texture not found.
-        std::vector<std::byte> GetTextureAs(const std::string& texture_stem,
-                                            ImageFormat format,
-                                            const std::string& model_name = "");
-
-        /// @brief Manually set the AET root directory for asset texture lookups.
-        void SetAETRoot(const std::filesystem::path& aet_root) { aet_root_ = aet_root; }
-
-        /// @brief Get the number of cached textures.
-        [[nodiscard]] std::size_t CachedTextureCount() const;
-
-    """
-
-    def __init__(self, game: GameType, data_root: str) -> None: ...
-
-    def register_flver_sources(
-        self,
-        flver_source_path: str,
-        flver_binder: Optional[Binder] = None,
-        prefer_hi_res: bool = True,
-    ) -> None: ...
-
-    def get_texture(self, texture_stem: str, model_name: str = "") -> Optional[TPFTexture]: ...
-
-    def get_texture_as(self, texture_stem: str, format: ImageFormat, model_name: str = "") -> bytes: ...
-
-    def set_aet_root(self, aet_root: str) -> None: ...
-
-    @property
-    def cached_texture_count(self) -> int: ...
-
-    def __repr__(self) -> str: ...
-
-
 # ---------------------------------------------------------------------------
 # TPF
 # ---------------------------------------------------------------------------
@@ -398,21 +356,12 @@ class TPFError(RuntimeError):
     """Error raised by TPF operations."""
     ...
 
-class TPF:
+class TPF(GameFile):
     """A FromSoftware TPF texture pack file."""
     platform: TPFPlatform
     tpf_flags: int
     encoding_type: int
     textures: list[TPFTexture]
-
-    @staticmethod
-    def from_bytes(data: Union[bytes, bytearray, memoryview]) -> "TPF":
-        """Parse a TPF from raw bytes (must already be DCX-decompressed)."""
-        ...
-
-    def to_bytes(self) -> bytes:
-        """Serialize the TPF back to bytes."""
-        ...
 
     @property
     def texture_count(self) -> int: ...

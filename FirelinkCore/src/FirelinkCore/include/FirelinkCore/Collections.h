@@ -1,6 +1,5 @@
 ﻿#pragma once
 
-#include <FirelinkCore/BinaryReadWrite.h>
 #include <FirelinkCore/Export.h>
 
 #include <array>
@@ -12,6 +11,12 @@
 
 namespace Firelink
 {
+    namespace BinaryReadWrite
+    {
+        class BufferReader;
+        class BufferWriter;
+    }
+
     /// @brief Vector2 struct.
     struct FIRELINK_CORE_API Vector2
     {

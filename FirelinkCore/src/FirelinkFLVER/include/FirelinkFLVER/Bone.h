@@ -7,6 +7,12 @@
 
 namespace Firelink
 {
+    namespace BinaryReadWrite
+    {
+        class BufferReader;
+        class BufferWriter;
+    }
+
     // --- BoneUsageFlags ----------------------------------------------------
     // Bit flags on Bone.usage_flags. "UNUSED" marks a bone that only exists
     // for skeleton hierarchy reasons; used bones have usage_flags == 0.
@@ -34,5 +40,9 @@ namespace Firelink
         std::int16_t previous_sibling_bone_index = -1;
 
         bool operator==(const Bone&) const = default;
+
+        void Write(BinaryReadWrite::BufferWriter& w, const void* scope) const;
+
+        static Bone Read(BinaryReadWrite::BufferReader& r, bool unicode_encoding);
     };
 } // namespace Firelink

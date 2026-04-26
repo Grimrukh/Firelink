@@ -79,16 +79,15 @@ namespace Firelink
         // --- Construction -----------------------------------------------------
 
         // Build a MergedMesh from a parsed FLVER. This is the main entry point.
-        // `mesh_material_indices`: per-mesh material index for the merged faces[:, 3].
+        // `meshMaterialIndices`: per-mesh material index for the merged faces[:, 3].
         //   If empty, each mesh gets its own index (0, 1, 2, ...).
-        // `material_uv_layer_names`: per-material list of UV layer names. If empty,
+        // `materialUVLayerNames`: per-material list of UV layer names. If empty,
         //   defaults to "UVMap0", "UVMap1", etc.
-        // `merge_vertices`: if true, deduplicate vertices by position+bone data.
-        static MergedMesh from_flver(
+        // `mergeVertices`: if true, deduplicate vertices by position+bone data.
+        explicit MergedMesh(
             const FLVER& flver,
-            const std::vector<std::uint32_t>& mesh_material_indices = {},
-            const std::vector<std::vector<std::string>>& material_uv_layer_names = {},
-            bool merge_vertices = true
-        );
+            const std::vector<std::uint32_t>& meshMaterialIndices = {},
+            const std::vector<std::vector<std::string>>& materialUVLayerNames = {},
+            bool mergeVertices = true);
     };
 } // namespace Firelink

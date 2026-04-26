@@ -5,7 +5,9 @@
 
 #pragma once
 
+#include <FirelinkCore/BinaryReadWrite.h>
 #include <FirelinkCore/Export.h>
+#include <FirelinkCore/GameFile.h>
 
 #include <cstddef>
 #include <cstdint>
@@ -78,7 +80,7 @@ namespace Firelink
 
     // --- TPF ---
 
-    class FIRELINK_CORE_API TPF
+    class FIRELINK_CORE_API TPF : public GameFile<TPF>
     {
     public:
         TPFPlatform platform = TPFPlatform::PC;
@@ -86,11 +88,14 @@ namespace Firelink
         std::uint8_t encoding_type = 0; // 0/2 = shift-jis, 1 = UTF-16
         std::vector<TPFTexture> textures;
 
-        /// @brief Parse a TPF from raw (already decompressed) bytes.
-        static TPF FromBytes(const std::byte* data, std::size_t size);
+        /// @brief Get endianness of TPF.
+        BinaryReadWrite::Endian GetEndian() const noexcept;
 
-        /// @brief Serialize this TPF back to bytes.
-        [[nodiscard]] std::vector<std::byte> ToBytes() const;
+        /// @brief Deserialize a TPF.
+        void Deserialize(BinaryReadWrite::BufferReader& r);
+
+        /// @brief Serialize this TPF.
+        void Serialize(BinaryReadWrite::BufferWriter& w) const;
 
         /// @brief Get texture count.
         [[nodiscard]] std::size_t TextureCount() const { return textures.size(); }
@@ -101,4 +106,3 @@ namespace Firelink
     };
 
 } // namespace Firelink
-

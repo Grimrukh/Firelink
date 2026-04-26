@@ -49,8 +49,8 @@ namespace Firelink::EldenRing::Maps::MapStudio
 
         [[nodiscard]] virtual std::unique_ptr<Shape> Clone() const = 0;
 
-        virtual void DeserializeShapeData(Firelink::BinaryReadWrite::BufferReader& reader) = 0;
-        virtual void SerializeShapeData(Firelink::BinaryReadWrite::BufferWriter& writer) = 0;
+        virtual void DeserializeShapeData(BinaryReadWrite::BufferReader& reader) = 0;
+        virtual void SerializeShapeData(BinaryReadWrite::BufferWriter& writer) = 0;
 
         [[nodiscard]] std::string GetShapeTypeName() const { return GetTypeNames().at(GetType()); }
     };
@@ -68,8 +68,8 @@ namespace Firelink::EldenRing::Maps::MapStudio
 
         [[nodiscard]] std::unique_ptr<Shape> Clone() const override { return std::make_unique<Point>(*this); }
 
-        void DeserializeShapeData(Firelink::BinaryReadWrite::BufferReader& reader) override;
-        void SerializeShapeData(Firelink::BinaryReadWrite::BufferWriter& writer) override;
+        void DeserializeShapeData(BinaryReadWrite::BufferReader& reader) override;
+        void SerializeShapeData(BinaryReadWrite::BufferWriter& writer) override;
     };
 
     class FIRELINK_ER_MAPS_API Circle final : public Shape
@@ -94,8 +94,8 @@ namespace Firelink::EldenRing::Maps::MapStudio
         [[nodiscard]] float GetRadius() const { return m_radius; }
         void SetRadius(const float radius) { m_radius = radius; }
 
-        void DeserializeShapeData(Firelink::BinaryReadWrite::BufferReader& reader) override;
-        void SerializeShapeData(Firelink::BinaryReadWrite::BufferWriter& writer) override;
+        void DeserializeShapeData(BinaryReadWrite::BufferReader& reader) override;
+        void SerializeShapeData(BinaryReadWrite::BufferWriter& writer) override;
 
     protected:
         float m_radius;
@@ -123,8 +123,8 @@ namespace Firelink::EldenRing::Maps::MapStudio
         [[nodiscard]] float GetRadius() const { return m_radius; }
         void SetRadius(const float radius) { m_radius = radius; }
 
-        void DeserializeShapeData(Firelink::BinaryReadWrite::BufferReader& reader) override;
-        void SerializeShapeData(Firelink::BinaryReadWrite::BufferWriter& writer) override;
+        void DeserializeShapeData(BinaryReadWrite::BufferReader& reader) override;
+        void SerializeShapeData(BinaryReadWrite::BufferWriter& writer) override;
 
     protected:
         float m_radius;
@@ -157,8 +157,8 @@ namespace Firelink::EldenRing::Maps::MapStudio
         [[nodiscard]] float GetHeight() const { return m_height; }
         void SetHeight(const float height) { m_height = height; }
 
-        void DeserializeShapeData(Firelink::BinaryReadWrite::BufferReader& reader) override;
-        void SerializeShapeData(Firelink::BinaryReadWrite::BufferWriter& writer) override;
+        void DeserializeShapeData(BinaryReadWrite::BufferReader& reader) override;
+        void SerializeShapeData(BinaryReadWrite::BufferWriter& writer) override;
 
     protected:
         float m_radius;
@@ -192,8 +192,8 @@ namespace Firelink::EldenRing::Maps::MapStudio
         [[nodiscard]] float GetDepth() const { return m_depth; }
         void SetDepth(const float depth) { m_depth = depth; }
 
-        void DeserializeShapeData(Firelink::BinaryReadWrite::BufferReader& reader) override;
-        void SerializeShapeData(Firelink::BinaryReadWrite::BufferWriter& writer) override;
+        void DeserializeShapeData(BinaryReadWrite::BufferReader& reader) override;
+        void SerializeShapeData(BinaryReadWrite::BufferWriter& writer) override;
 
     protected:
         float m_width; // X axis
@@ -232,8 +232,8 @@ namespace Firelink::EldenRing::Maps::MapStudio
         [[nodiscard]] float GetHeight() const { return m_height; }
         void SetHeight(const float height) { m_height = height; }
 
-        void DeserializeShapeData(Firelink::BinaryReadWrite::BufferReader& reader) override;
-        void SerializeShapeData(Firelink::BinaryReadWrite::BufferWriter& writer) override;
+        void DeserializeShapeData(BinaryReadWrite::BufferReader& reader) override;
+        void SerializeShapeData(BinaryReadWrite::BufferWriter& writer) override;
 
     protected:
         float m_width;  // X axis
@@ -259,7 +259,7 @@ namespace Firelink::EldenRing::Maps::MapStudio
         [[nodiscard]] std::unique_ptr<Shape> Clone() const override { return std::make_unique<Composite>(*this); }
 
         // Dummy implementations. Handled by caller as special case so child references can be assigned to `Region`.
-        void DeserializeShapeData(Firelink::BinaryReadWrite::BufferReader& reader) override {}
-        void SerializeShapeData(Firelink::BinaryReadWrite::BufferWriter& writer) override {}
+        void DeserializeShapeData(BinaryReadWrite::BufferReader& reader) override {}
+        void SerializeShapeData(BinaryReadWrite::BufferWriter& writer) override {}
     };
 } // namespace Firelink::EldenRing::Maps::MapStudio
