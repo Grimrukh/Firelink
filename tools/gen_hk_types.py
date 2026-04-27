@@ -11,7 +11,7 @@ Usage:
 Options:
     --reg-func NAME   Name of the registration function  (default: Register<Folder>Dispatch)
     --ns NAMESPACE    C++ namespace                       (default: Firelink::Havok)
-    --tagfile-h PATH  TagFileUnpacker include path        (default: FirelinkCore/Havok/Tagfile.h)
+    --tagfile-h PATH  TagFileUnpacker include path        (default: FirelinkCore/Havok/TagfileUnpacker.h)
 
 Examples:
     python tools/gen_hk_types.py \\
@@ -234,13 +234,18 @@ def _parse_texpr(
             if not args:
                 return TypeExpr("array", "std::vector<uint8_t>", "uint8_t", "", False)
             inner_te = _parse_texpr(args[0], local_types, aliases)
-            # If the inner type is a refobj (pointer-based), the vector holds unique_ptrs
+            # If the element type is itself a pointer expression (Ptr(T), hkRefPtr(T), hkViewPtr(T)),
+            # the array stores 8-byte item indices rather than inline values.
+            if inner_te.kind in ("refptr", "viewptr"):
+                cpp_type = f"std::vector<{inner_te.cpp_type}>"
+                return TypeExpr("ptr_array", cpp_type, inner_te.inner, "", False)
+            # Array of inline values
             inner_td = local_types.get(inner_te.inner) if inner_te.inner else None
             if inner_td and inner_td.kind == "refobj":
                 cpp_type = f"std::vector<std::shared_ptr<{inner_te.cpp_type}>>"
-            else:
-                cpp_type = f"std::vector<{inner_te.cpp_type}>"
-            return TypeExpr("array", cpp_type, inner_te.cpp_type, "", False)
+                return TypeExpr("ptr_array", cpp_type, inner_te.inner, "", False)
+            return TypeExpr("array", f"std::vector<{inner_te.cpp_type}>",
+                            inner_te.cpp_type, "", False)
 
         if fname == "hkRelArray":
             if not args:
@@ -260,7 +265,7 @@ def _parse_texpr(
             cpp = f"std::array<{inner_te.cpp_type}, {count}>"
             return TypeExpr("fixed_array", cpp, inner_te.cpp_type, "", True)
 
-        if fname in ("hkRefPtr", "hkRefVariant", "Ptr_"):
+        if fname in ("hkRefPtr", "hkRefVariant", "Ptr_", "Ptr"):
             if not args:
                 return TypeExpr("refptr", "std::shared_ptr<HkObject>", "HkObject", "", False)
             inner_te = _parse_texpr(args[0], local_types, aliases)
@@ -319,7 +324,8 @@ def _is_pod(td: TypeDef, local_types: dict[str, TypeDef],
         if m.not_serializable:
             continue
         te = m.texpr
-        if te.kind in ("array", "relarray", "refptr", "viewptr", "string", "unknown"):
+        if te.kind in ("array", "relarray", "refptr", "viewptr", "string", "unknown",
+                       "ptr_array"):
             return False
         if te.kind == "struct_complex":
             return False
@@ -716,6 +722,24 @@ def _deser_read_member(m: MemberDef, local_types: dict[str, TypeDef],
     elif te.kind == "viewptr":
         lines.append(f"{I}// viewptr '{m.name}' at +{off}: back-reference, skipped for now")
 
+    elif te.kind == "ptr_array":
+        # hkArray(Ptr(T)) / hkArray(hkRefPtr(T)):
+        # The 8-byte array field is an item index; each element in that item is itself
+        # an 8-byte item index pointing to the actual object.
+        inner = te.inner
+        lines.append(f"{I}{{")
+        lines.append(f"{I}{I}const auto _arrIdx = static_cast<int>(u.ReadPodAt<uint64_t>(base + {off}));")
+        lines.append(f"{I}{I}if (_arrIdx > 0 && _arrIdx < static_cast<int>(u.items.size())) {{")
+        lines.append(f"{I}{I}{I}const auto& _arrItem = u.items[_arrIdx];")
+        lines.append(f"{I}{I}{I}for (int _i = 0; _i < _arrItem.length; ++_i) {{")
+        lines.append(f"{I}{I}{I}{I}const uint64_t _pIdx = u.ReadPodAt<uint64_t>("
+                     f"_arrItem.absoluteDataOffset + static_cast<size_t>(_i) * 8);")
+        lines.append(f"{I}{I}{I}{I}auto _el = u.FollowObjectPtr(_pIdx);")
+        lines.append(f"{I}{I}{I}{I}if (_el) {f}.emplace_back(std::static_pointer_cast<{inner}>(_el));")
+        lines.append(f"{I}{I}{I}}}")
+        lines.append(f"{I}{I}}}")
+        lines.append(f"{I}}}")
+
     elif te.kind in ("struct_pod", "struct_complex"):
         inner = te.inner
         inner_td = local_types.get(inner)
@@ -861,8 +885,16 @@ def main(argv: list[str] | None = None):
     ap.add_argument("--reg-func", default=None,
                     help="Name of the registration function (default: Register<Folder>Dispatch)")
     ap.add_argument("--ns", default="Firelink::Havok", help="C++ namespace")
-    ap.add_argument("--tagfile-h", default="FirelinkCore/Havok/Tagfile.h",
+    ap.add_argument("--tagfile-h", default="FirelinkCore/Havok/TagfileUnpacker.h",
                     help="TagFileUnpacker include path (used in the .cpp)")
+    ap.add_argument("--dep-header", dest="dep_headers", action="append", default=[],
+                    metavar="HEADER",
+                    help="Additional Havok type header to #include in the .cpp "
+                         "(may be repeated; types from these headers are forward-declared "
+                         "in the generated .h but fully included in the .cpp)")
+    ap.add_argument("--self-include", default=None,
+                    help="Include path used in the .cpp to include its own header "
+                         "(default: FirelinkCore/Havok/<header-filename>)")
     args = ap.parse_args(argv)
 
     input_dir = Path(args.input_folder)
@@ -960,9 +992,13 @@ def main(argv: list[str] | None = None):
     # ---- Generate source ----
     cpp_lines: list[str] = [
         "// AUTO-GENERATED by gen_hk_types.py — do not edit manually",
-        f"#include <FirelinkCore/Havok/{output_h.name}>",
+        f"#include <{args.self_include or f'FirelinkCore/Havok/{output_h.name}'}>",
         f"#include <{args.tagfile_h}>",
         "#include <cstring>",
+    ]
+    for dep in args.dep_headers:
+        cpp_lines.append(f"#include <{dep}>")
+    cpp_lines += [
         "",
         f"namespace {args.ns}",
         "{",

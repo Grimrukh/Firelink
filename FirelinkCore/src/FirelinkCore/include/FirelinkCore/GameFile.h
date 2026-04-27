@@ -110,6 +110,7 @@ namespace Firelink
             Ptr instancePtr = std::make_unique<T>();
             auto [r, dcxType] = GetBufferReaderForDCX(path, BinaryReadWrite::Endian::Little);
             instancePtr->m_dcxType = dcxType;
+            instancePtr->m_path = path;  // may be used by `Deserialize()`
             instancePtr->Deserialize(r);
             return std::move(instancePtr);
         }

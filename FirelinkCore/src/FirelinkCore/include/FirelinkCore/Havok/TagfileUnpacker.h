@@ -4,7 +4,9 @@
 #include <FirelinkCore/Havok/Helpers.h>
 #include <FirelinkCore/Havok/Types.h>
 
+#include <array>
 #include <cstring>
+#include <filesystem>
 #include <functional>
 #include <memory>
 #include <string>
@@ -44,7 +46,10 @@ namespace Firelink::Havok
 
         /// @brief Parse and fully deserialize a tagfile from `reader`.
         /// On return, `root` holds the `hkRootLevelContainer` and `hkVersion` is set.
-        void Unpack(BinaryReadWrite::BufferReader& reader);
+        /// `filePath` (optional) is used to locate a `.compendium.dcx` when the file
+        /// contains a TCRF type section instead of an inline TYPE section.
+        void Unpack(BinaryReadWrite::BufferReader& reader,
+                    const std::filesystem::path& filePath = {});
 
         // --- Results (valid after Unpack()) ---
 
@@ -119,6 +124,11 @@ namespace Firelink::Havok
 
         size_t m_dataStart = 0;   ///< absolute reader offset of the first DATA byte
 
+        std::filesystem::path m_filePath; ///< set from the HKX path; used to find compendium files
+
+        /// IDs read from the TCID section when this unpacker is used on a TCM0 compendium file.
+        std::vector<std::array<std::byte, 8>> m_compendiumIds;
+
         /// Maps absolute DATA offsets → item index (for pointer resolution).
         std::unordered_map<size_t, int> m_itemByOffset;
 
@@ -139,6 +149,14 @@ namespace Firelink::Havok
         void SkipDataSection();
         void ParseTypeSection();
         void ParseIndexSection();
+        void ParseTcidSection();
+
+        /// @brief Load a TCM0 compendium file and populate typeInfos + m_compendiumIds.
+        void UnpackCompendium(BinaryReadWrite::BufferReader& reader);
+
+        /// @brief Search the directory of m_filePath for a *.compendium.dcx whose TCID
+        /// contains @p targetId, and copy its typeInfos into this unpacker.
+        void FindAndCopyCompendiumTypes(const std::array<std::byte, 8>& targetId);
 
         // ----- Deserialization --------------------------------------------------
 

@@ -1,6 +1,6 @@
-#include <FirelinkERMaps/Navmesh.h>
+#include <FirelinkERHavok/Navmesh.h>
 
-#include <FirelinkCore/Havok/HkcdTypes.h>
+#include <FirelinkERHavok/Types/hkcd.h>
 
 #include <algorithm>
 #include <array>
@@ -165,12 +165,12 @@ void BuildBVH(
 // Navmesh::FromHkaiNavMesh
 // ============================================================================
 
-GameFile<EldenRing::Maps::Navmesh>::Ptr EldenRing::Maps::Navmesh::FromHkaiNavMesh(
-    const Havok::hkaiNavMesh& srcMesh)
+GameFile<EldenRing::Navmesh>::Ptr EldenRing::Navmesh::FromHkaiNavMesh(
+    const Havok::hkaiNavMesh& navMesh)
 {
     using namespace Havok;
 
-    const int faceCount = static_cast<int>(srcMesh.faces.size());
+    const int faceCount = static_cast<int>(navMesh.faces.size());
     if (faceCount == 0)
         throw std::invalid_argument("Cannot build AABB tree for a navmesh with no faces.");
 
@@ -180,7 +180,7 @@ GameFile<EldenRing::Maps::Navmesh>::Ptr EldenRing::Maps::Navmesh::FromHkaiNavMes
     std::vector<FaceAABB> faceAABBs;
     faceAABBs.reserve(faceCount);
     for (int i = 0; i < faceCount; ++i)
-        faceAABBs.push_back(ComputeFaceAABB(srcMesh, i));
+        faceAABBs.push_back(ComputeFaceAABB(navMesh, i));
 
     // ------------------------------------------------------------------
     // 2. Build the tree domain as the AABB of all face centroids.
@@ -229,12 +229,12 @@ GameFile<EldenRing::Maps::Navmesh>::Ptr EldenRing::Maps::Navmesh::FromHkaiNavMes
     // 5. Copy the source navmesh (geometry only; no clearance cache).
     // ------------------------------------------------------------------
     auto navMeshCopy = std::make_unique<hkaiNavMesh>();
-    navMeshCopy->faces         = srcMesh.faces;
-    navMeshCopy->edges         = srcMesh.edges;
-    navMeshCopy->vertices      = srcMesh.vertices;
+    navMeshCopy->faces         = navMesh.faces;
+    navMeshCopy->edges         = navMesh.edges;
+    navMeshCopy->vertices      = navMesh.vertices;
     // hkaiAnnotatedStreamingSet contains a unique_ptr, so deep-copy manually.
-    navMeshCopy->streamingSets.reserve(srcMesh.streamingSets.size());
-    for (const auto& ss : srcMesh.streamingSets)
+    navMeshCopy->streamingSets.reserve(navMesh.streamingSets.size());
+    for (const auto& ss : navMesh.streamingSets)
     {
         hkaiAnnotatedStreamingSet copy;
         copy.side = ss.side;
@@ -244,14 +244,14 @@ GameFile<EldenRing::Maps::Navmesh>::Ptr EldenRing::Maps::Navmesh::FromHkaiNavMes
         }
         navMeshCopy->streamingSets.push_back(std::move(copy));
     }
-    navMeshCopy->faceData      = srcMesh.faceData;
-    navMeshCopy->edgeData      = srcMesh.edgeData;
-    navMeshCopy->faceDataStriding = srcMesh.faceDataStriding;
-    navMeshCopy->edgeDataStriding = srcMesh.edgeDataStriding;
-    navMeshCopy->flags         = srcMesh.flags;
-    navMeshCopy->aabb          = srcMesh.aabb;
-    navMeshCopy->erosionRadius = srcMesh.erosionRadius;
-    navMeshCopy->userData      = srcMesh.userData;
+    navMeshCopy->faceData      = navMesh.faceData;
+    navMeshCopy->edgeData      = navMesh.edgeData;
+    navMeshCopy->faceDataStriding = navMesh.faceDataStriding;
+    navMeshCopy->edgeDataStriding = navMesh.edgeDataStriding;
+    navMeshCopy->flags         = navMesh.flags;
+    navMeshCopy->aabb          = navMesh.aabb;
+    navMeshCopy->erosionRadius = navMesh.erosionRadius;
+    navMeshCopy->userData      = navMesh.userData;
     // clearanceCacheSeedingDataSet intentionally left null for new meshes.
 
     // ------------------------------------------------------------------
@@ -261,7 +261,7 @@ GameFile<EldenRing::Maps::Navmesh>::Ptr EldenRing::Maps::Navmesh::FromHkaiNavMes
     mediator->tree      = std::move(staticTree);
     mediator->navMesh   = std::move(navMeshCopy);
 
-    auto result         = std::make_unique<EldenRing::Maps::Navmesh>();
+    auto result         = std::make_unique<Navmesh>();
     result->m_mediator  = std::move(mediator);
     return result;
 }
@@ -270,12 +270,12 @@ GameFile<EldenRing::Maps::Navmesh>::Ptr EldenRing::Maps::Navmesh::FromHkaiNavMes
 // Deserialize / Serialize  (TODO: HKX round-trip)
 // ============================================================================
 
-void EldenRing::Maps::Navmesh::Deserialize(BinaryReadWrite::BufferReader& reader)
+void EldenRing::Navmesh::Deserialize(BinaryReadWrite::BufferReader& reader)
 {
     // TODO: Convert from HKX with hkaiNavMesh and hkaiStaticTreeNavMeshQueryMediator objects.
 }
 
-void EldenRing::Maps::Navmesh::Serialize(BinaryReadWrite::BufferWriter& writer) const
+void EldenRing::Navmesh::Serialize(BinaryReadWrite::BufferWriter& writer) const
 {
     // TODO: Convert to HKX with hkaiNavMesh and hkaiStaticTreeNavMeshQueryMediator objects.
 }

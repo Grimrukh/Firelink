@@ -1,9 +1,9 @@
 #pragma once
 
 #include <FirelinkCore/GameFile.h>
-#include <FirelinkCore/Havok/HkaiTypes.h>
+#include <FirelinkERHavok/Types/hkai.h>
 
-namespace Firelink::EldenRing::Maps
+namespace Firelink::Havok::EldenRing
 {
     class Navmesh : public GameFile<Navmesh>
     {

@@ -1,20 +1,21 @@
 #include <doctest/doctest.h>
 
-#include <FirelinkCore/HKX.h>
+#include <FirelinkERHavok/EldenRingHKX.h>
 #include <FirelinkCore/Logging.h>
 #include <FirelinkTestHelpers.h>
-#include <FirelinkERMaps/Navmesh.h>
+#include <FirelinkERHavok/Navmesh.h>
 
-#include "FirelinkCore/Havok/HkaiTypes.h"
-#include "FirelinkCore/Havok/HkcdTypes.h"
+#include <FirelinkERHavok/Types/hkai.h>
+#include <FirelinkERHavok/Types/hkcd.h>
 
 using namespace Firelink;
 using namespace Firelink::Havok;
+using namespace Firelink::Havok::EldenRing;
 
-TEST_CASE("MSB: Load Chapel of Anticipation navmesh 001000 without error")
+TEST_CASE("Navmesh: Load Chapel of Anticipation navmesh 001000 without error")
 {
-    HKX::Ptr hkx = HKX::FromPath(GetResourcePath("eldenring/n10_01_00_00_001000.hkx"));
-    auto& namedVariants = hkx->root->namedVariants;
+    EldenRingHKX::Ptr hkx = EldenRingHKX::FromPath(GetResourcePath("eldenring/n10_01_00_00_001000.hkx"));
+    auto& namedVariants = hkx->GetRoot()->namedVariants;
     Info("HKX named variants count: {}", namedVariants.size());
 
     for (const auto& v : namedVariants)
@@ -23,9 +24,9 @@ TEST_CASE("MSB: Load Chapel of Anticipation navmesh 001000 without error")
     }
 
     // Get variants.
-    hkaiNavMesh* navMesh = GetVariant<hkaiNavMesh>(*hkx->root);
+    hkaiNavMesh* navMesh = hkx->GetVariant<hkaiNavMesh>();
     REQUIRE(navMesh != nullptr);
-    hkaiStaticTreeNavMeshQueryMediator* mediator = GetVariant<hkaiStaticTreeNavMeshQueryMediator>(*hkx->root);
+    hkaiStaticTreeNavMeshQueryMediator* mediator = hkx->GetVariant<hkaiStaticTreeNavMeshQueryMediator>();
     REQUIRE(mediator != nullptr);
 
     // Mediator should reference the same navMesh (not a copy, not nullptr).
@@ -172,14 +173,14 @@ TEST_CASE("MSB: Load Chapel of Anticipation navmesh 001000 without error")
 
 TEST_CASE("Navmesh: FromHkaiNavMesh generates a valid static AABB tree")
 {
-    HKX::Ptr hkx = HKX::FromPath(GetResourcePath("eldenring/n10_01_00_00_001000.hkx"));
-    hkaiNavMesh* srcMesh = GetVariant<hkaiNavMesh>(*hkx->root);
+    EldenRingHKX::Ptr hkx = EldenRingHKX::FromPath(GetResourcePath("eldenring/n10_01_00_00_001000.hkx"));
+    hkaiNavMesh* srcMesh = hkx->GetVariant<hkaiNavMesh>();
     REQUIRE(srcMesh != nullptr);
 
     const auto faceCount = static_cast<int>(srcMesh->faces.size());
 
     // Build a new navmesh with a generated AABB tree.
-    EldenRing::Maps::Navmesh::Ptr navmesh = EldenRing::Maps::Navmesh::FromHkaiNavMesh(*srcMesh);
+    Navmesh::Ptr navmesh = Navmesh::FromHkaiNavMesh(*srcMesh);
     REQUIRE(navmesh != nullptr);
 
     const auto* mediator = navmesh->GetMediator();

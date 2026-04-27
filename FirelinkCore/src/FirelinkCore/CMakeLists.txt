@@ -21,11 +21,9 @@ target_sources(FirelinkCore
     src/MemoryUtils.cpp
 
     src/Havok/Helpers.cpp
+    src/Havok/HKX.cpp
     src/Havok/Types.cpp
-    src/Havok/Tagfile.cpp
-    src/Havok/HkaiTypes.cpp
-    src/Havok/HkcdTypes.cpp
-    src/HKX.cpp
+    src/Havok/TagfileUnpacker.cpp
 )
 target_sources(FirelinkCore
     PUBLIC
@@ -54,12 +52,9 @@ target_sources(FirelinkCore
 
         include/FirelinkCore/Havok/Enums.h
         include/FirelinkCore/Havok/Helpers.h
+        include/FirelinkCore/Havok/HKX.h
         include/FirelinkCore/Havok/Types.h
-        include/FirelinkCore/Havok/Tagfile.h
-        include/FirelinkCore/Havok/HkaiTypes.h
-        include/FirelinkCore/Havok/HkcdTypes.h
-
-        include/FirelinkCore/HKX.h
+        include/FirelinkCore/Havok/TagfileUnpacker.h
 )
 
 target_precompile_headers(FirelinkCore

@@ -1,10 +1,10 @@
-#include <FirelinkCore/HKX.h>
-#include <FirelinkCore/Havok/Tagfile.h>
+#include <FirelinkCore/Havok/HKX.h>
+#include <FirelinkCore/Havok/TagfileUnpacker.h>
 
 #include <cstring>
 #include <stdexcept>
 
-namespace Firelink
+namespace Firelink::Havok
 {
     void HKX::Deserialize(BinaryReadWrite::BufferReader& reader)
     {
@@ -30,16 +30,26 @@ namespace Firelink
         if (!isTagfile)
             throw std::runtime_error("HKX: unrecognised file format (not a packfile or tagfile)");
 
-        Havok::TagFileUnpacker unpacker;
-        unpacker.Unpack(reader);
+        TagFileUnpacker unpacker;
+        unpacker.Unpack(reader, m_path);
 
-        hkVersion = std::move(unpacker.hkVersion);
-        root      = std::move(unpacker.root);
+        m_hkVersion = std::move(unpacker.hkVersion);
+        m_root      = std::move(unpacker.root);
+
+        if (!RequiredHKVersion().empty() && RequiredHKVersion() == m_hkVersion)
+            throw std::runtime_error(std::format(
+                "HK version {} is not valid for this HKX subclass", m_hkVersion));
     }
 
     void HKX::Serialize(BinaryReadWrite::BufferWriter& /*writer*/) const
     {
         throw std::logic_error("HKX::Serialize: tagfile packing is not yet implemented");
+    }
+
+    TagFileUnpacker HKX::CreateTagfileUnpacker() const noexcept
+    {
+        TagFileUnpacker unpacker;
+        return unpacker;
     }
 }
 

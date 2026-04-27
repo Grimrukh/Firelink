@@ -13,8 +13,6 @@ target_sources(FirelinkERMaps
     src/MapStudio/Region.cpp
     src/MapStudio/Route.cpp
     src/MapStudio/Shape.cpp
-
-    src/Navmesh.cpp
 )
 target_sources(FirelinkERMaps
     PUBLIC
@@ -41,8 +39,6 @@ target_sources(FirelinkERMaps
         include/FirelinkERMaps/MapStudio/Route.h
         include/FirelinkERMaps/MapStudio/RouteParam.h
         include/FirelinkERMaps/MapStudio/Shape.h
-
-        include/FirelinkERMaps/Navmesh.h
 )
 
 generate_firelink_export_header(FirelinkERMaps FIRELINK_ER_MAPS_API)

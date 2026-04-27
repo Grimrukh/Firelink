@@ -38,6 +38,8 @@ namespace Firelink::Havok
     /// @brief Base for reference-counted Havok objects (mirrors hkReferencedObject).
     /// Binary layout: offset 0 vtable (8 B), offset 8 memSizeAndRefCount (2 B),
     ///                offset 10 referenceCount (2 B), offset 12 padding (4 B). Total = 16 B.
+    /// @todo Elden Ring apparently has a 24-byte version, but somehow this one is working for offsets.
+    ///       See EldenRing::hkaiNavMesh.
     struct HkReferencedObject : HkObject
     {
         uint16_t memSizeAndRefCount = 0;

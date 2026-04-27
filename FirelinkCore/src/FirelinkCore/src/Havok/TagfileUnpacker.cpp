@@ -1,9 +1,9 @@
-#include <FirelinkCore/Havok/Tagfile.h>
-#include <FirelinkCore/Havok/HkaiTypes.h>
-#include <FirelinkCore/Havok/HkcdTypes.h>
+#include <FirelinkCore/Havok/TagfileUnpacker.h>
+#include <FirelinkCore/DCX.h>
 #include <FirelinkCore/Logging.h>
 
 #include <cstring>
+#include <filesystem>
 #include <stdexcept>
 
 namespace Firelink::Havok
@@ -27,32 +27,34 @@ namespace Firelink::Havok
                 return u.DeserializeRootLevelContainer(item);
             };
 
-        // Generated type sets
-        RegisterHkaiDispatch(*this);
-        RegisterHkcdDispatch(*this);
+        // Game-specific `HKX` overrides will register game-specific types.
     }
 
     // =========================================================================
     // Top-level Unpack
     // =========================================================================
 
-    void TagFileUnpacker::Unpack(BinaryReadWrite::BufferReader& reader)
+    void TagFileUnpacker::Unpack(
+        BinaryReadWrite::BufferReader& reader, const std::filesystem::path& filePath)
     {
         m_reader = &reader;
         m_objectCache.clear();
+        m_filePath = filePath;
 
         // --- Outer container: TAG0 (object file) or TCM0 (compendium) ----------
         const auto rootSection = EnterSection(reader, "TAG0", "TCM0");
 
-        // Check the actual magic that was consumed (4 bytes immediately before current pos).
         const bool isTag0 = (std::memcmp(
             reader.RawAt(reader.Position() - 4), "TAG0", 4) == 0);
 
         if (!isTag0)
         {
+            // TCM0 compendium file: TCID section then TYPE section, no DATA/INDX.
             isCompendium = true;
-            throw std::runtime_error(
-                "HKX tagfile: compendium (TCM0) files are not yet supported.");
+            ParseTcidSection();
+            ParseTypeSection();
+            reader.Seek(rootSection.end);
+            return;
         }
 
         isCompendium = false;
@@ -88,6 +90,77 @@ namespace Firelink::Havok
     }
 
     // =========================================================================
+    // Compendium support
+    // =========================================================================
+
+    void TagFileUnpacker::ParseTcidSection()
+    {
+        const auto sec = EnterSection(*m_reader, "TCID");
+        const size_t count = sec.DataSize() / 8;
+        m_compendiumIds.resize(count);
+        for (size_t i = 0; i < count; ++i)
+            m_reader->ReadRaw(m_compendiumIds[i].data(), 8);
+        m_reader->Seek(sec.end);
+    }
+
+    void TagFileUnpacker::UnpackCompendium(BinaryReadWrite::BufferReader& reader)
+    {
+        m_reader = &reader;
+        const auto rootSection = EnterSection(reader, "TCM0");
+        ParseTcidSection();
+        ParseTypeSection();
+        reader.Seek(rootSection.end);
+    }
+
+    void TagFileUnpacker::FindAndCopyCompendiumTypes(const std::array<std::byte, 8>& targetId)
+    {
+        if (m_filePath.empty())
+            throw std::runtime_error(
+                "HKX tagfile: TCRF section requires a compendium, but no file path was provided. "
+                "Use HKX::FromPath() or pass the file path to Unpack().");
+
+        const auto dir = m_filePath.parent_path();
+        if (!std::filesystem::is_directory(dir))
+            throw std::runtime_error(
+                "HKX tagfile: TCRF section requires a compendium, but directory does not exist: "
+                + dir.string());
+
+        for (const auto& entry : std::filesystem::directory_iterator(dir))
+        {
+            const auto& p = entry.path();
+            const auto fname = p.filename().string();
+            if (!fname.ends_with(".compendium.dcx") && !fname.ends_with(".compendium"))
+                continue;
+
+            try
+            {
+                auto [compReader, _dcx] = GetBufferReaderForDCX(p, BinaryReadWrite::Endian::Little);
+
+                TagFileUnpacker comp;
+                comp.UnpackCompendium(compReader);
+
+                for (const auto& id : comp.m_compendiumIds)
+                {
+                    if (id == targetId)
+                    {
+                        typeInfos = std::move(comp.typeInfos);
+                        Info(std::format("HKX tagfile: loaded compendium types from '{}'", fname));
+                        return;
+                    }
+                }
+            }
+            catch (const std::exception& e)
+            {
+                Warning(std::format("HKX tagfile: skipping compendium '{}': {}", fname, e.what()));
+            }
+        }
+
+        throw std::runtime_error(
+            "HKX tagfile: no compendium file in '" + dir.string()
+            + "' matched the TCRF reference ID.");
+    }
+
+    // =========================================================================
     // Parsing phases
     // =========================================================================
 
@@ -117,8 +190,13 @@ namespace Firelink::Havok
                 m_reader->RawAt(typeSection.start - 4));
             if (std::memcmp(magic, "TCRF", 4) == 0)
             {
-                throw std::runtime_error(
-                    "HKX tagfile: TCRF (compendium-referenced) type sections are not yet supported.");
+                // This file's types come from a compendium. Read the 8-byte reference ID,
+                // then find the matching *.compendium.dcx in the same directory.
+                std::array<std::byte, 8> compendiumId;
+                m_reader->ReadRaw(compendiumId.data(), 8);
+                m_reader->Seek(typeSection.end);
+                FindAndCopyCompendiumTypes(compendiumId);
+                return;
             }
         }
 

@@ -7,8 +7,10 @@
 #include <memory>
 #include <string>
 
-namespace Firelink
+namespace Firelink::Havok
 {
+    class TagFileUnpacker;
+
     /// @brief A Havok HKX file — currently supports tagfile format (DSR / Sekiro / Elden Ring).
     ///
     /// Inherits `GameFile<HKX>` for DCX handling and path-based I/O.
@@ -41,13 +43,35 @@ namespace Firelink
         /// @throws std::logic_error always.
         void Serialize(BinaryReadWrite::BufferWriter& writer) const;
 
+        std::shared_ptr<hkRootLevelContainer> GetRoot() const noexcept { return m_root; }
+        std::string GetHKVersion() const noexcept { return m_hkVersion; }
+
+        /// @brief Typed helper to retrieve a hkRootLevelContainer variant pointer of type T.
+        /// @returns Raw pointer to T or nullptr if not found.
+        template<typename T>
+        T* GetVariant()
+        {
+            return Havok::GetVariant<T>(*m_root);
+        }
+
+    protected:
+
+        /// @brief Build a TagfileUnpacker. Subclasses will register additional game-specific types.
+        virtual TagFileUnpacker CreateTagfileUnpacker() const noexcept;
+
+        /// @brief Optional override for subclasses to assert their Havok version.
+        virtual std::string_view RequiredHKVersion() const noexcept { return ""; }
+
+    private:
+
         // --- Data ---
 
         /// @brief Root level container (valid after a successful Deserialize).
-        std::shared_ptr<Havok::hkRootLevelContainer> root;
+        std::shared_ptr<hkRootLevelContainer> m_root;
 
         /// @brief Havok SDK version string from the file (e.g. "20180100").
-        std::string hkVersion;
+        std::string m_hkVersion;
+
     };
 }
 
