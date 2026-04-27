@@ -44,7 +44,7 @@ namespace Firelink
         // --- Data ---
 
         /// @brief Root level container (valid after a successful Deserialize).
-        std::unique_ptr<Havok::hkRootLevelContainer> root;
+        std::shared_ptr<Havok::hkRootLevelContainer> root;
 
         /// @brief Havok SDK version string from the file (e.g. "20180100").
         std::string hkVersion;

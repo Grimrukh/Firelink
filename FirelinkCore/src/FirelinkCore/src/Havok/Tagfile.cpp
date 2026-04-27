@@ -22,7 +22,7 @@ namespace Firelink::Havok
     {
         // Built-in type
         m_dispatch["hkRootLevelContainer"] =
-            [](TagFileUnpacker& u, const TagFileItem& item) -> std::unique_ptr<HkObject>
+            [](TagFileUnpacker& u, const TagFileItem& item) -> std::shared_ptr<HkObject>
             {
                 return u.DeserializeRootLevelContainer(item);
             };
@@ -39,6 +39,7 @@ namespace Firelink::Havok
     void TagFileUnpacker::Unpack(BinaryReadWrite::BufferReader& reader)
     {
         m_reader = &reader;
+        m_objectCache.clear();
 
         // --- Outer container: TAG0 (object file) or TCM0 (compendium) ----------
         const auto rootSection = EnterSection(reader, "TAG0", "TCM0");
@@ -81,7 +82,7 @@ namespace Firelink::Havok
         }
 
         auto rootObj = DeserializeItem(1);
-        root.reset(static_cast<hkRootLevelContainer*>(rootObj.release()));
+        root = std::static_pointer_cast<hkRootLevelContainer>(rootObj);
 
         reader.Seek(rootSection.end);
     }
@@ -399,16 +400,15 @@ namespace Firelink::Havok
         return std::string(raw);
     }
 
-    std::unique_ptr<HkObject> TagFileUnpacker::FollowObjectPtr(const uint64_t itemIdx)
+    std::shared_ptr<HkObject> TagFileUnpacker::FollowObjectPtr(const uint64_t itemIdx)
     {
-        // Same: DATA "pointer" field is a 1-based ITEM INDEX.
         if (itemIdx == 0)
             return nullptr;
 
         return DeserializeItem(static_cast<int>(itemIdx));
     }
 
-    std::unique_ptr<HkObject> TagFileUnpacker::DeserializeItem(const int idx)
+    std::shared_ptr<HkObject> TagFileUnpacker::DeserializeItem(const int idx)
     {
         if (idx <= 0 || idx >= static_cast<int>(items.size()))
             return nullptr;
@@ -416,6 +416,14 @@ namespace Firelink::Havok
         const TagFileItem& item = items[idx];
         if (item.IsNull())
             return nullptr;
+
+        // Return cached object if already deserialized — avoids duplicate work and
+        // ensures every hkRefPtr that targets the same ITEM shares one object.
+        {
+            const auto it = m_objectCache.find(idx);
+            if (it != m_objectCache.end())
+                return it->second;
+        }
 
         // Cycle guard (hkViewPtr back-references).
         if (m_inProgress.contains(idx))
@@ -426,40 +434,46 @@ namespace Firelink::Havok
 
         const std::string& typeName = typeInfos[item.typeIndex].name;
 
+        std::shared_ptr<HkObject> obj;
+
         const auto dispatchIt = m_dispatch.find(typeName);
         if (dispatchIt != m_dispatch.end())
         {
             m_inProgress.insert(idx);
-            auto obj = dispatchIt->second(*this, item);
+            obj = dispatchIt->second(*this, item);
             m_inProgress.erase(idx);
-            return obj;
         }
-
-        // Fallback: copy raw bytes into HkUnknownObject.
-        const uint32_t elemSize = typeInfos[item.typeIndex].byteSize;
-        const size_t rawSize = (elemSize > 0)
-            ? static_cast<size_t>(item.length) * elemSize
-            : 0;
-
-        std::vector<std::byte> raw(rawSize);
-        if (rawSize > 0)
+        else
         {
-            std::memcpy(raw.data(),
-                        m_reader->RawAt(item.absoluteDataOffset),
-                        rawSize);
+            // Fallback: copy raw bytes into HkUnknownObject.
+            const uint32_t elemSize = typeInfos[item.typeIndex].byteSize;
+            const size_t rawSize = (elemSize > 0)
+                ? static_cast<size_t>(item.length) * elemSize
+                : 0;
+
+            std::vector<std::byte> raw(rawSize);
+            if (rawSize > 0)
+            {
+                std::memcpy(raw.data(),
+                            m_reader->RawAt(item.absoluteDataOffset),
+                            rawSize);
+            }
+
+            obj = std::make_shared<HkUnknownObject>(typeName, std::move(raw));
         }
 
-        return std::make_unique<HkUnknownObject>(typeName, std::move(raw));
+        m_objectCache[idx] = obj;
+        return obj;
     }
 
     // =========================================================================
     // Concrete deserializers
     // =========================================================================
 
-    std::unique_ptr<HkObject> TagFileUnpacker::DeserializeRootLevelContainer(
+    std::shared_ptr<HkObject> TagFileUnpacker::DeserializeRootLevelContainer(
         const TagFileItem& item)
     {
-        auto result = std::make_unique<hkRootLevelContainer>();
+        auto result = std::make_shared<hkRootLevelContainer>();
 
         // hkRootLevelContainer binary layout:
         //   offset 0: uint64 → 1-based ITEM INDEX of the namedVariants array data

@@ -68,7 +68,7 @@ struct hkcdStaticAabbTree : HkReferencedObject
     static constexpr std::string_view TypeName = "hkcdStaticAabbTree";
     [[nodiscard]] std::string_view GetTypeName() const noexcept override { return TypeName; }
 
-    std::unique_ptr<hkcdStaticAabbTreeImpl> treePtr;  // offset 24
+    std::shared_ptr<hkcdStaticAabbTreeImpl> treePtr;  // offset 24
 };
 
 // Registers all deserializers for this type set.

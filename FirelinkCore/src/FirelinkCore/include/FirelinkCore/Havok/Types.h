@@ -175,18 +175,10 @@ namespace Firelink::Havok
     /// Binary layout per element: { namePtr(8), classNamePtr(8), variantPtr(8) } = 24 bytes.
     struct hkRootLevelContainerNamedVariant
     {
-        std::string name;                     ///< hkStringPtr
-        std::string className;                ///< hkStringPtr
-        std::unique_ptr<HkObject> variant;    ///< hkRefVariant → any HkReferencedObject subclass
-
-        hkRootLevelContainerNamedVariant() = default;
-
-        // Non-copyable due to unique_ptr member.
-        hkRootLevelContainerNamedVariant(const hkRootLevelContainerNamedVariant&) = delete;
-        hkRootLevelContainerNamedVariant& operator=(const hkRootLevelContainerNamedVariant&) = delete;
-
-        hkRootLevelContainerNamedVariant(hkRootLevelContainerNamedVariant&&) noexcept = default;
-        hkRootLevelContainerNamedVariant& operator=(hkRootLevelContainerNamedVariant&&) noexcept = default;
+        std::string name;                       ///< hkStringPtr
+        std::string className;                  ///< hkStringPtr
+        std::shared_ptr<HkObject> variant;      ///< hkRefVariant — shared; the same object may be
+                                                ///< referenced by multiple variants or refptrs.
     };
 
     /// @brief Root object present in every HKX tagfile (byte_size = 16 in binary).

@@ -237,7 +237,7 @@ def _parse_texpr(
             # If the inner type is a refobj (pointer-based), the vector holds unique_ptrs
             inner_td = local_types.get(inner_te.inner) if inner_te.inner else None
             if inner_td and inner_td.kind == "refobj":
-                cpp_type = f"std::vector<std::unique_ptr<{inner_te.cpp_type}>>"
+                cpp_type = f"std::vector<std::shared_ptr<{inner_te.cpp_type}>>"
             else:
                 cpp_type = f"std::vector<{inner_te.cpp_type}>"
             return TypeExpr("array", cpp_type, inner_te.cpp_type, "", False)
@@ -262,9 +262,9 @@ def _parse_texpr(
 
         if fname in ("hkRefPtr", "hkRefVariant", "Ptr_"):
             if not args:
-                return TypeExpr("refptr", "std::unique_ptr<HkObject>", "HkObject", "", False)
+                return TypeExpr("refptr", "std::shared_ptr<HkObject>", "HkObject", "", False)
             inner_te = _parse_texpr(args[0], local_types, aliases)
-            return TypeExpr("refptr", f"std::unique_ptr<{inner_te.cpp_type}>",
+            return TypeExpr("refptr", f"std::shared_ptr<{inner_te.cpp_type}>",
                             inner_te.cpp_type, "", False)
 
         if fname == "hkViewPtr":
@@ -687,7 +687,7 @@ def _deser_read_member(m: MemberDef, local_types: dict[str, TypeDef],
             lines.append(f"{I}{I}{I}for (int _i = 0; _i < _arrItem.length; ++_i) {{")
             lines.append(f"{I}{I}{I}{I}const uint64_t _pIdx = u.ReadPodAt<uint64_t>(_arrItem.absoluteDataOffset + static_cast<size_t>(_i) * 8);")
             lines.append(f"{I}{I}{I}{I}auto _el = u.FollowObjectPtr(_pIdx);")
-            lines.append(f"{I}{I}{I}{I}if (_el) {f}.emplace_back(static_cast<{inner}*>(_el.release()));")
+            lines.append(f"{I}{I}{I}{I}if (_el) {f}.emplace_back(std::static_pointer_cast<{inner}>(_el));")
             lines.append(f"{I}{I}{I}}}")
             lines.append(f"{I}{I}}}")
             lines.append(f"{I}}}")
@@ -710,7 +710,7 @@ def _deser_read_member(m: MemberDef, local_types: dict[str, TypeDef],
         lines.append(f"{I}{{")
         lines.append(f"{I}{I}const uint64_t _idx = u.ReadPodAt<uint64_t>(base + {off});")
         lines.append(f"{I}{I}auto _obj = u.FollowObjectPtr(_idx);")
-        lines.append(f"{I}{I}if (_obj) {f}.reset(static_cast<{inner}*>(_obj.release()));")
+        lines.append(f"{I}{I}if (_obj) {f} = std::static_pointer_cast<{inner}>(_obj);")
         lines.append(f"{I}}}")
 
     elif te.kind == "viewptr":
@@ -771,10 +771,10 @@ def gen_refobj_deser(td: TypeDef, local_types: dict[str, TypeDef]) -> Optional[s
         return None
 
     lines: list[str] = []
-    lines.append(f"std::unique_ptr<HkObject> Deser_{td.class_name}"
+    lines.append(f"std::shared_ptr<HkObject> Deser_{td.class_name}"
                  f"(TagFileUnpacker& u, const TagFileItem& item)")
     lines.append("{")
-    lines.append(f"{I}auto r = std::make_unique<{td.class_name}>();")
+    lines.append(f"{I}auto r = std::make_shared<{td.class_name}>();")
     lines.append(f"{I}const size_t base = item.absoluteDataOffset;")
     lines.append("")
     all_members = _collect_all_members(td, local_types)
@@ -800,7 +800,7 @@ def gen_register_func(sorted_types: list[TypeDef], func_name: str, ns: str) -> s
         fn = f"Deser_{td.class_name}"
         lines.append(f'{I}u.Register("{dn}",'
                      f" [](TagFileUnpacker& u_, const TagFileItem& i_)"
-                     f" -> std::unique_ptr<HkObject>")
+                     f" -> std::shared_ptr<HkObject>")
         lines.append(f"{I}{{")
         lines.append(f"{I}{I}return {fn}(u_, i_);")
         lines.append(f"{I}}});")

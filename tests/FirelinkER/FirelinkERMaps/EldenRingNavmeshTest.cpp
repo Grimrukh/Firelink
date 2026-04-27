@@ -22,9 +22,16 @@ TEST_CASE("MSB: Load Chapel of Anticipation navmesh 001000 without error")
         Info("Variant name / className: {}, {}", v.name, v.className);
     }
 
-    // Get hkaiNavMesh.
+    // Get variants.
     hkaiNavMesh* navMesh = GetVariant<hkaiNavMesh>(*hkx->root);
     REQUIRE(navMesh != nullptr);
+    hkaiStaticTreeNavMeshQueryMediator* mediator = GetVariant<hkaiStaticTreeNavMeshQueryMediator>(*hkx->root);
+    REQUIRE(mediator != nullptr);
+
+    // Mediator should reference the same navMesh (not a copy, not nullptr).
+    REQUIRE(mediator->navMesh.get() == navMesh);
+
+    // NAVMESH
     const auto faceCount = navMesh->faces.size();
     const auto edgeCount = navMesh->edges.size();
     const auto vertexCount = navMesh->vertices.size();
@@ -143,9 +150,8 @@ TEST_CASE("MSB: Load Chapel of Anticipation navmesh 001000 without error")
         }
     }
 
-    hkaiStaticTreeNavMeshQueryMediator* mediator = GetVariant<hkaiStaticTreeNavMeshQueryMediator>(*hkx->root);
+    // MEDIATOR
     auto& tree = mediator->tree;
-    auto& mediatorNavmesh = mediator->navMesh;
 
     if (tree)
     {

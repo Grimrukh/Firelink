@@ -34,9 +34,9 @@ namespace Firelink::Havok
         // ----- Type alias -------------------------------------------------------
 
         /// @brief Signature for a per-type deserializer registered in m_dispatch.
-        /// Receives the unpacker (for helper access) and the item to deserialize.
+        /// Returns a shared_ptr so the same object can be referenced by multiple refptrs.
         using DeserializeFn = std::function<
-            std::unique_ptr<HkObject>(TagFileUnpacker&, const TagFileItem&)>;
+            std::shared_ptr<HkObject>(TagFileUnpacker&, const TagFileItem&)>;
 
         // -----------------------------------------------------------------------
 
@@ -49,7 +49,7 @@ namespace Firelink::Havok
         // --- Results (valid after Unpack()) ---
 
         /// @brief Deserialized root level container.
-        std::unique_ptr<hkRootLevelContainer> root;
+        std::shared_ptr<hkRootLevelContainer> root;
 
         /// @brief Havok SDK version string from SDKV section (e.g. "20180100").
         std::string hkVersion;
@@ -74,8 +74,9 @@ namespace Firelink::Havok
         }
 
         /// @brief Follow an 8-byte item-index pointer in DATA and deserialize the target.
-        /// Returns nullptr for null/invalid indices.
-        std::unique_ptr<HkObject> FollowObjectPtr(uint64_t itemIdx);
+        /// Returns a shared_ptr — if the same item has already been deserialized this Unpack()
+        /// call, the cached object is returned rather than being created a second time.
+        std::shared_ptr<HkObject> FollowObjectPtr(uint64_t itemIdx);
 
         /// @brief Follow a string-item-index pointer in DATA and return the string contents.
         std::string FollowStringPtr(uint64_t itemIdx) const;
@@ -124,6 +125,11 @@ namespace Firelink::Havok
         /// Dispatch table: Havok type name → deserializer.
         std::unordered_map<std::string, DeserializeFn> m_dispatch;
 
+        /// Per-Unpack() cache: item index → already-deserialized object.
+        /// Ensures each ITEM is deserialized at most once; shared_ptrs to the same
+        /// object are returned for every hkRefPtr that targets it.
+        std::unordered_map<int, std::shared_ptr<HkObject>> m_objectCache;
+
         /// Tracks item indices currently being deserialized (cycle detection for hkViewPtr).
         std::unordered_set<int> m_inProgress;
 
@@ -136,10 +142,9 @@ namespace Firelink::Havok
 
         // ----- Deserialization --------------------------------------------------
 
-        /// @brief Deserialize item at `idx` using the dispatch table.
+        /// @brief Deserialize item at `idx` (with per-Unpack() cache).
         /// Returns `HkUnknownObject` for unregistered types.
-        std::unique_ptr<HkObject> DeserializeItem(int idx);
-
+        std::shared_ptr<HkObject> DeserializeItem(int idx);
 
         /// @brief Read the hkArray header (ptr + size + cap) at `absOffset` within DATA.
         HkArrayLayout ReadArrayLayout(size_t absOffset) const;
@@ -151,7 +156,7 @@ namespace Firelink::Havok
 
         void RegisterDispatch();
 
-        std::unique_ptr<HkObject> DeserializeRootLevelContainer(const TagFileItem& item);
+        std::shared_ptr<HkObject> DeserializeRootLevelContainer(const TagFileItem& item);
     };
 
 } // namespace Firelink::Havok

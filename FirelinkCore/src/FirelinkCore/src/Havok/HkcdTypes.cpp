@@ -22,9 +22,9 @@ static hkcdStaticTreeAabb6BytesTree Deser_Inline_hkcdStaticTreeAabb6BytesTree(Ta
     return r;
 }
 
-std::unique_ptr<HkObject> Deser_hkcdStaticAabbTreeImpl(TagFileUnpacker& u, const TagFileItem& item)
+std::shared_ptr<HkObject> Deser_hkcdStaticAabbTreeImpl(TagFileUnpacker& u, const TagFileItem& item)
 {
-    auto r = std::make_unique<hkcdStaticAabbTreeImpl>();
+    auto r = std::make_shared<hkcdStaticAabbTreeImpl>();
     const size_t base = item.absoluteDataOffset;
 
     r->tree = Deser_Inline_hkcdStaticTreeAabb6BytesTree(u, base + 32);
@@ -32,15 +32,15 @@ std::unique_ptr<HkObject> Deser_hkcdStaticAabbTreeImpl(TagFileUnpacker& u, const
     return r;
 }
 
-std::unique_ptr<HkObject> Deser_hkcdStaticAabbTree(TagFileUnpacker& u, const TagFileItem& item)
+std::shared_ptr<HkObject> Deser_hkcdStaticAabbTree(TagFileUnpacker& u, const TagFileItem& item)
 {
-    auto r = std::make_unique<hkcdStaticAabbTree>();
+    auto r = std::make_shared<hkcdStaticAabbTree>();
     const size_t base = item.absoluteDataOffset;
 
     {
         const uint64_t _idx = u.ReadPodAt<uint64_t>(base + 24);
         auto _obj = u.FollowObjectPtr(_idx);
-        if (_obj) r->treePtr.reset(static_cast<hkcdStaticAabbTreeImpl*>(_obj.release()));
+        if (_obj) r->treePtr = std::static_pointer_cast<hkcdStaticAabbTreeImpl>(_obj);
     }
 
     return r;
@@ -48,11 +48,11 @@ std::unique_ptr<HkObject> Deser_hkcdStaticAabbTree(TagFileUnpacker& u, const Tag
 
 void RegisterHkcdDispatch(TagFileUnpacker& u)
 {
-    u.Register("hkcdStaticAabbTree::Impl", [](TagFileUnpacker& u_, const TagFileItem& i_) -> std::unique_ptr<HkObject>
+    u.Register("hkcdStaticAabbTree::Impl", [](TagFileUnpacker& u_, const TagFileItem& i_) -> std::shared_ptr<HkObject>
     {
         return Deser_hkcdStaticAabbTreeImpl(u_, i_);
     });
-    u.Register("hkcdStaticAabbTree", [](TagFileUnpacker& u_, const TagFileItem& i_) -> std::unique_ptr<HkObject>
+    u.Register("hkcdStaticAabbTree", [](TagFileUnpacker& u_, const TagFileItem& i_) -> std::shared_ptr<HkObject>
     {
         return Deser_hkcdStaticAabbTree(u_, i_);
     });
