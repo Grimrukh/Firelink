@@ -1,2 +1,3 @@
 add_subdirectory(FirelinkCore)
 add_subdirectory(FirelinkFLVER)
+add_subdirectory(FirelinkERMaps)

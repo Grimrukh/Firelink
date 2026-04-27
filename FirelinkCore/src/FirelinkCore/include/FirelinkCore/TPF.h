@@ -18,16 +18,14 @@
 
 namespace Firelink
 {
-    // --- TPFError ---
-
+    /// @brief Error thrown during TPF operations.
     class TPFError : public std::runtime_error
     {
     public:
         using std::runtime_error::runtime_error;
     };
 
-    // --- TPFPlatform ---
-
+    /// @brief Game platform enum for a TPF. Can indicate swizzling.
     enum class TPFPlatform : std::uint8_t
     {
         PC = 0,
@@ -37,8 +35,7 @@ namespace Firelink
         XboxOne = 5,
     };
 
-    // --- TextureType ---
-
+    /// @brief Basic type of TPF texture.
     enum class TextureType : std::uint8_t
     {
         Texture = 0,
@@ -46,8 +43,7 @@ namespace Firelink
         Volume = 2,
     };
 
-    // --- TPFTexture ---
-
+    /// @brief Metadata and raw bytes for a DDS texture stored inside a TPF container.
     struct TPFTexture
     {
         std::string stem;                   // texture name (no extension)
@@ -78,18 +74,15 @@ namespace Firelink
         std::optional<FloatStruct> float_struct;
     };
 
-    // --- TPF ---
-
+    /// @brief Simple texture container file. May contain one or more DDS textures.
     class FIRELINK_CORE_API TPF : public GameFile<TPF>
     {
     public:
-        TPFPlatform platform = TPFPlatform::PC;
-        std::uint8_t tpf_flags = 0;
-        std::uint8_t encoding_type = 0; // 0/2 = shift-jis, 1 = UTF-16
-        std::vector<TPFTexture> textures;
+
+        // --- GAME FILE OVERRIDES ---
 
         /// @brief Get endianness of TPF.
-        BinaryReadWrite::Endian GetEndian() const noexcept;
+        [[nodiscard]] BinaryReadWrite::Endian GetEndian() const noexcept;
 
         /// @brief Deserialize a TPF.
         void Deserialize(BinaryReadWrite::BufferReader& r);
@@ -97,12 +90,26 @@ namespace Firelink
         /// @brief Serialize this TPF.
         void Serialize(BinaryReadWrite::BufferWriter& w) const;
 
+        // --- PUBLIC METHODS ---
+
         /// @brief Get texture count.
-        [[nodiscard]] std::size_t TextureCount() const { return textures.size(); }
+        [[nodiscard]] std::size_t TextureCount() const { return m_textures.size(); }
 
         /// @brief Find texture by stem (case-insensitive). Returns nullptr if not found.
         [[nodiscard]] const TPFTexture* FindTexture(const std::string& stem) const;
         [[nodiscard]] TPFTexture* FindTexture(const std::string& stem);
+
+        /// @brief Get the texture at the given index.
+        [[nodiscard]] const TPFTexture& GetTexture(const std::size_t index) const { return m_textures[index]; }
+        [[nodiscard]] TPFTexture& GetTexture(const std::size_t index) { return m_textures[index]; }
+
+        // --- PROPERTIES ---
+
+        GAME_FILE_PROPERTY(TPFPlatform, m_platform, Platform, TPFPlatform::PC);
+        GAME_FILE_PROPERTY(std::uint8_t, m_flags, Flags, 0);
+        GAME_FILE_PROPERTY(std::uint8_t, m_encodingType, EncodingType, 0); // 0/2 = shift-jis, 1 = UTF-16
+        GAME_FILE_PROPERTY_REF(std::vector<TPFTexture>, m_textures, Textures, );
+
     };
 
 } // namespace Firelink

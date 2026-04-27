@@ -1,4 +1,4 @@
-// Test FLVER2 write → re-read round-trip for FLVER2 fixtures.
+// Test FLVER2 write -> re-read round-trip for FLVER2 fixtures.
 //
 // For each fixture, we:
 //   1. Read the original FLVER from bytes.
@@ -135,7 +135,7 @@ namespace
                     const auto* bf = reinterpret_cast<const float*>(b.decompressed_data.data() + offset);
                     for (std::size_t fi = 0; fi < float_count; ++fi)
                     {
-                        // Lossy codecs (int→float→int→float) can lose precision.
+                        // Lossy codecs (int->float->int->float) can lose precision.
                         // Use a generous tolerance.
                         // NaN == NaN is always false, so handle it explicitly.
                         if (std::isnan(af[fi]) && std::isnan(bf[fi])) continue;
@@ -149,25 +149,25 @@ namespace
     // Full FLVER structural comparison.
     void CheckFLVEREqual(const FLVER& orig, const FLVER& reread)
     {
-        CHECK(static_cast<std::uint32_t>(orig.version) == static_cast<std::uint32_t>(reread.version));
-        CHECK(orig.big_endian == reread.big_endian);
-        CHECK(orig.unicode == reread.unicode);
+        CHECK(static_cast<std::uint32_t>(orig.GetVersion()) == static_cast<std::uint32_t>(reread.GetVersion()));
+        CHECK(orig.GetIsBigEndian() == reread.GetIsBigEndian());
+        CHECK(orig.GetIsUnicode() == reread.GetIsUnicode());
 
-        CHECK(orig.bounding_box_min.x == doctest::Approx(reread.bounding_box_min.x));
-        CHECK(orig.bounding_box_min.y == doctest::Approx(reread.bounding_box_min.y));
-        CHECK(orig.bounding_box_min.z == doctest::Approx(reread.bounding_box_min.z));
-        CHECK(orig.bounding_box_max.x == doctest::Approx(reread.bounding_box_max.x));
-        CHECK(orig.bounding_box_max.y == doctest::Approx(reread.bounding_box_max.y));
-        CHECK(orig.bounding_box_max.z == doctest::Approx(reread.bounding_box_max.z));
+        CHECK(orig.BoundingBox().min.x == doctest::Approx(reread.BoundingBox().min.x));
+        CHECK(orig.BoundingBox().min.y == doctest::Approx(reread.BoundingBox().min.y));
+        CHECK(orig.BoundingBox().min.z == doctest::Approx(reread.BoundingBox().min.z));
+        CHECK(orig.BoundingBox().max.x == doctest::Approx(reread.BoundingBox().max.x));
+        CHECK(orig.BoundingBox().max.y == doctest::Approx(reread.BoundingBox().max.y));
+        CHECK(orig.BoundingBox().max.z == doctest::Approx(reread.BoundingBox().max.z));
 
-        CheckBonesEqual(orig.bones, reread.bones);
-        CheckDummiesEqual(orig.dummies, reread.dummies);
+        CheckBonesEqual(orig.Bones(), reread.Bones());
+        CheckDummiesEqual(orig.Dummies(), reread.Dummies());
 
-        REQUIRE(orig.meshes.size() == reread.meshes.size());
-        for (std::size_t mi = 0; mi < orig.meshes.size(); ++mi)
+        REQUIRE(orig.Meshes().size() == reread.Meshes().size());
+        for (std::size_t mi = 0; mi < orig.Meshes().size(); ++mi)
         {
-            const auto& om = orig.meshes[mi];
-            const auto& rm = reread.meshes[mi];
+            const auto& om = orig.Meshes()[mi];
+            const auto& rm = reread.Meshes()[mi];
 
             CHECK(om.is_dynamic == rm.is_dynamic);
             CHECK(om.default_bone_index == rm.default_bone_index);
@@ -269,7 +269,7 @@ TEST_CASE("FLVER2 round-trip: DCX compressed fixture")
 
 TEST_CASE("FLVER2 round-trip: double write produces identical bytes")
 {
-    // Write → re-read → write again. The two written byte buffers should be identical,
+    // Write -> re-read -> write again. The two written byte buffers should be identical,
     // proving the writer is deterministic.
     for (const auto* name : FLVER2_FIXTURES)
     {
@@ -324,20 +324,20 @@ TEST_CASE("FLVER2 reader: header and basic structure")
             FLVER::CPtr flver = FLVER::FromBytes(buf.data(), buf.size());
 
             // Generic checks that every FLVER fixture must satisfy.
-            CHECK(flver->big_endian == false);
-            CHECK(flver->meshes.size() > 0);
-            CHECK(flver->bones.size() > 0);
+            CHECK(flver->GetIsBigEndian() == false);
+            CHECK(flver->Meshes().size() > 0);
+            CHECK(flver->Bones().size() > 0);
 
             // c2010.flver — known exact values.
             if (std::string(name) == "c2010.flver")
             {
-                CHECK(static_cast<std::uint32_t>(flver->version) == 0x2001A);
-                CHECK(flver->unicode == true);
-                CHECK(flver->bones.size() == 356);
-                CHECK(flver->dummies.size() == 118);
-                CHECK(flver->meshes.size() == 16);
+                CHECK(static_cast<std::uint32_t>(flver->GetVersion()) == 0x2001A);
+                CHECK(flver->GetIsUnicode() == true);
+                CHECK(flver->Bones().size() == 356);
+                CHECK(flver->Dummies().size() == 118);
+                CHECK(flver->Meshes().size() == 16);
 
-                const auto& m0 = flver->meshes[0];
+                const auto& m0 = flver->Meshes()[0];
                 CHECK(m0.face_sets.size() == 6);
                 CHECK(m0.vertex_arrays.size() >= 1);
 
@@ -364,8 +364,8 @@ TEST_CASE("FLVER2 reader: bone names are populated")
             const FLVER::CPtr flver = FLVER::FromBytes(buf.data(), buf.size());
 
             // At least the first bone should have a non-empty name (UTF-16 LE raw bytes).
-            REQUIRE(!flver->bones.empty());
-            CHECK(!flver->bones[0].name.empty());
+            REQUIRE(!flver->Bones().empty());
+            CHECK(!flver->Bones()[0].name.empty());
         }
     }
 }
@@ -383,7 +383,7 @@ TEST_CASE("FLVER2 reader: materials have textures")
             const FLVER::CPtr flver = FLVER::FromBytes(buf.data(), buf.size());
 
             // Every mesh should have a material with at least one texture.
-            for (const auto& mesh : flver->meshes)
+            for (const auto& mesh : flver->Meshes())
             {
                 CHECK(!mesh.material.textures.empty());
             }
@@ -474,7 +474,7 @@ TEST_CASE("FLVER: reads from DCX compressed file")
     FLVER::CPtr flver = FLVER::FromBytes(result.data.data(), result.data.size());
 
     // Basic sanity checks on the parsed FLVER.
-    CHECK(flver->meshes.size() > 0);
-    CHECK(flver->bones.size() > 0);
-    CHECK(flver->big_endian == false);
+    CHECK(flver->Meshes().size() > 0);
+    CHECK(flver->Bones().size() > 0);
+    CHECK(flver->GetIsBigEndian() == false);
 }

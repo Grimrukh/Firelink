@@ -33,6 +33,11 @@ endif()
 # Define NOMINMAX globally to prevent Windows headers from defining min/max macros.
 add_compile_definitions(NOMINMAX)
 
+# Add subdirectories for all modules.
+add_subdirectory(FirelinkCore)
+add_subdirectory(FirelinkDSR)
+add_subdirectory(FirelinkER)
+
 # PYTHON BINDINGS
 if(FIRELINK_BUILD_PYBIND)
     include(FetchContent)
@@ -43,12 +48,8 @@ if(FIRELINK_BUILD_PYBIND)
             GIT_SHALLOW    TRUE
     )
     FetchContent_MakeAvailable(pybind11)
+    add_subdirectory(python/pybind)
 endif()
-
-# Add subdirectories for all modules.
-add_subdirectory(FirelinkCore)
-add_subdirectory(FirelinkDSR)
-add_subdirectory(FirelinkER)
 
 # TESTING
 if(FIRELINK_BUILD_TESTS)

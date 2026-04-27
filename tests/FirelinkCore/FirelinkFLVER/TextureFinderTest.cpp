@@ -94,9 +94,9 @@ TEST_CASE("TextureFinder: standalone TPF via loose file registration")
     // one texture stem from it.
     auto raw = LoadFile(tpf_path);
     auto tpf = TPF::FromBytes(raw.data(), raw.size());
-    REQUIRE(tpf->textures.size() > 0);
+    REQUIRE(tpf->Textures().size() > 0);
 
-    auto first_stem = tpf->textures[0].stem;
+    auto first_stem = tpf->GetTexture(0).stem;
     MESSAGE("Looking for texture: " << first_stem);
 
     // The manager should find it via lazy loading.
@@ -128,10 +128,10 @@ TEST_CASE("TextureFinder: case-insensitive texture lookup")
 
     auto raw = LoadFile(tpf_path);
     auto tpf = TPF::FromBytes(raw.data(), raw.size());
-    REQUIRE(tpf->textures.size() > 0);
+    REQUIRE(tpf->Textures().size() > 0);
 
     // Search with upper-case stem.
-    auto stem = tpf->textures[0].stem;
+    auto stem = tpf->GetTexture(0).stem;
     std::string upper_stem = ToUpper(stem);
 
     auto* tex = mgr.GetTexture(upper_stem);

@@ -1,4 +1,5 @@
 #include <FirelinkFLVER/Bone.h>
+#include <FirelinkFLVER/Encodings.h>
 
 #include <FirelinkCore/BinaryReadWrite.h>
 
@@ -36,9 +37,6 @@ namespace Firelink
     Bone Bone::Read(BufferReader& r, const bool unicode_encoding)
     {
         Bone b;
-        // Bone binary: translate(12), name_offset(4), rotate(12), parent(2), child(2),
-        //              scale(12), next_sibling(2), prev_sibling(2), bb_min(12),
-        //              usage_flags(4), bb_max(12), pad(52) = 128 bytes
         b.translate.x = r.Read<float>();
         b.translate.y = r.Read<float>();
         b.translate.z = r.Read<float>();
@@ -62,7 +60,7 @@ namespace Firelink
         b.bounding_box.max.z = r.Read<float>();
         r.AssertPad(52);
 
-        b.name = r.ReadStringAt(name_offset, unicode_encoding);
+        b.name = DecodeFLVERString(r.ReadStringAt(name_offset, unicode_encoding), unicode_encoding);
         return b;
     }
 }

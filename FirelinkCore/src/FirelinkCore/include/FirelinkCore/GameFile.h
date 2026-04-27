@@ -3,6 +3,7 @@
 #include <FirelinkCore/BinaryReadWrite.h>
 #include <FirelinkCore/DCX.h>
 #include <FirelinkCore/Endian.h>
+#include <FirelinkCore/Paths.h>
 
 #include <concepts>
 #include <cstddef>
@@ -10,6 +11,30 @@
 #include <string>
 #include <thread>
 #include <vector>
+
+
+/// @brief Convenience macro for a C++ "property" (value type).
+#define GAME_FILE_PROPERTY(type, memberName, propName, default) \
+    private: type memberName{default}; \
+    public: \
+        [[nodiscard]] type Get##propName() const noexcept { return memberName; } \
+        void Set##propName(type value) { memberName = std::move(value); }
+
+/// @brief Convenience macro for a C++ "property" (mutable reference type + const reference type).
+/// @note Does not prepend 'Get' to getter name.
+#define GAME_FILE_PROPERTY_REF(type, memberName, propName, default) \
+    private: type memberName{default}; \
+    public: \
+        [[nodiscard]] type& propName() noexcept { return memberName; } \
+        [[nodiscard]] const type& propName() const noexcept { return memberName; } \
+
+/// @brief Convenience macro for a C++ "property" (const reference type).
+/// @note Does not prepend 'Get' to getter name.
+#define GAME_FILE_PROPERTY_CONST_REF(type, memberName, propName, default) \
+    private: type memberName{default}; \
+    public: \
+        [[nodiscard]] const type& propName() const noexcept { return memberName; } \
+
 
 namespace Firelink
 {
@@ -286,6 +311,18 @@ namespace Firelink
                 m_path = path.parent_path() / path.stem();
             else
                 m_path = path;
+        }
+
+        /// @brief Get the base name of the last known/set path of the `GameFile`.
+        [[nodiscard]] std::string GetPathName() const
+        {
+            return m_path.empty() ? "" : m_path.filename().string();
+        }
+
+        /// @brief Get the minimal stem name of the last known/set path of the `GameFile`.
+        [[nodiscard]] std::string GetPathMinimalStem() const
+        {
+            return m_path.empty() ? "" : StemOf(m_path);
         }
 
         /// @brief Get current DCXType of file instance that will be used upon write.

@@ -719,8 +719,8 @@ namespace Firelink::BinaryReadWrite
         /// @brief Read a null-terminated UTF-16 LE string at `offset` as raw bytes (does not move the cursor).
         [[nodiscard]] std::vector<std::byte> ReadUTF16LEStringAt(std::size_t offset) const;
 
-        /// @brief Dispatch to either raw or UTF-16 LE string reader.
-        [[nodiscard]] std::string ReadStringAt(std::size_t offset, bool utf16le_encoding) const;
+        /// @brief Dispatch to either one-byte or two-byte string reader.
+        [[nodiscard]] std::string ReadStringAt(std::size_t offset, bool isWideEncoding) const;
 
         [[nodiscard]] size_t size() const noexcept { return m_size; }
 

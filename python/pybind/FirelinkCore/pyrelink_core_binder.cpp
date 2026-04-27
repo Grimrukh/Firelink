@@ -4,18 +4,13 @@
 #include <pybind11/stl.h>
 
 #include <FirelinkCore/Binder.h>
-#include <FirelinkCore/DCX.h>
+#include <pyrelink_helpers.h>
 
 namespace py = pybind11;
 using namespace Firelink;
 
-
 void bind_firelink_core_binder(py::module& m)
 {
-    // ========================================================================
-    // Binder
-    // ========================================================================
-
     py::enum_<BinderVersion>(m, "BinderVersion",
         "Binder archive version.")
         .value("V3", BinderVersion::V3)
@@ -60,6 +55,8 @@ void bind_firelink_core_binder(py::module& m)
             "Entry payload as bytes.")
         .def_property_readonly("name", &BinderEntry::name,
             "Basename of the entry path.")
+        .def_property_readonly("stem", &BinderEntry::stem,
+            "Minimal stem (before first '.') of the entry path basename.")
         .def("__repr__", [](const BinderEntry& e) {
             return "<BinderEntry id=" + std::to_string(e.entry_id) +
                    " path='" + e.path + "' " + std::to_string(e.data.size()) + " bytes>";
@@ -67,22 +64,12 @@ void bind_firelink_core_binder(py::module& m)
 
     py::register_exception<BinderError>(m, "BinderError", PyExc_RuntimeError);
 
-    py::class_<Binder>(m, "Binder",
-        "A FromSoftware BND3/BND4 multi-file archive.")
-        .def(py::init<>())
-        .def_readwrite("version", &Binder::version)
-        .def_readwrite("signature", &Binder::signature)
-        .def_readwrite("flags", &Binder::flags)
-        .def_readwrite("big_endian", &Binder::big_endian)
-        .def_readwrite("bit_big_endian", &Binder::bit_big_endian)
-        .def_readwrite("entries", &Binder::entries)
-        .def_static("from_bytes", [](const py::buffer& buf) {
-            auto [ptr, size] = borrow_buffer(buf);
-            py::gil_scoped_release release;
-            return Binder::FromBytes(ptr, size);
-        },
-        py::arg("data"),
-        "Parse a BND3 or BND4 archive from raw bytes (must already be DCX-decompressed).")
+    auto binder = py::class_<Binder>(m, "Binder",
+        "A FromSoftware BND3/BND4 multi-file archive.");
+
+    bind_game_file(binder);
+
+    binder
         .def_static("from_split_bytes", [](const py::buffer& bhd_buf, const py::buffer& bdt_buf) {
             auto [bhd_ptr, bhd_size] = borrow_buffer(bhd_buf);
             auto [bdt_ptr, bdt_size] = borrow_buffer(bdt_buf);
@@ -90,27 +77,35 @@ void bind_firelink_core_binder(py::module& m)
             return Binder::FromSplitBytes(bhd_ptr, bhd_size, bdt_ptr, bdt_size);
         },
         py::arg("bhd_data"), py::arg("bdt_data"),
-        "Parse a split BHF/BDT binder from raw bytes.")
-        .def("to_bytes", [](const Binder& b) {
-            std::vector<std::byte> result;
-            {
-                py::gil_scoped_release release;
-                result = b.ToBytes();
-            }
-            return vector_to_bytes(result);
-        },
-        "Serialize the Binder back to BND3 or BND4 bytes.")
-        .def_property_readonly("entry_count", &Binder::EntryCount)
+        "Parse a split BHF/BDT binder from raw bytes.");
+
+    binder
+        .def_property("version", &Binder::GetVersion, &Binder::SetVersion)
+        .def_property("signature", &Binder::GetSignature, &Binder::SetSignature)
+        .def_property("flags", &Binder::GetFlags, &Binder::SetFlags)
+        .def_property("big_endian", &Binder::GetBigEndian, &Binder::SetBigEndian)
+        .def_property("bit_big_endian", &Binder::GetBitBigEndian, &Binder::SetBitBigEndian)
+        .def_property_readonly("entries",
+            [](Binder& b) -> std::vector<BinderEntry>& {
+                return b.Entries();
+            },
+            py::return_value_policy::reference_internal,
+            "List of binder entries (mutable).")
+        .def_property_readonly("entry_count", &Binder::EntryCount);
+
+    binder
         .def("find_entry_by_id", [](const Binder& b, std::int32_t id) -> const BinderEntry* {
             return b.FindEntryByID(id);
         }, py::return_value_policy::reference_internal, py::arg("entry_id"))
         .def("find_entry_by_name", [](const Binder& b, const std::string& name) -> const BinderEntry* {
             return b.FindEntryByName(name);
-        }, py::return_value_policy::reference_internal, py::arg("name"))
+        }, py::return_value_policy::reference_internal, py::arg("name"));
+        // TODO: Bind other find methods.
+
+    binder
         .def("__len__", &Binder::EntryCount)
         .def("__repr__", [](const Binder& b) {
-            return "<Binder " + std::string(b.version == BinderVersion::V3 ? "V3" : "V4")
-                + " entries=" + std::to_string(b.entries.size()) + ">";
+            return "<Binder " + std::string(b.GetVersion() == BinderVersion::V3 ? "V3" : "V4")
+                + " entries=" + std::to_string(b.Entries().size()) + ">";
         });
 }
-

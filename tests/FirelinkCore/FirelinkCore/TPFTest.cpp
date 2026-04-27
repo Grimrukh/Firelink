@@ -1,14 +1,13 @@
 // Unit tests for the TPF (Texture Pack File) reader/writer.
 //
 // Uses c1200.tpf fixture for basic tests, and extracts TPFs from
-// the c2300.chrtpfbhd/bdt split binder for additional coverage.
+// the c2300.chrbnd/chrtpfbdt split binder for additional coverage.
 
 #include <doctest/doctest.h>
 
 #include <FirelinkTestHelpers.h>
 #include <FirelinkCore/Binder.h>
 #include <FirelinkCore/DCX.h>
-#include <FirelinkCore/Oodle.h>
 #include <FirelinkCore/Paths.h>
 #include <FirelinkCore/TPF.h>
 #include "FirelinkCoreTestHelpers.h"
@@ -40,11 +39,11 @@ TEST_CASE("TPF: read c1200.tpf")
         return;
     }
 
-    CHECK(tpf->platform == TPFPlatform::PC);
-    CHECK(tpf->textures.size() > 0);
-    MESSAGE("c1200.tpf texture count: " << tpf->textures.size());
+    CHECK(tpf->GetPlatform() == TPFPlatform::PC);
+    CHECK(tpf->Textures().size() > 0);
+    MESSAGE("c1200.tpf texture count: " << tpf->Textures().size());
 
-    for (const auto& tex : tpf->textures)
+    for (const auto& tex : tpf->Textures())
     {
         CHECK(!tex.stem.empty());
         CHECK(!tex.data.empty());
@@ -67,15 +66,15 @@ TEST_CASE("TPF: round-trip c1200.tpf")
     CHECK(std::memcmp(written.data(), "TPF\0", 4) == 0);
 
     TPF::CPtr reread = TPF::FromBytes(written.data(), written.size());
-    REQUIRE(reread->textures.size() == tpf->textures.size());
-    CHECK(reread->platform == tpf->platform);
-    CHECK(reread->tpf_flags == tpf->tpf_flags);
-    CHECK(reread->encoding_type == tpf->encoding_type);
+    REQUIRE(reread->Textures().size() == tpf->Textures().size());
+    CHECK(reread->GetPlatform() == tpf->GetPlatform());
+    CHECK(reread->GetFlags() == tpf->GetFlags());
+    CHECK(reread->GetEncodingType() == tpf->GetEncodingType());
 
-    for (std::size_t i = 0; i < tpf->textures.size(); ++i)
+    for (std::size_t i = 0; i < tpf->Textures().size(); ++i)
     {
-        const auto& a = tpf->textures[i];
-        const auto& b = reread->textures[i];
+        const auto& a = tpf->Textures()[i];
+        const auto& b = reread->Textures()[i];
         CHECK(a.stem == b.stem);
         CHECK(a.format == b.format);
         CHECK(a.texture_type == b.texture_type);
@@ -97,7 +96,7 @@ TEST_CASE("TPF: double-write c1200.tpf produces identical bytes")
     }
 
     bool any_compressed = false;
-    for (auto& t : tpf->textures)
+    for (auto& t : tpf->Textures())
         if (t.texture_flags == 2 || t.texture_flags == 3)
             any_compressed = true;
 
@@ -114,7 +113,7 @@ TEST_CASE("TPF: double-write c1200.tpf produces identical bytes")
     else
     {
         TPF::CPtr reread2 = TPF::FromBytes(written2.data(), written2.size());
-        CHECK(reread2->textures.size() == tpf->textures.size());
+        CHECK(reread2->Textures().size() == tpf->Textures().size());
     }
 }
 
@@ -128,10 +127,10 @@ TEST_CASE("TPF: read TPF from c2300 split binder")
     auto binder = LoadSplitChrtpfbxf(
         "darksouls1r/c2300.chrbnd.dcx", "darksouls1r/c2300.chrtpfbdt");
 
-    REQUIRE(binder->entries.size() > 0);
+    REQUIRE(binder->Entries().size() > 0);
 
     // Find and parse first TPF entry.
-    for (auto& entry : binder->entries)
+    for (auto& entry : binder->Entries())
     {
         const std::byte* tpf_ptr = entry.data.data();
         std::size_t tpf_sz = entry.data.size();
@@ -150,20 +149,20 @@ TEST_CASE("TPF: read TPF from c2300 split binder")
         if (tpf_sz >= 4 && std::memcmp(tpf_ptr, "TPF\0", 4) == 0)
         {
             TPF::CPtr tpf = TPF::FromBytes(tpf_ptr, tpf_sz);
-            CHECK(tpf->platform == TPFPlatform::PC);
-            CHECK(tpf->textures.size() > 0);
-            if (!tpf->textures.empty())
+            CHECK(tpf->GetPlatform() == TPFPlatform::PC);
+            CHECK(tpf->Textures().size() > 0);
+            if (!tpf->Textures().empty())
             {
-                CHECK(!tpf->textures[0].stem.empty());
-                CHECK(!tpf->textures[0].data.empty());
-                MESSAGE("First TPF from split binder: " << tpf->textures[0].stem
-                    << " (" << tpf->textures[0].data.size() << " bytes)");
+                CHECK(!tpf->GetTexture(0).stem.empty());
+                CHECK(!tpf->GetTexture(0).data.empty());
+                MESSAGE("First TPF from split binder: " << tpf->GetTexture(0).stem
+                    << " (" << tpf->GetTexture(0).data.size() << " bytes)");
             }
 
             // Round-trip this tpf->
             auto written = tpf->ToBytes();
             TPF::CPtr reread = TPF::FromBytes(written.data(), written.size());
-            CHECK(reread->textures.size() == tpf->textures.size());
+            CHECK(reread->Textures().size() == tpf->Textures().size());
             return; // tested one TPF, done
         }
     }
@@ -178,13 +177,13 @@ TEST_CASE("TPF: read TPF from c2300 split binder")
 TEST_CASE("TPF: FindTexture case-insensitive")
 {
     auto tpf = LoadTPF("darksouls1r/c1200.tpf");
-    if (!tpf || tpf->textures.empty())
+    if (!tpf || tpf->Textures().empty())
     {
         MESSAGE("Skipping — c1200.tpf not available");
         return;
     }
 
-    std::string stem = tpf->textures[0].stem;
+    std::string stem = tpf->GetTexture(0).stem;
     std::string upper_stem = ToUpper(stem);
 
     auto* found = tpf->FindTexture(upper_stem);
@@ -199,7 +198,7 @@ TEST_CASE("TPF: FindTexture case-insensitive")
 
 TEST_CASE("TPF: FromBytes throws on invalid data")
 {
-    std::byte tiny[] = {std::byte('X'), std::byte('Y'), std::byte('Z'), std::byte('\0')};
+    const auto* tiny = reinterpret_cast<const std::byte*>("XYZ");
     CHECK_THROWS((void)TPF::FromBytes(tiny, sizeof(tiny)));
 }
 

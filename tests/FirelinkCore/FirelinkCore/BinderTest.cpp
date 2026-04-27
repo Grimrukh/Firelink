@@ -3,7 +3,7 @@
 // Uses *.bnd.dcx test fixtures to verify:
 //   - Parsing DCX-compressed BND files
 //   - Entry count and entry properties
-//   - Round-trip: read → write → re-read produces identical entries
+//   - Round-trip: read -> write -> re-read produces identical entries
 
 #include <doctest/doctest.h>
 
@@ -53,13 +53,13 @@ TEST_CASE("Binder: read c2300.chrbnd.dcx")
         return;
     }
 
-    CHECK((binder->version == BinderVersion::V3 || binder->version == BinderVersion::V4));
-    CHECK(binder->entries.size() > 0);
-    MESSAGE("c2300.chrbnd.dcx version: " << static_cast<int>(binder->version));
-    MESSAGE("c2300.chrbnd.dcx entry count: " << binder->entries.size());
+    CHECK((binder->GetVersion() == BinderVersion::V3 || binder->GetVersion() == BinderVersion::V4));
+    CHECK(binder->Entries().size() > 0);
+    MESSAGE("c2300.chrbnd.dcx version: " << static_cast<int>(binder->GetVersion()));
+    MESSAGE("c2300.chrbnd.dcx entry count: " << binder->Entries().size());
 
     // All entries should have IDs and paths.
-    for (const auto& e : binder->entries)
+    for (const auto& e : binder->Entries())
     {
         CHECK(e.entry_id >= 0);
         CHECK(!e.path.empty());
@@ -76,17 +76,17 @@ TEST_CASE("Binder: round-trip c2300.chrbnd.dcx")
         return;
     }
 
-    // Write → re-read.
+    // Write -> re-read.
     auto written = binder->ToBytes();
     REQUIRE(!written.empty());
 
     const Binder::CPtr reread = Binder::FromBytes(written.data(), written.size());
-    REQUIRE(reread->entries.size() == binder->entries.size());
+    REQUIRE(reread->Entries().size() == binder->Entries().size());
 
-    for (std::size_t i = 0; i < binder->entries.size(); ++i)
+    for (std::size_t i = 0; i < binder->Entries().size(); ++i)
     {
-        const auto& a = binder->entries[i];
-        const auto& b = reread->entries[i];
+        const auto& a = binder->Entries()[i];
+        const auto& b = reread->Entries()[i];
         CHECK(a.entry_id == b.entry_id);
         CHECK(a.path == b.path);
         CHECK(a.flags == b.flags);
@@ -109,10 +109,10 @@ TEST_CASE("Binder: read c2010.anibnd.dcx")
         return;
     }
 
-    CHECK((binder->version == BinderVersion::V3 || binder->version == BinderVersion::V4));
-    CHECK(binder->entries.size() > 0);
-    MESSAGE("c2010.anibnd.dcx version: " << static_cast<int>(binder->version));
-    MESSAGE("c2010.anibnd.dcx entry count: " << binder->entries.size());
+    CHECK((binder->GetVersion() == BinderVersion::V3 || binder->GetVersion() == BinderVersion::V4));
+    CHECK(binder->Entries().size() > 0);
+    MESSAGE("c2010.anibnd.dcx version: " << static_cast<int>(binder->GetVersion()));
+    MESSAGE("c2010.anibnd.dcx entry count: " << binder->Entries().size());
 }
 
 TEST_CASE("Binder: round-trip c2010.anibnd.dcx")
@@ -128,12 +128,12 @@ TEST_CASE("Binder: round-trip c2010.anibnd.dcx")
     REQUIRE(!written.empty());
 
     Binder::CPtr reread = Binder::FromBytes(written.data(), written.size());
-    REQUIRE(reread->entries.size() == binder->entries.size());
+    REQUIRE(reread->Entries().size() == binder->Entries().size());
 
-    for (std::size_t i = 0; i < binder->entries.size(); ++i)
+    for (std::size_t i = 0; i < binder->Entries().size(); ++i)
     {
-        const auto& a = binder->entries[i];
-        const auto& b = reread->entries[i];
+        const auto& a = binder->Entries()[i];
+        const auto& b = reread->Entries()[i];
         CHECK(a.entry_id == b.entry_id);
         CHECK(a.path == b.path);
         CHECK(a.data.size() == b.data.size());
@@ -163,7 +163,7 @@ TEST_CASE("Binder: double-write produces identical bytes")
 }
 
 // ---------------------------------------------------------------------------
-// Split binder: c2300.chrtpfbhd + c2300.chrtpfbdt (texture pack BXF)
+// Split binder: c2300.chrbnd.dcx (BHD) + c2300.chrtpfbdt (texture pack BXF)
 // ---------------------------------------------------------------------------
 
 namespace
@@ -180,12 +180,12 @@ TEST_CASE("Binder: read split c2300.chrtpfbhd + chrtpfbdt")
         return;
     }
 
-    CHECK(binder->entries.size() > 0);
-    MESSAGE("c2300 split binder version: " << static_cast<int>(binder->version));
-    MESSAGE("c2300 split binder entry count: " << binder->entries.size());
+    CHECK(binder->Entries().size() > 0);
+    MESSAGE("c2300 split binder version: " << static_cast<int>(binder->GetVersion()));
+    MESSAGE("c2300 split binder entry count: " << binder->Entries().size());
 
     // Entries should have paths and non-empty data.
-    for (const auto& e : binder->entries)
+    for (const auto& e : binder->Entries())
     {
         CHECK(!e.path.empty());
         CHECK(!e.data.empty());
@@ -203,7 +203,7 @@ TEST_CASE("Binder: split c2300.chrtpfbhd contains TPF entries")
 
     // At least some entries should be TPF files.
     int tpf_count = 0;
-    for (auto& entry : binder->entries)
+    for (auto& entry : binder->Entries())
     {
         auto name = entry.name();
         bool is_tpf = false;
@@ -245,8 +245,8 @@ TEST_CASE("Binder: split c2300.chrtpfbhd contains TPF entries")
                 }
 
                 TPF::CPtr tpf = TPF::FromBytes(tpf_data, tpf_size);
-                CHECK(tpf->textures.size() > 0);
-                MESSAGE("  First TPF has " << tpf->textures.size() << " texture(s): " << tpf->textures[0].stem);
+                CHECK(tpf->Textures().size() > 0);
+                MESSAGE("  First TPF has " << tpf->Textures().size() << " texture(s): " << tpf->Textures()[0].stem);
             }
         }
     }
@@ -261,7 +261,7 @@ TEST_CASE("Binder: split c2300.chrtpfbhd contains TPF entries")
 
 TEST_CASE("Binder: FromBytes throws on invalid data")
 {
-    std::byte tiny[] = {std::byte('X'), std::byte('Y'), std::byte('Z'), std::byte('\0')};
+    const auto* tiny = reinterpret_cast<const std::byte*>("XYZ");
     CHECK_THROWS_AS((void)Binder::FromBytes(tiny, sizeof(tiny)), BinderError);
 }
 

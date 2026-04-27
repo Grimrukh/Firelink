@@ -4,7 +4,7 @@
 //   - IsDCX() detection
 //   - DetectDCX() type identification
 //   - DecompressDCX() produces valid FLVER data
-//   - Round-trip: decompress → compress → decompress yields identical bytes
+//   - Round-trip: decompress -> compress -> decompress yields identical bytes
 //   - ReadFileBytes() utility
 
 #include <doctest/doctest.h>
@@ -99,7 +99,7 @@ TEST_CASE("DCX: DetectDCX identifies DCX type")
 
 
 // ---------------------------------------------------------------------------
-// Round-trip: decompress → compress → decompress
+// Round-trip: decompress -> compress -> decompress
 // ---------------------------------------------------------------------------
 
 TEST_CASE("DCX: round-trip compress/decompress preserves data")

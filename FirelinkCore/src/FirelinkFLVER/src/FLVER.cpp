@@ -38,11 +38,41 @@ namespace Firelink
             h.array_offset = r.Read<std::uint32_t>();
             return h;
         }
+
+        // Count faces for FLVER0. All face sets should be strips.
+        void CountFaces0(const std::vector<Mesh>& meshes, std::int32_t& true_fc, std::int32_t& total_fc)
+        {
+            true_fc = 0;
+            total_fc = 0;
+            for (const auto& mesh : meshes)
+            {
+                const auto& fs = mesh.face_sets[0];
+                const auto& vi = fs.vertex_indices;
+                if (!fs.is_triangle_strip)
+                {
+                    const auto n = static_cast<std::int32_t>(vi.size() / 3);
+                    true_fc += n;
+                    total_fc += n;
+                    continue;
+                }
+                for (std::size_t i = 0; i + 2 < vi.size(); ++i)
+                {
+                    const bool has_0xffff = (vi[i] == 0xFFFF || vi[i + 1] == 0xFFFF || vi[i + 2] == 0xFFFF);
+                    if (has_0xffff) continue;
+                    total_fc++;
+                    // True if not MotionBlur and non-degenerate.
+                    if (vi[i] != vi[i + 1] && vi[i] != vi[i + 2] && vi[i + 1] != vi[i + 2])
+                        true_fc++;
+                }
+            }
+        }
+
     } // anonymous namespace
+
 
     Endian FLVER::GetEndian() const noexcept
     {
-        return big_endian ? Endian::Big : Endian::Little;
+        return m_isBigEndian ? Endian::Big : Endian::Little;
     }
 
     void FLVER::Deserialize(BufferReader& r)
@@ -63,141 +93,160 @@ namespace Firelink
             file_endian = Endian::Big;
         else
             throw FLVERReadError("Invalid FLVER endian tag");
-
         r.SetEndian(file_endian);
+        m_isBigEndian = file_endian == Endian::Big;
+
         auto version_int = r.Read<std::uint32_t>();
-        FLVERVersion version;
-        try { version = static_cast<FLVERVersion>(version_int); }
-        catch (...) { throw FLVERError("Unrecognized FLVER version: " + std::to_string(version_int)); }
+        try
+        {
+            m_version = static_cast<FLVERVersion>(version_int);
+        }
+        catch (...)
+        {
+            throw FLVERError("Unrecognized FLVER version: " + std::to_string(version_int));
+        }
+
+        // FLVER0 and FLVER2 diverge after magic, endian tag, and version.
 
         if (version_int < 0x20000)
         {
-            // --- FLVER0 reader ---
-            r.Seek(0);
-            r.SetEndian(file_endian);
-
-            this->version = version;
-            this->big_endian = file_endian == Endian::Big;
-
-            // 128-byte FLVER0 header.
-            r.Skip(6); // "FLVER\0"
-            r.Skip(2); // endian tag
-            r.Skip(4); // version
-
-            auto vertex_data_offset = r.Read<std::uint32_t>();
-            auto vertex_data_size = r.Read<std::uint32_t>(); (void)vertex_data_size;
-            auto dummy_count = r.Read<std::uint32_t>();
-            auto material_count = r.Read<std::uint32_t>();
-            auto bone_count = r.Read<std::uint32_t>();
-            auto mesh_count = r.Read<std::uint32_t>();
-            auto vertex_array_count = r.Read<std::uint32_t>(); (void)vertex_array_count;
-
-            this->bounding_box_min.x = r.Read<float>();
-            this->bounding_box_min.y = r.Read<float>();
-            this->bounding_box_min.z = r.Read<float>();
-            this->bounding_box_max.x = r.Read<float>();
-            this->bounding_box_max.y = r.Read<float>();
-            this->bounding_box_max.z = r.Read<float>();
-
-            this->true_face_count = r.Read<std::int32_t>();
-            this->total_face_count = r.Read<std::int32_t>();
-
-            auto face_set_vertex_index_bit_size = r.Read<std::uint8_t>();
-            this->unicode = r.Read<std::uint8_t>() != 0;
-            this->f0_unk_x4a = r.Read<std::uint8_t>();
-            this->f0_unk_x4b = r.Read<std::uint8_t>();
-            this->f0_unk_x4c = r.Read<std::uint32_t>();
-            r.AssertPad(12); // no face_set_count, layout_count, texture_count
-            this->f0_unk_x5c = r.Read<std::uint8_t>();
-            r.AssertPad(3);
-            r.AssertPad(32);
-            // Header: 128 bytes total.
-
-            bool unicode_enc = this->unicode;
-            float uv_factor = this->big_endian ? 1024.f : 2048.f;
-
-            // Dummies.
-            for (std::uint32_t i = 0; i < dummy_count; ++i)
-                dummies.push_back(Dummy::Read(r));
-
-            // Materials (with layouts stored inside).
-            std::vector<FLVER0MaterialRead> mat_reads;
-            for (std::uint32_t i = 0; i < material_count; ++i)
-                mat_reads.push_back(FLVER0MaterialRead::Read(r, unicode_enc));
-
-            // Bones.
-            for (std::uint32_t i = 0; i < bone_count; ++i)
-                bones.push_back(Bone::Read(r, unicode_enc));
-
-            // Meshes.
-            for (std::uint32_t i = 0; i < mesh_count; ++i)
-            {
-                meshes.push_back(Mesh::ReadFLVER0(
-                    r, face_set_vertex_index_bit_size, vertex_data_offset,
-                    mat_reads, version, uv_factor, static_cast<std::int32_t>(i)));
-            }
+            DeserializeFLVER0(r);
+            return;
         }
+    }
 
-        // --- FLVER2 reader ---
-        r.Seek(0);
-        r.SetEndian(file_endian);
+    void FLVER::Serialize(BufferWriter& w) const
+    {
+        if (is_flver0(m_version))
+        {
+            SerializeFLVER0(w);
+            return;
+        }
+        return SerializeFLVER2(w);
+    }
 
-        this->version = version;
-        this->big_endian = file_endian == Endian::Big;
+    MergedMesh FLVER::GetCachedMergedMesh(
+        const std::vector<std::uint32_t>& meshMaterialIndices,
+        const std::vector<std::vector<std::string>>& materialUVLayerNames,
+        bool merge_vertices)
+    {
+        if (!m_cachedMergedMesh)
+            m_cachedMergedMesh = std::make_unique<MergedMesh>(
+                *this, meshMaterialIndices, materialUVLayerNames, merge_vertices);
+        return *m_cachedMergedMesh;
+    }
 
-        // FLVER2 header: 128 bytes.
-        r.Skip(6); // "FLVER\0"
-        r.Skip(2); // endian tag (already read)
-        r.Skip(4); // version (already read)
+    void FLVER::ClearCachedMergedMesh()
+    {
+        m_cachedMergedMesh.reset();
+    }
 
+    void FLVER::DeserializeFLVER0(BufferReader& r)
+    {
+        // FLVER header should have already been read.
+        const auto vertex_data_offset = r.Read<std::uint32_t>();
+        const auto vertex_data_size = r.Read<std::uint32_t>(); (void)vertex_data_size;
+        const auto dummy_count = r.Read<std::uint32_t>();
+        const auto material_count = r.Read<std::uint32_t>();
+        const auto bone_count = r.Read<std::uint32_t>();
+        const auto mesh_count = r.Read<std::uint32_t>();
+        const auto vertex_array_count = r.Read<std::uint32_t>(); (void)vertex_array_count;
+
+        m_boundingBox.min.x = r.Read<float>();
+        m_boundingBox.min.y = r.Read<float>();
+        m_boundingBox.min.z = r.Read<float>();
+        m_boundingBox.max.x = r.Read<float>();
+        m_boundingBox.max.y = r.Read<float>();
+        m_boundingBox.max.z = r.Read<float>();
+
+        m_trueFaceCount = r.Read<std::int32_t>();
+        m_totalFaceCount = r.Read<std::int32_t>();
+
+        const auto face_set_vertex_index_bit_size = r.Read<std::uint8_t>();
+        m_isUnicode = r.Read<std::uint8_t>() != 0;
+        m_f0Unk4a = r.Read<std::uint8_t>();
+        m_f0Unk4b = r.Read<std::uint8_t>();
+        m_f0Unk4c = r.Read<std::uint32_t>();
+        r.AssertPad(12); // no face_set_count, layout_count, texture_count
+        m_f0Unk5c = r.Read<std::uint8_t>();
+        r.AssertPad(3);
+        r.AssertPad(32);
+        // Header: 128 bytes total.
+
+        const float uv_factor = m_isBigEndian ? 1024.f : 2048.f;
+
+        // Dummies.
+        for (std::uint32_t i = 0; i < dummy_count; ++i)
+            m_dummies.push_back(Dummy::Read(r, m_version));
+
+        // Materials (with layouts stored inside).
+        std::vector<FLVER0MaterialRead> mat_reads;
+        for (std::uint32_t i = 0; i < material_count; ++i)
+            mat_reads.push_back(FLVER0MaterialRead::Read(r, m_isUnicode));
+
+        // Bones.
+        for (std::uint32_t i = 0; i < bone_count; ++i)
+            m_bones.push_back(Bone::Read(r, m_isUnicode));
+
+        // Meshes.
+        for (std::uint32_t i = 0; i < mesh_count; ++i)
+        {
+            m_meshes.push_back(Mesh::ReadFLVER0(
+                r, face_set_vertex_index_bit_size, vertex_data_offset,
+                mat_reads, m_version, uv_factor, static_cast<std::int32_t>(i)));
+        }
+    }
+
+    void FLVER::DeserializeFLVER2(BufferReader& r)
+    {
+        // FLVER header should have already been read.
         auto vertex_data_offset = r.Read<std::uint32_t>();
         auto vertex_data_size = r.Read<std::uint32_t>();
         (void)vertex_data_size;
 
-        auto dummy_count = r.Read<std::uint32_t>();
-        auto material_count = r.Read<std::uint32_t>();
-        auto bone_count = r.Read<std::uint32_t>();
-        auto mesh_count = r.Read<std::uint32_t>();
-        auto vertex_array_count = r.Read<std::uint32_t>();
+        const auto dummy_count = r.Read<std::uint32_t>();
+        const auto material_count = r.Read<std::uint32_t>();
+        const auto bone_count = r.Read<std::uint32_t>();
+        const auto mesh_count = r.Read<std::uint32_t>();
+        const auto vertex_array_count = r.Read<std::uint32_t>();
 
-        this->bounding_box_min.x = r.Read<float>();
-        this->bounding_box_min.y = r.Read<float>();
-        this->bounding_box_min.z = r.Read<float>();
-        this->bounding_box_max.x = r.Read<float>();
-        this->bounding_box_max.y = r.Read<float>();
-        this->bounding_box_max.z = r.Read<float>();
+        m_boundingBox.min.x = r.Read<float>();
+        m_boundingBox.min.y = r.Read<float>();
+        m_boundingBox.min.z = r.Read<float>();
+        m_boundingBox.max.x = r.Read<float>();
+        m_boundingBox.max.y = r.Read<float>();
+        m_boundingBox.max.z = r.Read<float>();
 
-        this->true_face_count = r.Read<std::int32_t>();
-        this->total_face_count = r.Read<std::int32_t>();
+        m_trueFaceCount = r.Read<std::int32_t>();
+        m_totalFaceCount = r.Read<std::int32_t>();
 
-        auto face_set_vertex_index_bit_size = r.Read<std::uint8_t>();
-        this->unicode = r.Read<std::uint8_t>() != 0;
-        this->f2_unk_x4a = r.Read<std::uint8_t>() != 0;
+        const auto face_set_vertex_index_bit_size = r.Read<std::uint8_t>();
+        m_isUnicode = r.Read<std::uint8_t>() != 0;
+        m_f2Unk4a = r.Read<std::uint8_t>() != 0;
         r.AssertPad(1);
-        this->f2_unk_x4c = r.Read<std::int32_t>();
+        m_f2Unk4c = r.Read<std::int32_t>();
 
         auto face_set_count = r.Read<std::uint32_t>();
         auto layout_count = r.Read<std::uint32_t>();
         auto texture_count = r.Read<std::uint32_t>();
 
-        this->f2_unk_x5c = static_cast<std::int32_t>(r.Read<std::uint8_t>());
-        this->f2_unk_x5d = static_cast<std::int32_t>(r.Read<std::uint8_t>());
+        m_f2Unk5c = static_cast<std::int32_t>(r.Read<std::uint8_t>());
+        m_f2Unk5d = static_cast<std::int32_t>(r.Read<std::uint8_t>());
         r.AssertPad(10);
-        this->f2_unk_x68 = r.Read<std::int32_t>();
+        m_f2Unk68 = r.Read<std::int32_t>();
         r.AssertPad(20);
 
         // Header should be 128 bytes total.
         // (offset should now be 128 = 0x80)
 
-        bool unicode_enc = this->unicode;
-        float uv_factor = version >= FLVERVersion::DarkSouls2_NT ? 2048.f : 1024.f;
-        bool bounding_box_has_unknown = version == FLVERVersion::Sekiro_EldenRing;
+        float uv_factor = m_version >= FLVERVersion::DarkSouls2_NT ? 2048.f : 1024.f;
+        bool bounding_box_has_unknown = m_version == FLVERVersion::Sekiro_EldenRing;
 
         // --- Read dummies ---
-        dummies.reserve(dummy_count);
+        m_dummies.reserve(dummy_count);
         for (std::uint32_t i = 0; i < dummy_count; ++i)
         {
-            dummies.push_back(Dummy::Read(r));
+            m_dummies.push_back(Dummy::Read(r, m_version));
         }
 
         // --- Read materials (with deferred texture/GX item assignment) ---
@@ -213,15 +262,15 @@ namespace Firelink
         for (std::uint32_t i = 0; i < material_count; ++i)
         {
             std::uint32_t tc = 0, fti = 0;
-            auto mat = Material::ReadFLVER2(r, unicode_enc, version, gx_cache, tc, fti);
+            auto mat = Material::ReadFLVER2(r, m_isUnicode, m_version, gx_cache, tc, fti);
             mat_infos.push_back({std::move(mat), tc, fti});
         }
 
         // --- Read bones ---
-        bones.reserve(bone_count);
+        m_bones.reserve(bone_count);
         for (std::uint32_t i = 0; i < bone_count; ++i)
         {
-            bones.push_back(Bone::Read(r, unicode_enc));
+            m_bones.push_back(Bone::Read(r, m_isUnicode));
         }
 
         // --- Read mesh headers ---
@@ -310,7 +359,7 @@ namespace Firelink
         std::unordered_map<std::uint32_t, Texture> textures;
         for (std::uint32_t i = 0; i < texture_count; ++i)
         {
-            textures[i] = Texture::ReadFLVER2(r, unicode_enc);
+            textures[i] = Texture::ReadFLVER2(r, m_isUnicode);
         }
 
         // --- Assign textures to materials ---
@@ -329,7 +378,7 @@ namespace Firelink
         }
 
         // --- Assign face sets and vertex arrays to meshes ---
-        meshes.reserve(mesh_count);
+        m_meshes.reserve(mesh_count);
         for (auto& ms : mesh_states)
         {
             // Copy (not move) — multiple meshes may reference the same material.
@@ -357,79 +406,18 @@ namespace Firelink
                 vertex_arrays.erase(it);
             }
 
-            meshes.push_back(std::move(ms.mesh));
+            m_meshes.push_back(std::move(ms.mesh));
         }
     }
-
-    void FLVER::Serialize(BufferWriter& w) const
-    {
-        if (is_flver0(version))
-        {
-            SerializeFLVER0(w);
-            return;
-        }
-        return SerializeFLVER2(w);
-    }
-
-    MergedMesh FLVER::GetMergedMesh(
-        const std::vector<std::uint32_t>& meshMaterialIndices,
-        const std::vector<std::vector<std::string>>& materialUVLayerNames,
-        bool merge_vertices)
-    {
-        if (!m_cachedMergedMesh)
-            m_cachedMergedMesh = std::make_unique<MergedMesh>(
-                *this, meshMaterialIndices, materialUVLayerNames, merge_vertices);
-        return *m_cachedMergedMesh;
-    }
-
-    void FLVER::ClearCachedMergedMesh()
-    {
-        m_cachedMergedMesh.reset();
-    }
-
-    // ---------------------------------------------------------------------------
-    // Dummy / Bone writers (shared by FLVER0 and FLVER2)
-    // ---------------------------------------------------------------------------
-
-    namespace
-    {
-        // Count faces for FLVER0. All face sets should be strips.
-        void CountFaces0(const std::vector<Mesh>& meshes, std::int32_t& true_fc, std::int32_t& total_fc)
-        {
-            true_fc = 0;
-            total_fc = 0;
-            for (const auto& mesh : meshes)
-            {
-                const auto& fs = mesh.face_sets[0];
-                const auto& vi = fs.vertex_indices;
-                if (!fs.is_triangle_strip)
-                {
-                    const auto n = static_cast<std::int32_t>(vi.size() / 3);
-                    true_fc += n;
-                    total_fc += n;
-                    continue;
-                }
-                for (std::size_t i = 0; i + 2 < vi.size(); ++i)
-                {
-                    const bool has_0xffff = (vi[i] == 0xFFFF || vi[i + 1] == 0xFFFF || vi[i + 2] == 0xFFFF);
-                    if (has_0xffff) continue;
-                    total_fc++;
-                    // True if not MotionBlur and non-degenerate.
-                    if (vi[i] != vi[i + 1] && vi[i] != vi[i + 2] && vi[i + 1] != vi[i + 2])
-                        true_fc++;
-                }
-            }
-        }
-    } // anonymous namespace
 
     void FLVER::SerializeFLVER0(BufferWriter& w) const
     {
-        bool ue = unicode;
-        float uv_factor = big_endian ? 1024.f : 2048.f;
+        bool ue = m_isUnicode;
+        float uv_factor = m_isBigEndian ? 1024.f : 2048.f;
 
         // Compute face counts.
         std::int32_t true_fc = 0, total_fc = 0;
-        CountFaces0(meshes, true_fc, total_fc);
+        CountFaces0(m_meshes, true_fc, total_fc);
 
         // --- Deduplicate materials ---
         struct PackedMat
@@ -443,7 +431,7 @@ namespace Firelink
         std::unordered_map<std::size_t, std::size_t> hashed_mat_indices; // hash -> materials_to_pack index
         std::vector<PackedMat> mesh_pack_info; // one per mesh
 
-        for (const auto& mesh : meshes)
+        for (const auto& mesh : m_meshes)
         {
             auto mh = mesh.material.GetHash();
             std::size_t mat_idx;
@@ -488,38 +476,38 @@ namespace Firelink
         // "FLVER\0" + endian tag
         w.WriteRaw("FLVER", 5);
         w.WritePad(1); // null
-        if (big_endian) { w.WriteRaw("B", 1); w.WritePad(1); }
+        if (m_isBigEndian) { w.WriteRaw("B", 1); w.WritePad(1); }
         else { w.WriteRaw("L", 1); w.WritePad(1); }
-        w.Write<std::uint32_t>(static_cast<std::uint32_t>(version));
+        w.Write<std::uint32_t>(static_cast<std::uint32_t>(m_version));
         w.Reserve<std::uint32_t>("vertex_data_offset");
         w.Reserve<std::uint32_t>("vertex_data_size");
-        w.Write<std::uint32_t>(static_cast<std::uint32_t>(dummies.size()));
+        w.Write<std::uint32_t>(static_cast<std::uint32_t>(m_dummies.size()));
         w.Write<std::uint32_t>(mat_count);
-        w.Write<std::uint32_t>(static_cast<std::uint32_t>(bones.size()));
-        w.Write<std::uint32_t>(static_cast<std::uint32_t>(meshes.size()));
-        w.Write<std::uint32_t>(static_cast<std::uint32_t>(meshes.size())); // vertex_array_count = mesh_count
-        w.Write<float>(bounding_box_min.x);
-        w.Write<float>(bounding_box_min.y);
-        w.Write<float>(bounding_box_min.z);
-        w.Write<float>(bounding_box_max.x);
-        w.Write<float>(bounding_box_max.y);
-        w.Write<float>(bounding_box_max.z);
+        w.Write<std::uint32_t>(static_cast<std::uint32_t>(m_bones.size()));
+        w.Write<std::uint32_t>(static_cast<std::uint32_t>(m_meshes.size()));
+        w.Write<std::uint32_t>(static_cast<std::uint32_t>(m_meshes.size())); // vertex_array_count = mesh_count
+        w.Write<float>(m_boundingBox.min.x);
+        w.Write<float>(m_boundingBox.min.y);
+        w.Write<float>(m_boundingBox.min.z);
+        w.Write<float>(m_boundingBox.max.x);
+        w.Write<float>(m_boundingBox.max.y);
+        w.Write<float>(m_boundingBox.max.z);
         w.Write<std::int32_t>(true_fc);
         w.Write<std::int32_t>(total_fc);
         w.Write<std::uint8_t>(16); // vertex_index_bit_size
-        w.Write<std::uint8_t>(unicode ? 1 : 0);
-        w.Write<std::uint8_t>(f0_unk_x4a);
-        w.Write<std::uint8_t>(f0_unk_x4b);
-        w.Write<std::uint32_t>(f0_unk_x4c);
+        w.Write<std::uint8_t>(m_isUnicode ? 1 : 0);
+        w.Write<std::uint8_t>(m_f0Unk4a);
+        w.Write<std::uint8_t>(m_f0Unk4b);
+        w.Write<std::uint32_t>(m_f0Unk4c);
         w.WritePad(12); // no face_set_count, layout_count, texture_count
-        w.Write<std::uint8_t>(f0_unk_x5c);
+        w.Write<std::uint8_t>(m_f0Unk5c);
         w.WritePad(3);
         w.WritePad(32);
         // Header: 128 bytes.
 
         // --- Dummies ---
-        for (const auto& d : dummies)
-            d.Write(w);
+        for (const auto& d : m_dummies)
+            d.Write(w, m_version);
 
         // --- Material headers (32 bytes each) ---
         // Use material pointers as scope keys for reservations.
@@ -536,13 +524,13 @@ namespace Firelink
         }
 
         // --- Bone structs ---
-        for (const auto& bone : bones)
+        for (const auto& bone : m_bones)
             bone.Write(w, &bone);
 
         // --- Mesh headers (100 bytes each) ---
-        for (std::size_t mi = 0; mi < meshes.size(); ++mi)
+        for (std::size_t mi = 0; mi < m_meshes.size(); ++mi)
         {
-            const auto& mesh = meshes[mi];
+            const auto& mesh = m_meshes[mi];
             const auto& fs = mesh.face_sets[0];
             const void* scope = &mesh;
 
@@ -674,16 +662,16 @@ namespace Firelink
         }
 
         // --- Bone names ---
-        for (const auto& bone : bones)
+        for (const auto& bone : m_bones)
         {
             w.FillWithPosition<std::uint32_t>("bone_name_offset", &bone);
             w.WriteString(bone.name, ue);
         }
 
         // --- Mesh vertex array headers ---
-        for (std::size_t mi = 0; mi < meshes.size(); ++mi)
+        for (std::size_t mi = 0; mi < m_meshes.size(); ++mi)
         {
-            const auto& mesh = meshes[mi];
+            const auto& mesh = m_meshes[mi];
             const void* scope = &mesh;
 
             w.FillWithPosition<std::uint32_t>("mesh_va_hdr_offset_1", scope);
@@ -708,7 +696,7 @@ namespace Firelink
         auto vertex_data_start = w.Position();
         w.Fill<std::uint32_t>("vertex_data_offset", static_cast<std::uint32_t>(vertex_data_start));
 
-        for (const auto& mesh : meshes)
+        for (const auto& mesh : m_meshes)
         {
             const void* scope = &mesh;
 
@@ -741,18 +729,18 @@ namespace Firelink
 
     void FLVER::SerializeFLVER2(BufferWriter& w) const
     {
-        bool ue = unicode;
-        float uv_factor = version >= FLVERVersion::DarkSouls2_NT ? 2048.f : 1024.f;
+        bool ue = m_isUnicode;
+        float uv_factor = m_version >= FLVERVersion::DarkSouls2_NT ? 2048.f : 1024.f;
 
         // --- Pre-compute face counts and header index size ---
         std::int32_t true_fc = 0, total_fc = 0;
         std::uint8_t header_vi_bit_size = 0;
-        if (version < FLVERVersion::Bloodborne_DS3_A)
+        if (m_version < FLVERVersion::Bloodborne_DS3_A)
         {
             header_vi_bit_size = 16;
         }
 
-        for (const auto& mesh : meshes)
+        for (const auto& mesh : m_meshes)
         {
             bool uses_0xffff = (mesh.vertex_arrays.size() == 1 && mesh.vertex_arrays[0].vertex_count <= 0xFFFF);
             for (const auto& fs : mesh.face_sets)
@@ -802,7 +790,7 @@ namespace Firelink
         std::vector<std::vector<const Material*>> gx_list_users;
         std::unordered_map<std::size_t, std::size_t> hashed_gx_idx;
 
-        for (const auto& mesh : meshes)
+        for (const auto& mesh : m_meshes)
         {
             auto mh = mesh.material.GetHash();
             std::size_t mat_idx;
@@ -861,7 +849,7 @@ namespace Firelink
 
         std::uint32_t total_va_count = 0;
         std::uint32_t total_fs_count = 0;
-        for (const auto& mesh : meshes)
+        for (const auto& mesh : m_meshes)
         {
             total_va_count += static_cast<std::uint32_t>(mesh.vertex_arrays.size());
             total_fs_count += static_cast<std::uint32_t>(mesh.face_sets.size());
@@ -870,41 +858,41 @@ namespace Firelink
         // --- Write FLVER2 header (128 bytes) ---
         w.WriteRaw("FLVER", 5);
         w.WritePad(1);
-        if (big_endian) { w.WriteRaw("B", 1); w.WritePad(1); }
+        if (m_isBigEndian) { w.WriteRaw("B", 1); w.WritePad(1); }
         else { w.WriteRaw("L", 1); w.WritePad(1); }
-        w.Write<std::uint32_t>(static_cast<std::uint32_t>(version));
+        w.Write<std::uint32_t>(static_cast<std::uint32_t>(m_version));
         w.Reserve<std::uint32_t>("vertex_data_offset");
         w.Reserve<std::uint32_t>("vertex_data_size");
-        w.Write<std::uint32_t>(static_cast<std::uint32_t>(dummies.size()));
+        w.Write<std::uint32_t>(static_cast<std::uint32_t>(m_dummies.size()));
         w.Write<std::uint32_t>(packed_mat_count);
-        w.Write<std::uint32_t>(static_cast<std::uint32_t>(bones.size()));
-        w.Write<std::uint32_t>(static_cast<std::uint32_t>(meshes.size()));
+        w.Write<std::uint32_t>(static_cast<std::uint32_t>(m_bones.size()));
+        w.Write<std::uint32_t>(static_cast<std::uint32_t>(m_meshes.size()));
         w.Write<std::uint32_t>(total_va_count);
-        w.Write<float>(bounding_box_min.x);
-        w.Write<float>(bounding_box_min.y);
-        w.Write<float>(bounding_box_min.z);
-        w.Write<float>(bounding_box_max.x);
-        w.Write<float>(bounding_box_max.y);
-        w.Write<float>(bounding_box_max.z);
+        w.Write<float>(m_boundingBox.min.x);
+        w.Write<float>(m_boundingBox.min.y);
+        w.Write<float>(m_boundingBox.min.z);
+        w.Write<float>(m_boundingBox.max.x);
+        w.Write<float>(m_boundingBox.max.y);
+        w.Write<float>(m_boundingBox.max.z);
         w.Write<std::int32_t>(true_fc);
         w.Write<std::int32_t>(total_fc);
         w.Write<std::uint8_t>(header_vi_bit_size);
-        w.Write<std::uint8_t>(unicode ? 1 : 0);
-        w.Write<std::uint8_t>(f2_unk_x4a ? 1 : 0);
+        w.Write<std::uint8_t>(m_isUnicode ? 1 : 0);
+        w.Write<std::uint8_t>(m_f2Unk4a ? 1 : 0);
         w.WritePad(1);
-        w.Write<std::int32_t>(f2_unk_x4c);
+        w.Write<std::int32_t>(m_f2Unk4c);
         w.Write<std::uint32_t>(total_fs_count);
         w.Write<std::uint32_t>(packed_layout_count);
         w.Write<std::uint32_t>(packed_texture_count);
-        w.Write<std::uint8_t>(static_cast<std::uint8_t>(f2_unk_x5c));
-        w.Write<std::uint8_t>(static_cast<std::uint8_t>(f2_unk_x5d));
+        w.Write<std::uint8_t>(static_cast<std::uint8_t>(m_f2Unk5c));
+        w.Write<std::uint8_t>(static_cast<std::uint8_t>(m_f2Unk5d));
         w.WritePad(10);
-        w.Write<std::int32_t>(f2_unk_x68);
+        w.Write<std::int32_t>(m_f2Unk68);
         w.WritePad(20);
 
         // --- Dummies ---
-        for (const auto& d : dummies)
-            d.Write(w);
+        for (const auto& d : m_dummies)
+            d.Write(w, m_version);
 
         // --- Material headers (32 bytes each) ---
         for (std::size_t i = 0; i < packed_mat_count; ++i)
@@ -924,13 +912,13 @@ namespace Firelink
         }
 
         // --- Bones ---
-        for (const auto& bone : bones)
+        for (const auto& bone : m_bones)
             bone.Write(w, &bone);
 
         // --- Mesh headers (44 bytes each) ---
-        for (std::size_t mi = 0; mi < meshes.size(); ++mi)
+        for (std::size_t mi = 0; mi < m_meshes.size(); ++mi)
         {
-            const auto& mesh = meshes[mi];
+            const auto& mesh = m_meshes[mi];
             const void* scope = &mesh;
             w.Write<std::uint8_t>(mesh.is_dynamic ? 1 : 0);
             w.WritePad(3);
@@ -949,7 +937,7 @@ namespace Firelink
         // --- FaceSet headers ---
         // Compute per-face-set index sizes for later.
         std::vector<std::uint32_t> fs_index_sizes;
-        for (const auto& mesh : meshes)
+        for (const auto& mesh : m_meshes)
         {
             for (const auto& fs : mesh.face_sets)
             {
@@ -989,15 +977,15 @@ namespace Firelink
 
         // --- Vertex array headers ---
         std::uint32_t va_global_idx = 0;
-        for (std::size_t mi = 0; mi < meshes.size(); ++mi)
+        for (std::size_t mi = 0; mi < m_meshes.size(); ++mi)
         {
-            for (std::size_t ai = 0; ai < meshes[mi].vertex_arrays.size(); ++ai)
+            for (std::size_t ai = 0; ai < m_meshes[mi].vertex_arrays.size(); ++ai)
             {
-                const auto& va = meshes[mi].vertex_arrays[ai];
+                const auto& va = m_meshes[mi].vertex_arrays[ai];
                 const void* va_scope = &va;
                 auto layout_idx = static_cast<std::uint32_t>(mesh_layout_indices[mi][ai]);
                 auto write_size = va.layout.GetCompressedVertexSize();
-                bool write_length = (version >= static_cast<FLVERVersion>(0x20005));
+                bool write_length = (m_version >= static_cast<FLVERVersion>(0x20005));
 
                 w.Write<std::uint32_t>(static_cast<std::uint32_t>(ai)); // array_index
                 w.Write<std::uint32_t>(layout_idx);
@@ -1069,7 +1057,7 @@ namespace Firelink
 
         // --- Mesh bounding boxes (pad 16) ---
         w.PadAlign(16);
-        for (const auto& mesh : meshes)
+        for (const auto& mesh : m_meshes)
         {
             const void* scope = &mesh;
             if (!mesh.uses_bounding_boxes)
@@ -1097,7 +1085,7 @@ namespace Firelink
         // --- Mesh bone indices (pad 16) ---
         w.PadAlign(16);
         auto bone_indices_start = w.Position();
-        for (const auto& mesh : meshes)
+        for (const auto& mesh : m_meshes)
         {
             const void* scope = &mesh;
             if (mesh.bone_indices.empty())
@@ -1116,7 +1104,7 @@ namespace Firelink
         w.PadAlign(16);
         {
             std::uint32_t first_fs = 0;
-            for (const auto& mesh : meshes)
+            for (const auto& mesh : m_meshes)
             {
                 const void* scope = &mesh;
                 w.FillWithPosition<std::uint32_t>("mesh2_fs_offset", scope);
@@ -1130,7 +1118,7 @@ namespace Firelink
         w.PadAlign(16);
         {
             std::uint32_t first_va = 0;
-            for (const auto& mesh : meshes)
+            for (const auto& mesh : m_meshes)
             {
                 const void* scope = &mesh;
                 w.FillWithPosition<std::uint32_t>("mesh2_va_offset", scope);
@@ -1158,7 +1146,7 @@ namespace Firelink
 
             // Add terminator if missing (post-DS2).
             if (!gx_list->empty() && !gx_list->back().IsTerminator()
-                && version != FLVERVersion::DarkSouls2)
+                && m_version != FLVERVersion::DarkSouls2)
             {
                 constexpr char term_cat[] = {'\xff', '\xff', '\xff', '\x7f'};
                 w.WriteRaw(term_cat, 4);
@@ -1193,23 +1181,23 @@ namespace Firelink
 
         // --- Bone names (pad 16) ---
         w.PadAlign(16);
-        for (const auto& bone : bones)
+        for (const auto& bone : m_bones)
         {
             w.FillWithPosition<std::uint32_t>("bone_name_offset", &bone);
             w.WriteString(bone.name, ue);
         }
 
         // --- Version-specific alignment and vertex data ---
-        auto alignment = (static_cast<std::uint32_t>(version) <= 0x2000E) ? 32u : 16u;
+        auto alignment = (static_cast<std::uint32_t>(m_version) <= 0x2000E) ? 32u : 16u;
         w.PadAlign(alignment);
-        if (version == FLVERVersion::DarkSouls2_NT || version == FLVERVersion::DarkSouls2)
+        if (m_version == FLVERVersion::DarkSouls2_NT || m_version == FLVERVersion::DarkSouls2)
             w.WritePad(32);
 
         auto vertex_data_start = w.Position();
         w.Fill<std::uint32_t>("vertex_data_offset", static_cast<std::uint32_t>(vertex_data_start));
 
         std::size_t fs_idx = 0;
-        for (const auto& mesh : meshes)
+        for (const auto& mesh : m_meshes)
         {
             // Face set index data.
             for (const auto& fs : mesh.face_sets)
@@ -1249,7 +1237,7 @@ namespace Firelink
         auto vertex_data_end = w.Position();
         w.Fill<std::uint32_t>("vertex_data_size", static_cast<std::uint32_t>(vertex_data_end - vertex_data_start));
 
-        if (version == FLVERVersion::DarkSouls2_NT || version == FLVERVersion::DarkSouls2)
+        if (m_version == FLVERVersion::DarkSouls2_NT || m_version == FLVERVersion::DarkSouls2)
             w.WritePad(32);
     }
 

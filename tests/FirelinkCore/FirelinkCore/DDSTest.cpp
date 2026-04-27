@@ -1,4 +1,4 @@
-// Unit tests for DDS conversion (DDS → TGA, DDS → PNG).
+// Unit tests for DDS conversion (DDS -> TGA, DDS -> PNG).
 //
 // Converts every .dds fixture. to both TGA and PNG
 // and verifies the output is non-empty and starts with the expected
@@ -12,6 +12,7 @@
 
 #include <filesystem>
 #include <fstream>
+#include <ranges>
 #include <vector>
 
 using namespace Firelink;
@@ -34,7 +35,7 @@ namespace
             }
         }
 
-        std::sort(files.begin(), files.end());
+        std::ranges::sort(files);
         return files;
     }
 
@@ -72,7 +73,7 @@ namespace
 } // namespace
 
 // ---------------------------------------------------------------------------
-// DDS → TGA
+// DDS -> TGA
 // ---------------------------------------------------------------------------
 
 TEST_CASE("DDS: ConvertDDSToTGA converts every fixture")
@@ -100,7 +101,7 @@ TEST_CASE("DDS: ConvertDDSToTGA converts every fixture")
 }
 
 // ---------------------------------------------------------------------------
-// DDS → PNG
+// DDS -> PNG
 // ---------------------------------------------------------------------------
 
 TEST_CASE("DDS: ConvertDDSToPNG converts every fixture")
@@ -126,7 +127,7 @@ TEST_CASE("DDS: ConvertDDSToPNG converts every fixture")
 }
 
 // ---------------------------------------------------------------------------
-// Round-trip: DDS → TGA → DDS (BC7_UNORM)
+// Round-trip: DDS -> TGA -> DDS (BC7_UNORM)
 // ---------------------------------------------------------------------------
 
 TEST_CASE("DDS: round-trip DDS -> TGA -> DDS produces valid DDS")
@@ -156,7 +157,7 @@ TEST_CASE("DDS: round-trip DDS -> TGA -> DDS produces valid DDS")
 }
 
 // ---------------------------------------------------------------------------
-// Round-trip: DDS → PNG → DDS (BC7_UNORM)
+// Round-trip: DDS -> PNG -> DDS (BC7_UNORM)
 // ---------------------------------------------------------------------------
 
 TEST_CASE("DDS: round-trip DDS -> PNG -> DDS produces valid DDS")

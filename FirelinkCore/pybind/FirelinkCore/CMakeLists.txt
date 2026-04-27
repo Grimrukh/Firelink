@@ -1,3 +1,0 @@
-﻿pybind11_add_module(pyrelink_core pyrelink_core.cpp)
-target_link_libraries(pyrelink_core PRIVATE FirelinkCore)
-configure_install_pybind_module(pyrelink_core "core")

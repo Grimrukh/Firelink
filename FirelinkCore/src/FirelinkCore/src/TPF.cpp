@@ -38,8 +38,8 @@ namespace Firelink
             throw TPFError("Data too small to be a TPF.");
 
         // Peek platform byte at offset 0x0C to determine endianness.
-        this->platform = r.ReadAt<TPFPlatform>(0x0C);
-        Endian endian = IsBigEndianPlatform(platform) ? Endian::Big : Endian::Little;
+        this->m_platform = r.ReadAt<TPFPlatform>(0x0C);
+        Endian endian = IsBigEndianPlatform(m_platform) ? Endian::Big : Endian::Little;
         r.SetEndian(endian);
 
         // Header: "TPF\0"(4) + data_size(4) + file_count(4) + platform(1) + tpf_flags(1) + encoding_type(1) + pad(1)
@@ -48,13 +48,13 @@ namespace Firelink
         (void)data_size;
         auto file_count = r.Read<std::int32_t>();
         r.Read<std::uint8_t>(); // platform (already peeked)
-        this->tpf_flags = r.Read<std::uint8_t>();
-        this->encoding_type = r.Read<std::uint8_t>();
+        this->m_flags = r.Read<std::uint8_t>();
+        this->m_encodingType = r.Read<std::uint8_t>();
         r.Skip(1); // pad
 
-        bool unicode_encoding = (encoding_type == 1);
+        bool unicode_encoding = (m_encodingType == 1);
 
-        textures.reserve(file_count);
+        m_textures.reserve(file_count);
 
         // Texture struct reading.
         struct TextureHeader
@@ -84,23 +84,23 @@ namespace Firelink
             th.mipmap_count = r.Read<std::uint8_t>();
             th.texture_flags = r.Read<std::uint8_t>();
 
-            if (platform != TPFPlatform::PC)
+            if (m_platform != TPFPlatform::PC)
             {
                 TPFTexture::ConsoleInfo ci{};
                 ci.width = r.Read<std::int16_t>();
                 ci.height = r.Read<std::int16_t>();
 
-                if (platform == TPFPlatform::Xbox360)
+                if (m_platform == TPFPlatform::Xbox360)
                 {
                     r.Skip(4);
                 }
-                else if (platform == TPFPlatform::PS3)
+                else if (m_platform == TPFPlatform::PS3)
                 {
                     ci.unk1 = r.Read<std::int32_t>();
-                    if (tpf_flags != 0)
+                    if (m_flags != 0)
                         ci.unk2 = r.Read<std::int32_t>();
                 }
-                else if (platform == TPFPlatform::PS4 || platform == TPFPlatform::XboxOne)
+                else if (m_platform == TPFPlatform::PS4 || m_platform == TPFPlatform::XboxOne)
                 {
                     ci.texture_count = r.Read<std::int32_t>();
                     ci.unk2 = r.Read<std::int32_t>();
@@ -111,7 +111,7 @@ namespace Firelink
             th.stem_offset = r.Read<std::uint32_t>();
             th.has_float_struct = (r.Read<std::int32_t>() == 1);
 
-            if (platform == TPFPlatform::PS4 || platform == TPFPlatform::XboxOne)
+            if (m_platform == TPFPlatform::PS4 || m_platform == TPFPlatform::XboxOne)
             {
                 if (th.console_info.has_value())
                     th.console_info->dxgi_format = r.Read<std::int32_t>();
@@ -161,28 +161,28 @@ namespace Firelink
                 tex.data.assign(tex_data, tex_data + tex_size);
             }
 
-            textures.push_back(std::move(tex));
+            m_textures.push_back(std::move(tex));
         }
     }
 
     void TPF::Serialize(BufferWriter& w) const
     {
-        const bool unicode = (encoding_type == 1);
+        const bool unicode = (m_encodingType == 1);
 
         // Header.
         w.WriteRaw("TPF\0", 4);
         w.Reserve<std::int32_t>("data_size");
-        w.Write<std::int32_t>(static_cast<std::int32_t>(textures.size()));
-        w.Write<std::uint8_t>(static_cast<std::uint8_t>(platform));
-        w.Write<std::uint8_t>(tpf_flags);
-        w.Write<std::uint8_t>(encoding_type);
+        w.Write<std::int32_t>(static_cast<std::int32_t>(m_textures.size()));
+        w.Write<std::uint8_t>(static_cast<std::uint8_t>(m_platform));
+        w.Write<std::uint8_t>(m_flags);
+        w.Write<std::uint8_t>(m_encodingType);
         w.WritePad(1);
 
         // Texture structs.
-        for (std::size_t i = 0; i < textures.size(); ++i)
+        for (std::size_t i = 0; i < m_textures.size(); ++i)
         {
-            const auto& tex = textures[i];
-            const void* scope = &textures[i];
+            const auto& tex = m_textures[i];
+            const void* scope = &m_textures[i];
 
             w.Reserve<std::uint32_t>("tex_data_offset", scope);
             w.Reserve<std::int32_t>("tex_data_size", scope);
@@ -191,20 +191,20 @@ namespace Firelink
             w.Write<std::uint8_t>(tex.mipmap_count);
             w.Write<std::uint8_t>(tex.texture_flags);
 
-            if (platform != TPFPlatform::PC && tex.console_info.has_value())
+            if (m_platform != TPFPlatform::PC && tex.console_info.has_value())
             {
                 const auto& ci = *tex.console_info;
                 w.Write<std::int16_t>(ci.width);
                 w.Write<std::int16_t>(ci.height);
-                if (platform == TPFPlatform::Xbox360)
+                if (m_platform == TPFPlatform::Xbox360)
                     w.WritePad(4);
-                else if (platform == TPFPlatform::PS3)
+                else if (m_platform == TPFPlatform::PS3)
                 {
                     w.Write<std::int32_t>(ci.unk1);
-                    if (tpf_flags != 0)
+                    if (m_flags != 0)
                         w.Write<std::int32_t>(ci.unk2);
                 }
-                else if (platform == TPFPlatform::PS4 || platform == TPFPlatform::XboxOne)
+                else if (m_platform == TPFPlatform::PS4 || m_platform == TPFPlatform::XboxOne)
                 {
                     w.Write<std::int32_t>(ci.texture_count);
                     w.Write<std::int32_t>(ci.unk2);
@@ -214,7 +214,7 @@ namespace Firelink
             w.Reserve<std::uint32_t>("tex_stem_offset", scope);
             w.Write<std::int32_t>(tex.float_struct.has_value() ? 1 : 0);
 
-            if (platform == TPFPlatform::PS4 || platform == TPFPlatform::XboxOne)
+            if (m_platform == TPFPlatform::PS4 || m_platform == TPFPlatform::XboxOne)
             {
                 if (tex.console_info.has_value())
                     w.Write<std::int32_t>(tex.console_info->dxgi_format);
@@ -231,19 +231,19 @@ namespace Firelink
         }
 
         // Stems.
-        for (std::size_t i = 0; i < textures.size(); ++i)
+        for (std::size_t i = 0; i < m_textures.size(); ++i)
         {
-            const void* scope = &textures[i];
+            const void* scope = &m_textures[i];
             w.Fill<std::uint32_t>("tex_stem_offset", static_cast<std::uint32_t>(w.Position()), scope);
-            WriteString(w, textures[i].stem, unicode);
+            WriteString(w, m_textures[i].stem, unicode);
         }
 
         // Data.
         const auto data_start = w.Position();
-        for (std::size_t i = 0; i < textures.size(); ++i)
+        for (std::size_t i = 0; i < m_textures.size(); ++i)
         {
-            const auto& tex = textures[i];
-            const void* scope = &textures[i];
+            const auto& tex = m_textures[i];
+            const void* scope = &m_textures[i];
 
             if (!tex.data.empty())
                 w.PadAlign(4);
@@ -269,13 +269,13 @@ namespace Firelink
 
     Endian TPF::GetEndian() const noexcept
     {
-        return IsBigEndianPlatform(platform) ? Endian::Big : Endian::Little;
+        return IsBigEndianPlatform(m_platform) ? Endian::Big : Endian::Little;
     }
 
     const TPFTexture* TPF::FindTexture(const std::string& stem) const
     {
         const auto target = ToLower(stem);
-        for (auto& t : textures)
+        for (auto& t : m_textures)
             if (ToLower(t.stem) == target) return &t;
         return nullptr;
     }

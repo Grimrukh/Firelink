@@ -330,17 +330,17 @@ namespace Firelink
 
     Endian Binder::GetEndian() const
     {
-        return (big_endian || flags.is_big_endian()) ? Endian::Big : Endian::Little;
+        return (m_isBigEndian || m_flags.is_big_endian()) ? Endian::Big : Endian::Little;
     }
 
     void Binder::DeserializeV3(BufferReader& reader, BufferReader& entryReader)
     {
         // Peek endian info at fixed offsets before creating a properly-endianized reader.
-        this->big_endian = reader.ReadAt<bool>(0x0D);
-        this->bit_big_endian = reader.ReadAt<bool>(0x0E);
+        this->m_isBigEndian = reader.ReadAt<bool>(0x0D);
+        this->m_isBitBigEndian = reader.ReadAt<bool>(0x0E);
 
-        this->flags = BinderFlags::FromByte(reader.ReadAt<std::uint8_t>(0x0C), bit_big_endian);
-        const Endian endian = (big_endian || flags.is_big_endian()) ? Endian::Big : Endian::Little;
+        this->m_flags = BinderFlags::FromByte(reader.ReadAt<std::uint8_t>(0x0C), m_isBitBigEndian);
+        const Endian endian = (m_isBigEndian || m_flags.is_big_endian()) ? Endian::Big : Endian::Little;
         reader.SetEndian(endian);
         BufferReader& r = reader;
 
@@ -352,32 +352,30 @@ namespace Firelink
         char sig_buf[9]{};
         r.ReadRaw(sig_buf, 8);
 
-        const std::uint8_t raw_flags = r.Read<std::uint8_t>();
-        (void)raw_flags; // already read via peek
+        const auto raw_flags = r.Read<std::uint8_t>(); (void)raw_flags; // already read via peek
         r.Read<std::uint8_t>(); // big_endian
         r.Read<std::uint8_t>(); // bit_big_endian
         r.Skip(1); // pad
 
         const auto entry_count = r.Read<std::uint32_t>();
-        const auto file_size = r.Read<std::uint32_t>();
-        (void)file_size;
+        const auto file_size = r.Read<std::uint32_t>(); (void)file_size;
         r.Skip(8); // pad
 
-        this->version = BinderVersion::V3;
-        this->signature = std::string(sig_buf);
+        this->m_version = BinderVersion::V3;
+        this->m_signature = std::string(sig_buf);
         // Trim trailing nulls from signature.
-        while (!this->signature.empty() && this->signature.back() == '\0')
-            this->signature.pop_back();
-        this->v4_info = std::nullopt;
+        while (!this->m_signature.empty() && this->m_signature.back() == '\0')
+            this->m_signature.pop_back();
+        this->m_v4Info = std::nullopt;
 
         // Read entry headers.
         std::vector<EntryHeader> headers;
         headers.reserve(entry_count);
         for (std::uint32_t i = 0; i < entry_count; ++i)
-            headers.push_back(ReadEntryHeaderV3(r, flags, bit_big_endian));
+            headers.push_back(ReadEntryHeaderV3(r, m_flags, m_isBitBigEndian));
 
         // Read entry data.
-        this->entries.reserve(entry_count);
+        this->m_entries.reserve(entry_count);
         for (const auto& eh : headers)
         {
             BinderEntry entry;
@@ -386,7 +384,7 @@ namespace Firelink
             entry.flags = eh.flags;
             entry.data.resize(static_cast<std::size_t>(eh.compressed_size));
             entryReader.ReadRawAt(eh.data_offset, entry.data.data(), entry.data.size());
-            this->entries.push_back(std::move(entry));
+            this->m_entries.push_back(std::move(entry));
         }
     }
 
@@ -403,7 +401,7 @@ namespace Firelink
         const bool unknown1 = r.Read<std::uint8_t>() != 0;
         const bool unknown2 = r.Read<std::uint8_t>() != 0;
         r.Skip(3); // pad
-        this->big_endian = r.Read<std::uint8_t>() != 0;
+        this->m_isBigEndian = r.Read<std::uint8_t>() != 0;
         const bool bit_little_endian = r.Read<std::uint8_t>() != 0;
         r.Skip(1); // pad
         const auto entry_count = r.Read<std::uint32_t>();
@@ -420,22 +418,22 @@ namespace Firelink
         r.Skip(5); // pad
         const auto hash_table_offset = r.Read<std::int64_t>();
 
-        this->bit_big_endian = !bit_little_endian;
-        this->flags = BinderFlags::FromByte(raw_flags, bit_big_endian);
+        this->m_isBitBigEndian = !bit_little_endian;
+        this->m_flags = BinderFlags::FromByte(raw_flags, m_isBitBigEndian);
 
         // Validate entry header size.
-        if (static_cast<std::uint32_t>(entry_header_size) != flags.entry_header_size())
+        if (static_cast<std::uint32_t>(entry_header_size) != m_flags.entry_header_size())
         {
             Warning(std::format(
                 "[binder] Entry header size mismatch: header says {}, flags imply {}.",
-                entry_header_size, flags.entry_header_size()));
+                entry_header_size, m_flags.entry_header_size()));
         }
 
         // Read entry headers.
         std::vector<EntryHeader> headers;
         headers.reserve(entry_count);
         for (std::uint32_t i = 0; i < entry_count; ++i)
-            headers.push_back(ReadEntryHeaderV4(r, flags, bit_big_endian, unicode));
+            headers.push_back(ReadEntryHeaderV4(r, m_flags, m_isBitBigEndian, unicode));
 
         // Read hash table if present.
         BinderVersion4Info v4;
@@ -453,13 +451,13 @@ namespace Firelink
             std::memcpy(v4.most_recent_hash_table.data(), reader.RawAt(hash_table_offset), ht_size);
         }
 
-        this->version = BinderVersion::V4;
-        this->signature = std::string(sig_buf);
-        while (!this->signature.empty() && this->signature.back() == '\0')
-            this->signature.pop_back();
+        this->m_version = BinderVersion::V4;
+        this->m_signature = std::string(sig_buf);
+        while (!this->m_signature.empty() && this->m_signature.back() == '\0')
+            this->m_signature.pop_back();
 
         // Read entry data.
-        this->entries.reserve(entry_count);
+        this->m_entries.reserve(entry_count);
         for (const auto& eh : headers)
         {
             BinderEntry entry;
@@ -468,20 +466,20 @@ namespace Firelink
             entry.flags = eh.flags;
             entry.data.resize(static_cast<std::size_t>(eh.compressed_size));
             entryReader.ReadRawAt(eh.data_offset, entry.data.data(), entry.data.size());
-            this->entries.push_back(std::move(entry));
+            this->m_entries.push_back(std::move(entry));
         }
 
-        v4.most_recent_entry_count = static_cast<std::uint32_t>(this->entries.size());
-        for (auto& e : this->entries)
+        v4.most_recent_entry_count = static_cast<std::uint32_t>(this->m_entries.size());
+        for (auto& e : this->m_entries)
             v4.most_recent_paths.push_back(e.path);
-        this->v4_info = std::move(v4);
+        this->m_v4Info = std::move(v4);
     }
 
     void Binder::Serialize(BufferWriter& w) const
     {
-        if (version == BinderVersion::V3)
+        if (m_version == BinderVersion::V3)
             SerializeBND3(w);
-        else if (version == BinderVersion::V4)
+        else if (m_version == BinderVersion::V4)
             SerializeBND4(w);
         else
             throw BinderError("Unsupported binder version for writing.");
@@ -490,52 +488,52 @@ namespace Firelink
     void Binder::SerializeBND3(BufferWriter& w) const
     {
         // Sort entries by ID.
-        std::vector<std::size_t> order(entries.size());
+        std::vector<std::size_t> order(m_entries.size());
         std::iota(order.begin(), order.end(), 0);
         std::ranges::sort(order, [&](auto a, auto b) {
-            return entries[a].entry_id < entries[b].entry_id;
+            return m_entries[a].entry_id < m_entries[b].entry_id;
         });
 
         // Header (32 bytes).
         w.WriteRaw("BND3", 4);
         // Signature: 8 bytes, null-padded.
         char sig[8]{};
-        std::memcpy(sig, signature.data(), std::min(signature.size(), std::size_t(8)));
+        std::memcpy(sig, m_signature.data(), std::min(m_signature.size(), std::size_t(8)));
         w.WriteRaw(sig, 8);
-        w.Write<std::uint8_t>(flags.ToByte(bit_big_endian));
-        w.Write<std::uint8_t>(big_endian ? 1 : 0);
-        w.Write<std::uint8_t>(bit_big_endian ? 1 : 0);
+        w.Write<std::uint8_t>(m_flags.ToByte(m_isBitBigEndian));
+        w.Write<std::uint8_t>(m_isBigEndian ? 1 : 0);
+        w.Write<std::uint8_t>(m_isBitBigEndian ? 1 : 0);
         w.WritePad(1);
-        w.Write<std::uint32_t>(static_cast<std::uint32_t>(entries.size()));
+        w.Write<std::uint32_t>(static_cast<std::uint32_t>(m_entries.size()));
         w.Reserve<std::uint32_t>("file_size");
         w.WritePad(8);
 
         // Entry headers.
         for (const auto idx : order)
         {
-            const auto& e = entries[idx];
-            w.Write<std::uint8_t>(EntryFlagsToByte(e.flags, bit_big_endian));
+            const auto& e = m_entries[idx];
+            w.Write<std::uint8_t>(EntryFlagsToByte(e.flags, m_isBitBigEndian));
             w.WritePad(3);
             w.Write<std::int32_t>(static_cast<std::int32_t>(e.data.size()));
-            if (flags.has_long_offsets())
-                w.Reserve<std::int64_t>("data_offset", &entries[idx]);
+            if (m_flags.has_long_offsets())
+                w.Reserve<std::int64_t>("data_offset", &m_entries[idx]);
             else
-                w.Reserve<std::uint32_t>("data_offset", &entries[idx]);
-            if (flags.has_ids())
+                w.Reserve<std::uint32_t>("data_offset", &m_entries[idx]);
+            if (m_flags.has_ids())
                 w.Write<std::int32_t>(e.entry_id);
-            if (flags.has_names())
-                w.Reserve<std::uint32_t>("path_offset", &entries[idx]);
-            if (flags.has_compression())
+            if (m_flags.has_names())
+                w.Reserve<std::uint32_t>("path_offset", &m_entries[idx]);
+            if (m_flags.has_compression())
                 w.Write<std::int32_t>(static_cast<std::int32_t>(e.data.size()));
         }
 
         // Paths.
-        if (flags.has_names())
+        if (m_flags.has_names())
         {
             for (const auto idx : order)
             {
-                const auto& e = entries[idx];
-                w.Fill<std::uint32_t>("path_offset", static_cast<std::uint32_t>(w.Position()), &entries[idx]);
+                const auto& e = m_entries[idx];
+                w.Fill<std::uint32_t>("path_offset", static_cast<std::uint32_t>(w.Position()), &m_entries[idx]);
                 WriteString(w, e.path, false); // V3 always shift-jis
             }
         }
@@ -543,12 +541,12 @@ namespace Firelink
         // Entry data.
         for (const auto idx : order)
         {
-            const auto& e = entries[idx];
+            const auto& e = m_entries[idx];
             w.PadAlign(16);
-            if (flags.has_long_offsets())
-                w.Fill<std::int64_t>("data_offset", static_cast<std::int64_t>(w.Position()), &entries[idx]);
+            if (m_flags.has_long_offsets())
+                w.Fill<std::int64_t>("data_offset", static_cast<std::int64_t>(w.Position()), &m_entries[idx]);
             else
-                w.Fill<std::uint32_t>("data_offset", static_cast<std::uint32_t>(w.Position()), &entries[idx]);
+                w.Fill<std::uint32_t>("data_offset", static_cast<std::uint32_t>(w.Position()), &m_entries[idx]);
             w.WriteRaw(e.data.data(), e.data.size());
         }
 
@@ -557,28 +555,28 @@ namespace Firelink
 
     void Binder::SerializeBND4(BufferWriter& w) const
     {
-        if (!v4_info.has_value())
+        if (!m_v4Info.has_value())
             throw BinderError("BND4 requires v4_info.");
 
         // TODO: Is `flags.is_big_endian` not trusted for V4?
 
-        const auto& v4 = v4_info.value();
+        const auto& v4 = m_v4Info.value();
 
         // Sort entries by ID.
-        std::vector<std::size_t> order(entries.size());
+        std::vector<std::size_t> order(m_entries.size());
         std::iota(order.begin(), order.end(), 0);
         std::ranges::sort(order, [&](auto a, auto b) {
-            return entries[a].entry_id < entries[b].entry_id;
+            return m_entries[a].entry_id < m_entries[b].entry_id;
         });
 
         // Check if hash table needs rebuilding.
         bool rebuild_hash = v4.most_recent_hash_table.empty()
-            || entries.size() != v4.most_recent_entry_count;
+            || m_entries.size() != v4.most_recent_entry_count;
         if (!rebuild_hash)
         {
-            for (std::size_t i = 0; i < entries.size(); ++i)
+            for (std::size_t i = 0; i < m_entries.size(); ++i)
             {
-                if (entries[i].path != v4.most_recent_paths[i])
+                if (m_entries[i].path != v4.most_recent_paths[i])
                 {
                     rebuild_hash = true;
                     break;
@@ -591,18 +589,18 @@ namespace Firelink
         w.Write<std::uint8_t>(v4.unknown1 ? 1 : 0);
         w.Write<std::uint8_t>(v4.unknown2 ? 1 : 0);
         w.WritePad(3);
-        w.Write<std::uint8_t>(big_endian ? 1 : 0);
-        w.Write<std::uint8_t>(bit_big_endian ? 0 : 1); // bit_little_endian
+        w.Write<std::uint8_t>(m_isBigEndian ? 1 : 0);
+        w.Write<std::uint8_t>(m_isBitBigEndian ? 0 : 1); // bit_little_endian
         w.WritePad(1);
-        w.Write<std::uint32_t>(static_cast<std::uint32_t>(entries.size()));
+        w.Write<std::uint32_t>(static_cast<std::uint32_t>(m_entries.size()));
         w.Write<std::int64_t>(0x40); // header size
         char sig[8]{};
-        std::memcpy(sig, signature.data(), std::min(signature.size(), std::size_t(8)));
+        std::memcpy(sig, m_signature.data(), std::min(m_signature.size(), std::size_t(8)));
         w.WriteRaw(sig, 8);
-        w.Write<std::int64_t>(flags.entry_header_size());
+        w.Write<std::int64_t>(m_flags.entry_header_size());
         w.Reserve<std::int64_t>("data_offset");
         w.Write<std::uint8_t>(v4.unicode ? 1 : 0);
-        w.Write<std::uint8_t>(flags.ToByte(bit_big_endian));
+        w.Write<std::uint8_t>(m_flags.ToByte(m_isBitBigEndian));
         w.Write<std::uint8_t>(v4.hash_table_type);
         w.WritePad(5);
         w.Reserve<std::int64_t>("hash_table_offset");
@@ -610,30 +608,30 @@ namespace Firelink
         // Entry headers.
         for (const auto idx : order)
         {
-            const auto& e = entries[idx];
-            w.Write<std::uint8_t>(EntryFlagsToByte(e.flags, bit_big_endian));
+            const auto& e = m_entries[idx];
+            w.Write<std::uint8_t>(EntryFlagsToByte(e.flags, m_isBitBigEndian));
             w.WritePad(3);
             w.Write<std::int32_t>(-1);
             w.Write<std::int64_t>(static_cast<std::int64_t>(e.data.size()));
-            if (flags.has_compression())
+            if (m_flags.has_compression())
                 w.Write<std::int64_t>(static_cast<std::int64_t>(e.data.size()));
-            if (flags.has_long_offsets())
-                w.Reserve<std::int64_t>("data_offset", &entries[idx]);
+            if (m_flags.has_long_offsets())
+                w.Reserve<std::int64_t>("data_offset", &m_entries[idx]);
             else
-                w.Reserve<std::uint32_t>("data_offset", &entries[idx]);
-            if (flags.has_ids())
+                w.Reserve<std::uint32_t>("data_offset", &m_entries[idx]);
+            if (m_flags.has_ids())
                 w.Write<std::int32_t>(e.entry_id);
-            if (flags.has_names())
-                w.Reserve<std::uint32_t>("path_offset", &entries[idx]);
+            if (m_flags.has_names())
+                w.Reserve<std::uint32_t>("path_offset", &m_entries[idx]);
         }
 
         // Paths.
-        if (flags.has_names())
+        if (m_flags.has_names())
         {
             for (const auto idx : order)
             {
-                const auto& e = entries[idx];
-                w.Fill<std::uint32_t>("path_offset", static_cast<std::uint32_t>(w.Position()), &entries[idx]);
+                const auto& e = m_entries[idx];
+                w.Fill<std::uint32_t>("path_offset", static_cast<std::uint32_t>(w.Position()), &m_entries[idx]);
                 WriteString(w, e.path, v4.unicode);
             }
         }
@@ -644,7 +642,7 @@ namespace Firelink
             w.Fill<std::int64_t>("hash_table_offset", static_cast<std::int64_t>(w.Position()));
             if (rebuild_hash)
             {
-                const auto ht = BuildHashTable(entries);
+                const auto ht = BuildHashTable(m_entries);
                 w.WriteRaw(ht.data(), ht.size());
             }
             else
@@ -663,11 +661,11 @@ namespace Firelink
         // Entry data (with 10 trailing null bytes per entry, matching Python).
         for (const auto idx : order)
         {
-            const auto& e = entries[idx];
-            if (flags.has_long_offsets())
-                w.Fill<std::int64_t>("data_offset", static_cast<std::int64_t>(w.Position()), &entries[idx]);
+            const auto& e = m_entries[idx];
+            if (m_flags.has_long_offsets())
+                w.Fill<std::int64_t>("data_offset", static_cast<std::int64_t>(w.Position()), &m_entries[idx]);
             else
-                w.Fill<std::uint32_t>("data_offset", static_cast<std::uint32_t>(w.Position()), &entries[idx]);
+                w.Fill<std::uint32_t>("data_offset", static_cast<std::uint32_t>(w.Position()), &m_entries[idx]);
             w.WriteRaw(e.data.data(), e.data.size());
             w.WritePad(10); // trailing null bytes for byte-perfect writes
         }
@@ -679,30 +677,106 @@ namespace Firelink
 
     const BinderEntry* Binder::FindEntryByID(const std::int32_t id) const
     {
-        for (auto& e : entries)
+        for (auto& e : m_entries)
             if (e.entry_id == id) return &e;
         return nullptr;
     }
 
     BinderEntry* Binder::FindEntryByID(const std::int32_t id)
     {
-        for (auto& e : entries)
-            if (e.entry_id == id) return &e;
-        return nullptr;
+        return const_cast<BinderEntry*>(std::as_const(*this).FindEntryByID(id));
+
     }
 
-    const BinderEntry* Binder::FindEntryByName(const std::string& n) const
+    const BinderEntry* Binder::FindEntryByName(const std::string& name) const
     {
-        for (auto& e : entries)
-            if (e.name() == n) return &e;
+        for (auto& e : m_entries)
+            if (e.name() == name) return &e;
         return nullptr;
     }
 
-    BinderEntry* Binder::FindEntryByName(const std::string& n)
+    BinderEntry* Binder::FindEntryByName(const std::string& name)
     {
-        for (auto& e : entries)
-            if (e.name() == n) return &e;
+        return const_cast<BinderEntry*>(std::as_const(*this).FindEntryByName(name));
+    }
+
+    const BinderEntry* Binder::FindEntryByNameRegex(const RE2& regex, const bool fullMatch) const
+    {
+        BinderEntry const* candidate = nullptr;
+        for (auto& entry : m_entries)
+        {
+            if (fullMatch ? RE2::FullMatch(entry.name(), regex) : RE2::PartialMatch(entry.name(), regex))
+            {
+                if (candidate != nullptr)
+                    throw MultipleBinderEntriesFoundError(std::format(
+                        "Multiple entries match regex '{}': '{}' and '{}'.",
+                        regex.pattern(), candidate->path, entry.path));
+                candidate = &entry;
+            }
+        }
         return nullptr;
     }
 
+    BinderEntry* Binder::FindEntryByNameRegex(const RE2& regex, const bool fullMatch)
+    {
+        return const_cast<BinderEntry*>(std::as_const(*this).FindEntryByNameRegex(regex, fullMatch));
+    }
+
+    std::vector<const BinderEntry*> Binder::FindEntriesByNameRegex(const RE2& regex, const bool fullMatch) const
+    {
+        std::vector<const BinderEntry*> entries;
+        for (auto& e : m_entries)
+        {
+            if (fullMatch ? RE2::FullMatch(e.name(), regex) : RE2::PartialMatch(e.name(), regex))
+            {
+                entries.push_back(&e);
+            }
+        }
+        return entries;
+    }
+
+    std::vector<BinderEntry*> Binder::FindEntriesByNameRegex(const RE2& regex, const bool fullMatch)
+    {
+        std::vector<BinderEntry*> entries;
+        for (auto& e : m_entries)
+        {
+            if (fullMatch ? RE2::FullMatch(e.name(), regex) : RE2::PartialMatch(e.name(), regex))
+            {
+                entries.push_back(&e);
+            }
+        }
+        return entries;
+    }
+
+    const BinderEntry* Binder::FindEntryByFilter(const EntryFilter& filter) const
+    {
+        for (auto& e : m_entries)
+            if (filter(e)) return &e;
+        return nullptr;
+    }
+
+    BinderEntry* Binder::FindEntryByFilter(const EntryFilter& filter)
+    {
+        return const_cast<BinderEntry*>(std::as_const(*this).FindEntryByFilter(filter));
+    }
+
+    std::vector<const BinderEntry*> Binder::FindEntriesByFilter(const EntryFilter& filter) const noexcept
+    {
+        std::vector<const BinderEntry*> entries;
+        for (auto& e : m_entries)
+        {
+            if (filter(e)) entries.push_back(&e);
+        }
+        return entries;
+    }
+
+    std::vector<BinderEntry*> Binder::FindEntriesByFilter(const EntryFilter& filter) noexcept
+    {
+        std::vector<BinderEntry*> entries;
+        for (auto& e : m_entries)
+        {
+            if (filter(e)) entries.push_back(&e);
+        }
+        return entries;
+    }
 } // namespace Firelink

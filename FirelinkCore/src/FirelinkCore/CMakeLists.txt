@@ -53,59 +53,95 @@ generate_firelink_export_header(FirelinkCore FIRELINK_CORE_API)
 # DCX compression support requires zlib and zstd (fetched automatically).
 include(FetchContent)
 
-# --- zlib ---
-FetchContent_Declare(
-    zlib
-    GIT_REPOSITORY https://github.com/madler/zlib.git
-    GIT_TAG        v1.3.2
-)
-set(ZLIB_BUILD_TESTING OFF CACHE BOOL "" FORCE)
-FetchContent_MakeAvailable(zlib)
+macro(get_firelink_core_dependencies)
+    # Abseil
+    FetchContent_Declare(
+        abseil
+        GIT_REPOSITORY https://github.com/abseil/abseil-cpp
+        GIT_TAG        20250814.2
+        GIT_SHALLOW    TRUE
+    )
+    set(ABSL_ENABLE_INSTALL ON)
+    FetchContent_MakeAvailable(abseil)
 
-# zlib's CMakeLists.txt creates a `zlibstatic` target.
-# Alias it so downstream code can use the canonical name if needed.
-if(NOT TARGET ZLIB::ZLIB)
-    add_library(ZLIB::ZLIB ALIAS zlibstatic)
-endif()
+    # re2
+    include(FetchContent)
+    FetchContent_Declare(
+        re2
+        GIT_REPOSITORY https://github.com/google/re2
+        GIT_TAG        2025-11-05
+        GIT_SHALLOW    TRUE
+    )
+    set(RE2_INSTALL ON)
+    FetchContent_MakeAvailable(re2)
 
-# --- zstd ---
-FetchContent_Declare(
-    zstd
-    GIT_REPOSITORY https://github.com/facebook/zstd.git
-    GIT_TAG        v1.5.7
-    SOURCE_SUBDIR  build/cmake
-)
-set(ZSTD_BUILD_PROGRAMS OFF CACHE BOOL "" FORCE)
-set(ZSTD_BUILD_TESTS OFF CACHE BOOL "" FORCE)
-set(ZSTD_BUILD_SHARED OFF CACHE BOOL "" FORCE)
-set(ZSTD_BUILD_STATIC ON CACHE BOOL "" FORCE)
-FetchContent_MakeAvailable(zstd)
+    # --- zlib ---
+    FetchContent_Declare(
+        zlib
+        GIT_REPOSITORY https://github.com/madler/zlib.git
+        GIT_TAG        v1.3.2
+    )
+    set(ZLIB_BUILD_TESTING OFF CACHE BOOL "" FORCE)
+    FetchContent_MakeAvailable(zlib)
 
-# Ensure the fetched headers are visible to FirelinkCore sources.
-target_include_directories(FirelinkCore PRIVATE
-    "${zlib_SOURCE_DIR}"
-    "${zlib_BINARY_DIR}"
-    "${zstd_SOURCE_DIR}/lib"
-)
+    # zlib's CMakeLists.txt creates a `zlibstatic` target.
+    # Alias it so downstream code can use the canonical name if needed.
+    if(NOT TARGET ZLIB::ZLIB)
+        add_library(ZLIB::ZLIB ALIAS zlibstatic)
+    endif()
 
-# --- DirectXTex ---
-# In-memory DDS conversion (LoadFromDDSMemory, Decompress, Convert,
-# SaveToTGAMemory, SaveToWICMemory).  We only need the static library.
-FetchContent_Declare(
-    DirectXTex
-    GIT_REPOSITORY https://github.com/microsoft/DirectXTex.git
-    GIT_TAG        oct2025
+    # --- zstd ---
+    FetchContent_Declare(
+        zstd
+        GIT_REPOSITORY https://github.com/facebook/zstd.git
+        GIT_TAG        v1.5.7
+        SOURCE_SUBDIR  build/cmake
+    )
+    set(ZSTD_BUILD_PROGRAMS OFF CACHE BOOL "" FORCE)
+    set(ZSTD_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+    set(ZSTD_BUILD_SHARED OFF CACHE BOOL "" FORCE)
+    set(ZSTD_BUILD_STATIC ON CACHE BOOL "" FORCE)
+    FetchContent_MakeAvailable(zstd)
+
+    # TODO: Re-enable or remove.
+    # Ensure the fetched headers are visible to FirelinkCore sources.
+    #target_include_directories(FirelinkCore PRIVATE
+    #    "${zlib_SOURCE_DIR}"
+    #    "${zlib_BINARY_DIR}"
+    #    "${zstd_SOURCE_DIR}/lib"
+    #)
+
+    # --- DirectXTex ---
+    # In-memory DDS conversion (LoadFromDDSMemory, Decompress, Convert,
+    # SaveToTGAMemory, SaveToWICMemory).  We only need the static library.
+    FetchContent_Declare(
+            DirectXTex
+            GIT_REPOSITORY https://github.com/microsoft/DirectXTex.git
+            GIT_TAG        oct2025
+    )
+    set(BUILD_TOOLS    OFF CACHE BOOL "" FORCE)
+    set(BUILD_SAMPLE   OFF CACHE BOOL "" FORCE)
+    set(BUILD_TESTING  OFF CACHE BOOL "" FORCE)
+    FetchContent_MakeAvailable(DirectXTex)
+endmacro()
+
+get_firelink_core_dependencies()
+
+target_link_libraries(FirelinkCore PUBLIC
+    re2::re2
 )
-set(BUILD_TOOLS    OFF CACHE BOOL "" FORCE)
-set(BUILD_SAMPLE   OFF CACHE BOOL "" FORCE)
-set(BUILD_TESTING  OFF CACHE BOOL "" FORCE)
-FetchContent_MakeAvailable(DirectXTex)
 
 # Link against the fetched dependencies.
 # ole32   — COM / WIC (PNG output via SaveToWICMemory)
 # d3d11   — GPU-accelerated BC6H/BC7 compression via DirectCompute
 # dxgi    — DXGI adapter enumeration for D3D11 device creation
-target_link_libraries(FirelinkCore PRIVATE zlibstatic libzstd_static DirectXTex ole32.lib d3d11.lib dxgi.lib)
+target_link_libraries(FirelinkCore PRIVATE
+    zlibstatic
+    libzstd_static
+    DirectXTex
+    ole32.lib
+    d3d11.lib
+    dxgi.lib)
 
 install(TARGETS FirelinkCore
         EXPORT FirelinkTargets

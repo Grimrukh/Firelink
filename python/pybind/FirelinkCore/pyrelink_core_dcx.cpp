@@ -4,21 +4,16 @@
 // (input bytes are borrowed from Python buffers).
 
 #include <pybind11/pybind11.h>
-#include <pybind11/stl.h>
 
 #include <FirelinkCore/DCX.h>
 #include <FirelinkCore/Oodle.h>
+#include <pyrelink_helpers.h>
 
 namespace py = pybind11;
 using namespace Firelink;
 
-
 void bind_firelink_core_dcx(py::module& m)
 {
-    // ========================================================================
-    // DCX
-    // ========================================================================
-
     py::enum_<DCXType>(m, "DCXType",
         "DCX compression type identifier.")
         .value("Unknown",                  DCXType::Unknown)

@@ -8,15 +8,26 @@ namespace Firelink
 {
     using namespace BinaryReadWrite;
 
-    void Dummy::Write(BufferWriter& w) const
+    void Dummy::Write(BufferWriter& w, const FLVERVersion version) const
     {
         w.Write<float>(translate.x);
         w.Write<float>(translate.y);
         w.Write<float>(translate.z);
-        w.Write<std::uint8_t>(color.r);
-        w.Write<std::uint8_t>(color.g);
-        w.Write<std::uint8_t>(color.b);
-        w.Write<std::uint8_t>(color.a);
+        if (version == FLVERVersion::DarkSouls2)
+        {
+            // This one version stores color as BGRA on disk, but we store as RGBA in memory.
+            w.Write<std::uint8_t>(color.b);
+            w.Write<std::uint8_t>(color.g);
+            w.Write<std::uint8_t>(color.r);
+            w.Write<std::uint8_t>(color.a);
+        }
+        else
+        {
+            w.Write<std::uint8_t>(color.r);
+            w.Write<std::uint8_t>(color.g);
+            w.Write<std::uint8_t>(color.b);
+            w.Write<std::uint8_t>(color.a);
+        }
         w.Write<float>(forward.x);
         w.Write<float>(forward.y);
         w.Write<float>(forward.z);
@@ -33,17 +44,27 @@ namespace Firelink
         w.WritePad(8);
     }
 
-    Dummy Dummy::Read(BufferReader& r)
+    Dummy Dummy::Read(BufferReader& r, const FLVERVersion version)
     {
         Dummy d;
         d.translate.x = r.Read<float>();
         d.translate.y = r.Read<float>();
         d.translate.z = r.Read<float>();
-        // Color: 4 bytes (BGRA on disk for FLVER2; we store as-is)
-        d.color.r = r.Read<std::uint8_t>();
-        d.color.g = r.Read<std::uint8_t>();
-        d.color.b = r.Read<std::uint8_t>();
-        d.color.a = r.Read<std::uint8_t>();
+        if (version == FLVERVersion::DarkSouls2)
+        {
+            // This one version stores color as BGRA.
+            d.color.b = r.Read<std::uint8_t>();
+            d.color.g = r.Read<std::uint8_t>();
+            d.color.r = r.Read<std::uint8_t>();
+            d.color.a = r.Read<std::uint8_t>();
+        }
+        else
+        {
+            d.color.r = r.Read<std::uint8_t>();
+            d.color.g = r.Read<std::uint8_t>();
+            d.color.b = r.Read<std::uint8_t>();
+            d.color.a = r.Read<std::uint8_t>();
+        }
         d.forward.x = r.Read<float>();
         d.forward.y = r.Read<float>();
         d.forward.z = r.Read<float>();

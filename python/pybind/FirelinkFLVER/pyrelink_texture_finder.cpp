@@ -4,29 +4,13 @@
 #include <pybind11/stl.h>
 
 #include <FirelinkFLVER/TextureFinder.h>
+#include <pyrelink_helpers.h>
 
 namespace py = pybind11;
 using namespace Firelink;
 
-/// Convert a std::vector<std::byte> to a Python `bytes` object.
-static py::bytes vector_to_bytes(const std::vector<std::byte>& v)
-{
-    return py::bytes(reinterpret_cast<const char*>(v.data()), v.size());
-}
-
 void bind_firelink_flver_texture_finder(py::module& m)
 {
-    py::enum_<GameType>(m, "GameType",
-        "FromSoftware game identifier.")
-        .value("DemonsSouls", GameType::DemonsSouls)
-        .value("DarkSoulsPTDE", GameType::DarkSoulsPTDE)
-        .value("DarkSoulsDSR", GameType::DarkSoulsDSR)
-        .value("Bloodborne", GameType::Bloodborne)
-        .value("DarkSouls3", GameType::DarkSouls3)
-        .value("Sekiro", GameType::Sekiro)
-        .value("EldenRing", GameType::EldenRing)
-        .export_values();
-
     py::enum_<ImageFormat>(m, "ImageFormat",
         "Output image format for texture conversion.")
         .value("DDS", ImageFormat::DDS)
@@ -79,4 +63,3 @@ void bind_firelink_flver_texture_finder(py::module& m)
             return "<TextureFinder cached=" + std::to_string(mgr.CachedTextureCount()) + ">";
         });
 }
-

@@ -9,7 +9,3 @@ target_link_libraries(FirelinkER INTERFACE
 install(TARGETS FirelinkER
         EXPORT FirelinkTargets
 )
-
-if(FIRELINK_BUILD_PYBIND)
-    add_subdirectory(pybind)
-endif()

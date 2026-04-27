@@ -11,8 +11,9 @@
 #include <FirelinkCore/Export.h>
 #include <FirelinkCore/GameFile.h>
 
+#include <re2/re2.h>
+
 #include <cstddef>
-#include <cstdint>
 #include <filesystem>
 #include <optional>
 #include <stdexcept>
@@ -27,6 +28,18 @@ namespace Firelink
     {
     public:
         using std::runtime_error::runtime_error;
+    };
+
+    class BinderEntryNotFoundError : public BinderError
+    {
+    public:
+        using BinderError::BinderError;
+    };
+
+    class MultipleBinderEntriesFoundError : public BinderError
+    {
+    public:
+        using BinderError::BinderError;
     };
 
     // --- BinderVersion ---
@@ -114,16 +127,8 @@ namespace Firelink
     class FIRELINK_CORE_API Binder : public GameFile<Binder>
     {
     public:
-        BinderVersion version = BinderVersion::V4;
-        std::string signature = "07D7R6";
-        BinderFlags flags;
-        bool big_endian = false;
-        bool bit_big_endian = false;
-        std::optional<BinderVersion4Info> v4_info = BinderVersion4Info{};
 
-        std::filesystem::path path;
-
-        std::vector<BinderEntry> entries;
+        // --- ADDITIONAL FACTORIES ---
 
         /// @brief Parse a split BHF3/BHF4 header + BDT data pair (managed storage).
         static Ptr FromSplitBytes(std::vector<std::byte>&& bhdData, std::vector<std::byte>&& bdtData);
@@ -133,8 +138,10 @@ namespace Firelink
             const std::byte* bhd_data, std::size_t bhd_size,
             const std::byte* bdt_data, std::size_t bdt_size);
 
+        // --- GAME FILE OVERRIDES ---
+
         /// @brief Get endianness of Binder.
-        BinaryReadWrite::Endian GetEndian() const;
+        [[nodiscard]] BinaryReadWrite::Endian GetEndian() const;
 
         /// @brief Deserialize a Binder. Dispatches to V3 or V4 method.
         void Deserialize(BinaryReadWrite::BufferReader& reader);
@@ -142,8 +149,10 @@ namespace Firelink
         /// @brief Serialize a Binder. Dispatches to V3 or V4 method.
         void Serialize(BinaryReadWrite::BufferWriter& w) const;
 
+        // --- PUBLIC METHODS ---
+
         /// @brief Get entry count.
-        [[nodiscard]] std::size_t EntryCount() const { return entries.size(); }
+        [[nodiscard]] std::size_t EntryCount() const { return m_entries.size(); }
 
         /// @brief Find entry by ID. Returns nullptr if not found.
         [[nodiscard]] const BinderEntry* FindEntryByID(std::int32_t id) const;
@@ -153,7 +162,43 @@ namespace Firelink
         [[nodiscard]] const BinderEntry* FindEntryByName(const std::string& name) const;
         [[nodiscard]] BinderEntry* FindEntryByName(const std::string& name);
 
+        /// @brief Find entry by regex match to name (basename). Returns nullptr if not found.
+        /// @note Exactly one entry must match, or a `MultipleBinderEntriesFoundError` will be thrown.
+        [[nodiscard]] const BinderEntry* FindEntryByNameRegex(const RE2& regex, bool fullMatch = false) const;
+        [[nodiscard]] BinderEntry* FindEntryByNameRegex(const RE2& regex, bool fullMatch = false);
+
+        /// @brief Find all entries whose names match the given regex.
+        [[nodiscard]] std::vector<const BinderEntry*> FindEntriesByNameRegex(
+            const RE2& regex, bool fullMatch = false) const;
+        [[nodiscard]] std::vector<BinderEntry*> FindEntriesByNameRegex(
+            const RE2& regex, bool fullMatch = false);
+
+        /// @brief Alias for entry filter function.
+        using EntryFilter = std::function<bool(const BinderEntry&)>;
+
+        /// @brief Find entry by any entry-filtering function. Returns nullptr if not found.
+        /// @note Exactly one entry must match, or a `MultipleBinderEntriesFoundError` will be thrown.
+        [[nodiscard]] const BinderEntry* FindEntryByFilter(const EntryFilter& filter) const;
+        [[nodiscard]] BinderEntry* FindEntryByFilter(const EntryFilter& filter);
+
+        /// @brief Find all entries that match an entry-filtering function.
+        [[nodiscard]] std::vector<const BinderEntry*> FindEntriesByFilter(const EntryFilter& filter) const noexcept;
+        [[nodiscard]] std::vector<BinderEntry*> FindEntriesByFilter(const EntryFilter& filter) noexcept;
+
+        // --- PROPERTIES ---
+
+        GAME_FILE_PROPERTY(BinderVersion, m_version, Version, BinderVersion::V4);
+        GAME_FILE_PROPERTY(std::string, m_signature, Signature, "07D7R6");
+        GAME_FILE_PROPERTY(BinderFlags, m_flags, Flags, );
+        GAME_FILE_PROPERTY(bool, m_isBigEndian, BigEndian, false);
+        GAME_FILE_PROPERTY(bool, m_isBitBigEndian, BitBigEndian, false);
+        GAME_FILE_PROPERTY(std::optional<BinderVersion4Info>, m_v4Info, V4Info, BinderVersion4Info{});
+        GAME_FILE_PROPERTY_REF(std::vector<BinderEntry>, m_entries, Entries, );
+
     private:
+
+        // Version-dispatched serialization/deserialization.
+
         void DeserializeV3(BinaryReadWrite::BufferReader& reader, BinaryReadWrite::BufferReader& entryReader);
         void DeserializeV4(BinaryReadWrite::BufferReader& reader, BinaryReadWrite::BufferReader& entryReader);
         void SerializeBND3(BinaryReadWrite::BufferWriter& w) const;

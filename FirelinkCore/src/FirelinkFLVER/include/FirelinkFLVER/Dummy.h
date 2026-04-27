@@ -1,5 +1,7 @@
 #pragma once
 
+#include <FirelinkFLVER/Version.h>
+
 #include <FirelinkCore/Collections.h>
 
 #include <cstdint>
@@ -15,7 +17,7 @@ namespace Firelink
     struct Dummy
     {
         Vector3 translate{};
-        Color4b color{}; // stored in on-disk byte order
+        ColorRGBA color{}; // stored in on-disk byte order
         Vector3 forward{};
         Vector3 upward{};
         std::int16_t reference_id = 0;
@@ -28,9 +30,9 @@ namespace Firelink
 
         bool operator==(const Dummy&) const = default;
 
-        void Write(BinaryReadWrite::BufferWriter& w) const;
+        void Write(BinaryReadWrite::BufferWriter& w, FLVERVersion version) const;
 
-        static Dummy Read(BinaryReadWrite::BufferReader& r);
+        static Dummy Read(BinaryReadWrite::BufferReader& r, FLVERVersion version);
     };
 
 } // namespace Firelink

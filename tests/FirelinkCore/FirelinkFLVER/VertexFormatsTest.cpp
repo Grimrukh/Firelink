@@ -106,7 +106,7 @@ TEST_CASE("SignedIntTo127Float decompress for normals")
 {
     auto info = FindVertexFormatInfo(VertexUsage::Normal, VertexDataFormatEnum::FourBytesA);
     REQUIRE(info.has_value());
-    const auto& normal_spec = info->fields[0]; // 3 U8 → 3 F32
+    const auto& normal_spec = info->fields[0]; // 3 U8 -> 3 F32
 
     // 1 vertex, stride = 4 (3 normal bytes + 1 normal_w)
     std::uint8_t raw[4] = {0, 127, 254, 200}; // normal[3] + normal_w

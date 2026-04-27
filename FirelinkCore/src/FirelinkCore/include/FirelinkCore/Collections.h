@@ -80,17 +80,15 @@ namespace Firelink
 
     /// @brief 4-byte RGBA color used by FLVER structures.
     ///
-    /// @detail Byte order on disk varies by FLVER version: modern FLVER2 uses BGRA while
-    //          some FLVER0 variants use RGBA. The reader/writer handles swizzle; this is
-    //          always logical RGBA in memory.
-    struct Color4b
+    /// @detail Some FLVER versions (DarkSouls2) store this as BGRA (handled internally).
+    struct ColorRGBA
     {
         std::uint8_t r{0};
         std::uint8_t g{0};
         std::uint8_t b{0};
         std::uint8_t a{255};
 
-        constexpr bool operator==(const Color4b&) const noexcept = default;
+        constexpr bool operator==(const ColorRGBA&) const noexcept = default;
     };
 
     /// @brief Axis-aligned bounding box.
@@ -100,6 +98,11 @@ namespace Firelink
         Vector3 max{};
 
         constexpr bool operator==(const AABB&) const noexcept = default;
+
+        static AABB Invalid()
+        {
+            return {Vector3::SingleMax(), Vector3::SingleMin()};
+        }
     };
 
     /*!

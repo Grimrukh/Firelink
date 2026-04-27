@@ -7,8 +7,12 @@ name = "pyrelink"
 version = "0.1.0"
 requires-python = ">=3.11"
 
+[project.optional-dependencies]
+test = ["pytest"]
+# TODO: Will need to access 'test_resources' in deployment...
+
 [tool.scikit-build]
-wheel.packages = ["pyrelink"]
+wheel.packages = ["python/pyrelink"]
 
 # Optional: speed up dev rebuilds
 build-dir = "build/{wheel_tag}"

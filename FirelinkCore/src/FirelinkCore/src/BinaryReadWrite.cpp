@@ -9,6 +9,11 @@
 using namespace Firelink;
 using namespace Firelink::BinaryReadWrite;
 
+namespace
+{
+    constexpr std::byte NULL_BYTE{0};
+}
+
 std::vector<std::byte> BinaryReadWrite::ReadFileBytes(const std::string& path)
 {
     std::ifstream f(path, std::ios::binary | std::ios::ate);
@@ -368,9 +373,9 @@ BufferReader::BufferReader(const std::filesystem::path& path, const Endian endia
 }
 
 // Read a null-terminated string at `offset` without moving the reader cursor.
-std::string BufferReader::ReadStringAt(const std::size_t offset, const bool utf16le_encoding) const
+std::string BufferReader::ReadStringAt(const std::size_t offset, const bool isWideEncoding) const
 {
-    if (utf16le_encoding)
+    if (isWideEncoding)
     {
         // Read Unicode.
         const auto bytes = ReadUTF16LEStringAt(offset);
@@ -385,7 +390,7 @@ std::string BufferReader::ReadStringAt(const std::size_t offset, const bool utf1
 std::vector<std::byte> BufferReader::ReadCStringAt(std::size_t offset) const
 {
     std::vector<std::byte> result;
-    while (offset < m_size && m_data[offset] != std::byte{0})
+    while (offset < m_size && m_data[offset] != NULL_BYTE)
     {
         result.push_back(m_data[offset]);
         ++offset;
@@ -400,8 +405,8 @@ std::vector<std::byte> BufferReader::ReadUTF16LEStringAt(std::size_t offset) con
     {
         auto lo = m_data[offset];
         auto hi = m_data[offset + 1];
-        if (lo == std::byte{0} && hi == std::byte{0})
-            break;
+        if (lo == NULL_BYTE && hi == NULL_BYTE)
+            break;  // two-byte null terminator found
         result.push_back(lo);
         result.push_back(hi);
         offset += 2;

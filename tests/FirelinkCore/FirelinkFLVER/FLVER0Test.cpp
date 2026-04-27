@@ -1,4 +1,4 @@
-// Test FLVER0 write → re-read round-trip for FLVER0 fixtures.
+// Test FLVER0 write -> re-read round-trip for FLVER0 fixtures.
 //
 // For each fixture, we:
 //   1. Read the original FLVER from bytes.
@@ -132,7 +132,7 @@ namespace
                     const auto* bf = reinterpret_cast<const float*>(b.decompressed_data.data() + offset);
                     for (std::size_t fi = 0; fi < float_count; ++fi)
                     {
-                        // Lossy codecs (int→float→int→float) can lose precision.
+                        // Lossy codecs (int->float->int->float) can lose precision.
                         // Use a generous tolerance.
                         // NaN == NaN is always false, so handle it explicitly.
                         if (std::isnan(af[fi]) && std::isnan(bf[fi])) continue;

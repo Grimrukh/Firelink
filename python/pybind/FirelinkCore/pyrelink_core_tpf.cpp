@@ -4,10 +4,10 @@
 #include <pybind11/stl.h>
 
 #include <FirelinkCore/TPF.h>
+#include <pyrelink_helpers.h>
 
 namespace py = pybind11;
 using namespace Firelink;
-
 
 void bind_firelink_core_tpf(py::module& m)
 {
@@ -52,36 +52,32 @@ void bind_firelink_core_tpf(py::module& m)
 
     py::register_exception<TPFError>(m, "TPFError", PyExc_RuntimeError);
 
-    py::class_<TPF>(m, "TPF",
-        "A FromSoftware TPF texture pack file.")
-        .def(py::init<>())
-        .def_readwrite("platform", &TPF::platform)
-        .def_readwrite("tpf_flags", &TPF::tpf_flags)
-        .def_readwrite("encoding_type", &TPF::encoding_type)
-        .def_readwrite("textures", &TPF::textures)
-        .def_static("from_bytes", [](const py::buffer& buf) {
-            auto [ptr, size] = borrow_buffer(buf);
-            py::gil_scoped_release release;
-            return TPF::FromBytes(ptr, size);
-        },
-        py::arg("data"),
-        "Parse a TPF from raw bytes (must already be DCX-decompressed).")
-        .def("to_bytes", [](const TPF& t) {
-            std::vector<std::byte> result;
-            {
-                py::gil_scoped_release release;
-                result = t.ToBytes();
-            }
-            return vector_to_bytes(result);
-        },
-        "Serialize the TPF back to bytes.")
-        .def_property_readonly("texture_count", &TPF::TextureCount)
+    auto tpf = py::class_<TPF>(m, "TPF",
+        "A FromSoftware TPF texture pack file.");
+
+    bind_game_file(tpf);
+
+    tpf
+        .def_property("platform", &TPF::GetPlatform, &TPF::SetPlatform)
+        .def_property("tpf_flags", &TPF::GetFlags, &TPF::SetFlags)
+        .def_property("encoding_type", &TPF::GetEncodingType, &TPF::SetEncodingType)
+        .def_property_readonly("textures",
+            [](TPF& t) -> std::vector<TPFTexture>& {
+                return t.Textures();
+            },
+            py::return_value_policy::reference_internal,
+            "List of TPF textures (mutable).")
+        .def_property_readonly("texture_count", &TPF::TextureCount);
+
+    tpf
         .def("find_texture", [](const TPF& t, const std::string& stem) -> const TPFTexture* {
             return t.FindTexture(stem);
-        }, py::return_value_policy::reference_internal, py::arg("stem"))
+        }, py::return_value_policy::reference_internal, py::arg("stem"));
+
+    tpf
         .def("__len__", &TPF::TextureCount)
         .def("__repr__", [](const TPF& t) {
-            return "<TPF " + std::to_string(t.textures.size()) + " textures>";
+            return "<TPF " + std::to_string(t.Textures().size()) + " textures>";
         });
 }
 

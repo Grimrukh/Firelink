@@ -4,20 +4,15 @@
 // (input bytes are borrowed from Python buffers).
 
 #include <pybind11/pybind11.h>
-#include <pybind11/stl.h>
 
 #include <FirelinkCore/DDS.h>
+#include <pyrelink_helpers.h>
 
 namespace py = pybind11;
 using namespace Firelink;
 
 void bind_firelink_core_dds(py::module& m)
 {
-
-    // ========================================================================
-    // DDS
-    // ========================================================================
-
     // Expose DXGI_FORMAT as a Python enum so users can pass format constants.
     // We only expose the formats commonly used in FromSoftware textures.
     py::enum_<DXGI_FORMAT>(m, "DXGIFormat",

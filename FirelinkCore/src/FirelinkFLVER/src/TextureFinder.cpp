@@ -1,5 +1,5 @@
 // TextureFinder implementation.
-#include <../../FirelinkFLVER/include/FirelinkFLVER/TextureFinder.h>
+#include <FirelinkFLVER/TextureFinder.h>
 
 #include <FirelinkCore/BinaryReadWrite.h>
 #include <FirelinkCore/DCX.h>
@@ -7,18 +7,17 @@
 #include <FirelinkCore/Logging.h>
 #include <FirelinkCore/Paths.h>
 
+#include <re2/re2.h>
+
 #include <algorithm>
-#include <regex>
 
 namespace Firelink
 {
     namespace fs = std::filesystem;
 
-    // Check if name ends with ".tpf" or ".tpf.dcx".
-    static bool IsTPFName(const std::string& name)
+    namespace
     {
-        const std::string lower = ToLower(name);
-        return lower.ends_with(".tpf") || lower.ends_with(".tpf.dcx");
+        RE2 TPF_RE(R"((?i)\.tpf(\.dcx)?$)"); // case-insensitive regex for .tpf or .tpf.dcx
     }
 
     // ========================================================================
@@ -263,19 +262,18 @@ namespace Firelink
     {
         // Extract map area from directory name (mAA_BB_CC_DD → mAA).
         const auto dir_name = source_dir.filename().string();
-        static const std::regex map_re(R"(^m(\d\d)_)");
-        std::smatch m;
-        if (!std::regex_search(dir_name, m, map_re))
+        static const RE2 map_re(R"(^(m\d\d)_)");
+        std::string area;
+        if (!RE2::PartialMatch(dir_name, map_re, &area))
             return;
 
-        const auto area = m[1].str();
-        const auto map_area_dir = (source_dir / (".." ) / ("m" + area)).lexically_normal();
+        const auto map_area_dir = (source_dir.parent_path() / area).lexically_normal();
         RegisterMapAreaTextures(map_area_dir);
 
         if (m_game == GameType::DarkSoulsPTDE)
         {
             // PTDE: also check map/tx folder.
-            const auto tx_dir = (source_dir / "../tx").lexically_normal();
+            const auto tx_dir = (source_dir.parent_path() / "tx").lexically_normal();
             if (fs::is_directory(tx_dir))
                 RegisterTPFsInDir(tx_dir);
         }
@@ -298,7 +296,7 @@ namespace Firelink
                 if (!m_scannedBinders.contains(stem))
                     m_pendingBinders.try_emplace(stem, entry.path());
             }
-            else if (IsTPFName(name))
+            else if (RE2::FullMatch(name, TPF_RE))
             {
                 auto stem = StemOf(entry.path());
                 if (!m_scannedTPFs.contains(stem))
@@ -307,7 +305,7 @@ namespace Firelink
                     m_scannedTPFs.insert(stem);
                     try
                     {
-                        for (const TPF::CPtr tpf = TPF::FromPath(entry); auto& tex : tpf->textures)
+                        for (const TPF::Ptr tpf = TPF::FromPath(entry); auto& tex : tpf->Textures())
                             m_textureCache.try_emplace(ToLower(tex.stem), std::move(tex));
                     }
                     catch (const std::exception& e)
@@ -341,7 +339,7 @@ namespace Firelink
         for (auto& entry : fs::directory_iterator(dir))
         {
             if (!entry.is_regular_file()) continue;
-            if (IsTPFName(entry.path().filename().string()))
+            if (RE2::FullMatch(entry.path().filename().string(), TPF_RE))
             {
                 auto stem = StemOf(entry.path());
                 if (!m_scannedTPFs.contains(stem))
@@ -353,16 +351,8 @@ namespace Firelink
     void TextureFinder::RegisterChrTPFBDTs(const fs::path& source_dir, const Binder& chrbnd)
     {
         // Look for a .chrtpfbhd entry inside the CHRBND.
-        static const std::regex bhd_re(R"(\.chrtpfbhd$)", std::regex::icase);
-        const BinderEntry* bhd_entry = nullptr;
-        for (auto& entry : chrbnd.entries)
-        {
-            if (std::regex_search(entry.name(), bhd_re))
-            {
-                bhd_entry = &entry;
-                break;
-            }
-        }
+        static const RE2 bhd_re(R"(\.chrtpfbhd$)");
+        const BinderEntry* bhd_entry = chrbnd.FindEntryByNameRegex(bhd_re);
         if (!bhd_entry) return;
 
         const auto bdt_stem = bhd_entry->stem();
@@ -373,18 +363,16 @@ namespace Firelink
         try
         {
             const auto bdt_data = BinaryReadWrite::ReadFileBytes(bdt_path);
-            const auto bxf = Binder::FromSplitBytes(
+            auto bxf = Binder::FromSplitBytes(
                 bhd_entry->data.data(), bhd_entry->data.size(),
                 bdt_data.data(), bdt_data.size());
 
-            for (auto& tpf_entry : bxf->entries)
+            // Steal new TPF entries from transient Binder.
+            for (auto& tpf_entry : bxf->FindEntriesByNameRegex(TPF_RE, /*fullMatch*/ true))
             {
-                if (IsTPFName(tpf_entry.name()))
-                {
-                    auto stem = tpf_entry.stem();
-                    if (!m_scannedTPFs.contains(stem))
-                        m_pendingTPFs.try_emplace(stem, std::move(tpf_entry));
-                }
+                auto stem = tpf_entry->stem();
+                if (!m_scannedTPFs.contains(stem))
+                    m_pendingTPFs.try_emplace(stem, std::move(*tpf_entry));
             }
         }
         catch (const std::exception& e)
@@ -413,17 +401,15 @@ namespace Firelink
         {
             const auto texbnd = Binder::FromPath(texbnd_path);
 
-            for (auto& tpf_entry : texbnd->entries)
+            for (auto& tpf_entry : texbnd->FindEntriesByNameRegex(TPF_RE, /*fullMatch*/ true))
             {
-                if (!IsTPFName(tpf_entry.name())) continue;
-
-                auto stem = tpf_entry.stem();
+                auto stem = tpf_entry->stem();
                 if (m_scannedTPFs.contains(stem)) continue;
                 m_scannedTPFs.insert(stem);
 
                 // Multi-texture TPF — load immediately.
-                const std::byte* tpf_data = tpf_entry.data.data();
-                std::size_t tpf_size = tpf_entry.data.size();
+                const std::byte* tpf_data = tpf_entry->data.data();
+                std::size_t tpf_size = tpf_entry->data.size();
                 std::vector<std::byte> decompressed;
                 if (IsDCX(tpf_data, tpf_size))
                 {
@@ -432,7 +418,7 @@ namespace Firelink
                     tpf_size = decompressed.size();
                 }
                 const auto tpf = TPF::FromBytes(tpf_data, tpf_size);
-                for (auto& tex : tpf->textures)
+                for (auto& tex : tpf->Textures())
                     m_textureCache.try_emplace(ToLower(tex.stem), std::move(tex));
             }
         }
@@ -458,7 +444,7 @@ namespace Firelink
                 try
                 {
                     const auto tpf = TPF::FromPath(entry.path());
-                    for (auto& tex : tpf->textures)
+                    for (auto& tex : tpf->Textures())
                         m_textureCache.try_emplace(ToLower(tex.stem), std::move(tex));
                 }
                 catch (const std::exception& e)
@@ -471,14 +457,12 @@ namespace Firelink
 
     void TextureFinder::ScanBinderForTPFs(const Binder& binder)
     {
-        for (auto& entry : binder.entries)
+        for (auto& entry : binder.FindEntriesByNameRegex(TPF_RE, /*fullMatch*/ true))
         {
-            if (IsTPFName(entry.name()))
-            {
-                auto stem = entry.stem();
-                if (!m_scannedTPFs.contains(stem))
-                    m_pendingTPFs.try_emplace(stem, entry); // copy entry (owns data)
-            }
+            // We copy the BinderEntry here, as this is likely an externally-passed Binder.
+            auto stem = entry->stem();
+            if (!m_scannedTPFs.contains(stem))
+                m_pendingTPFs.try_emplace(stem, *entry);
         }
     }
 
@@ -515,14 +499,12 @@ namespace Firelink
                     bhd_data.data(), bhd_data.size(),
                     bdt_data.data(), bdt_data.size());
 
-                for (auto& entry : binder->entries)
+                // Steal new TPF entries from transient Binder.
+                for (auto& entry : binder->FindEntriesByNameRegex(TPF_RE, /*fullMatch*/ true))
                 {
-                    if (IsTPFName(entry.name()))
-                    {
-                        auto stem = entry.stem();
-                        if (!m_scannedTPFs.contains(stem))
-                            m_pendingTPFs.try_emplace(stem, std::move(entry));
-                    }
+                    auto stem = entry->stem();
+                    if (!m_scannedTPFs.contains(stem))
+                        m_pendingTPFs.try_emplace(stem, std::move(*entry));
                 }
             }
             else
@@ -554,7 +536,7 @@ namespace Firelink
 
             if (const auto* path = std::get_if<fs::path>(&source))
             {
-                const auto [storage, type] = TryDecompressDCX(*path);
+                auto [storage, type] = TryDecompressDCX(*path);
                 buf = std::move(storage);  // discard DCX type
                 tpf_data = buf.data();
                 tpf_size = buf.size();
@@ -576,7 +558,7 @@ namespace Firelink
             if (tpf_data && tpf_size >= 4)
             {
                 const auto tpf = TPF::FromBytes(tpf_data, tpf_size);
-                for (auto& tex : tpf->textures)
+                for (auto& tex : tpf->Textures())
                     m_textureCache.try_emplace(ToLower(tex.stem), std::move(tex));
             }
         }
