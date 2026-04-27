@@ -9,6 +9,7 @@ target_sources(FirelinkCore
     src/Binder.cpp
     src/BinaryReadWrite.cpp
     src/Collections.cpp
+    src/DevTools.cpp
     src/DCX.cpp
     src/DDS.cpp
     src/Logging.cpp
@@ -18,6 +19,13 @@ target_sources(FirelinkCore
     src/Process.cpp
     src/TPF.cpp
     src/MemoryUtils.cpp
+
+    src/Havok/Helpers.cpp
+    src/Havok/Types.cpp
+    src/Havok/Tagfile.cpp
+    src/Havok/HkaiTypes.cpp
+    src/Havok/HkcdTypes.cpp
+    src/HKX.cpp
 )
 target_sources(FirelinkCore
     PUBLIC
@@ -30,6 +38,7 @@ target_sources(FirelinkCore
         include/FirelinkCore/BinaryReadWrite.h
         include/FirelinkCore/BinaryValidation.h
         include/FirelinkCore/Collections.h
+        include/FirelinkCore/DevTools.h
         include/FirelinkCore/DCX.h
         include/FirelinkCore/DDS.h
         include/FirelinkCore/GameFile.h
@@ -42,6 +51,15 @@ target_sources(FirelinkCore
         include/FirelinkCore/Process.h
         include/FirelinkCore/TPF.h
         include/FirelinkCore/MemoryUtils.h
+
+        include/FirelinkCore/Havok/Enums.h
+        include/FirelinkCore/Havok/Helpers.h
+        include/FirelinkCore/Havok/Types.h
+        include/FirelinkCore/Havok/Tagfile.h
+        include/FirelinkCore/Havok/HkaiTypes.h
+        include/FirelinkCore/Havok/HkcdTypes.h
+
+        include/FirelinkCore/HKX.h
 )
 
 target_precompile_headers(FirelinkCore

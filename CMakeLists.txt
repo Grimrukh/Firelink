@@ -68,6 +68,9 @@ if(FIRELINK_BUILD_TESTS)
     add_subdirectory(tests)
 endif()
 
+# Add Firelink executables.
+add_subdirectory(app)
+
 install(EXPORT FirelinkTargets
         FILE FirelinkTargets.cmake
         NAMESPACE Firelink::

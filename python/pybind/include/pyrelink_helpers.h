@@ -38,6 +38,7 @@ template <typename T>
 void bind_game_file(py::class_<T>& cls)
 {
     cls
+        .def(py::init<>())  // default constructible
         .def_static("from_path", [](const py::object& path) {
             auto fs_path = to_fs_path(path);
             py::gil_scoped_release release;

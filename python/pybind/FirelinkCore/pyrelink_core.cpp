@@ -14,6 +14,24 @@ void bind_firelink_core_dcx(py::module& m);
 void bind_firelink_core_dds(py::module& m);
 void bind_firelink_core_tpf(py::module& m);
 
+template <std::size_t N>
+static void bind_group_bitset(py::module_& m, const char* name)
+{
+    using GBS = GroupBitSet<N>;
+    py::class_<GBS>(m, name)
+        .def(py::init<>())
+        .def(py::init<const std::set<int>&>(), py::arg("bits"))
+        .def_static("all_on", &GBS::AllOn)
+        .def_static("all_off", &GBS::AllOff)
+        .def("enable", &GBS::Enable, py::arg("index"))
+        .def("disable", &GBS::Disable, py::arg("index"))
+        .def("__getitem__", [](const GBS& self, std::size_t i) { return self[i]; })
+        .def("to_list", &GBS::ToSortedBitList)
+        .def("__repr__", [](const GBS& self) { return static_cast<std::string>(self); })
+        .def("__eq__", &GBS::operator==)
+        .def("__ne__", &GBS::operator!=);
+}
+
 void bind_firelink_core(py::module& m)
 {
     py::enum_<GameType>(m, "GameType",
@@ -188,6 +206,10 @@ void bind_firelink_core(py::module& m)
         .def(py::init<>())
         .def_readwrite("min", &AABB::min)
         .def_readwrite("max", &AABB::max);
+
+    bind_group_bitset<128>(m, "GroupBitSet128");
+    bind_group_bitset<256>(m, "GroupBitSet256");
+    bind_group_bitset<1024>(m, "GroupBitSet1024");
 }
 
 PYBIND11_MODULE(_bindings, m)

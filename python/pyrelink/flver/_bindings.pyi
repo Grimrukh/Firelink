@@ -1,4 +1,4 @@
-"""Type stubs for the flver_cpp pybind11 extension module."""
+"""Type stubs for the pyrelink_flver pybind11 extension module."""
 
 from __future__ import annotations
 
@@ -25,7 +25,7 @@ from pathlib import Path
 import numpy as np
 from numpy.typing import NDArray
 
-from pyrelink.core import GameFile, GameType, Binder, TPFTexture
+from pyrelink.core import GameFile, GameType, Binder, TPFTexture, Vector2, Vector3, Vector4, EulerRad, Color4b, AABB
 
 # --- Bone --------------------------------------------------------------------
 
@@ -37,17 +37,10 @@ class Bone:
     child_bone_index: int
     next_sibling_bone_index: int
     previous_sibling_bone_index: int
-
-    @property
-    def translate(self) -> tuple[float, float, float]: ...
-    @property
-    def rotate(self) -> tuple[float, float, float]: ...
-    @property
-    def scale(self) -> tuple[float, float, float]: ...
-    @property
-    def bounding_box_min(self) -> tuple[float, float, float]: ...
-    @property
-    def bounding_box_max(self) -> tuple[float, float, float]: ...
+    translate: Vector3
+    rotate: EulerRad
+    scale: Vector3
+    bounding_box: AABB
 
 # --- Dummy -------------------------------------------------------------------
 
@@ -60,41 +53,31 @@ class Dummy:
     use_upward_vector: bool
     unk_x30: int
     unk_x34: int
-
-    @property
-    def translate(self) -> tuple[float, float, float]: ...
-    @property
-    def forward(self) -> tuple[float, float, float]: ...
-    @property
-    def upward(self) -> tuple[float, float, float]: ...
-    @property
-    def color_rgba(self) -> tuple[int, int, int, int]:
-        """RGBA color as a 4-tuple of ints (0-255)."""
-        ...
+    translate: Vector3
+    forward: Vector3
+    upward: Vector3
+    color: Color4b
+    """RGBA color as bytes (0-255)."""
 
 # --- Texture -----------------------------------------------------------------
 
 class Texture:
-    """Read-only view of a C++ FLVER Texture. Strings decoded in-place."""
+    """FLVER texture reference. Strings decoded in-place."""
 
     path: str
+    texture_type: str | None
+    """Decoded sampler type (e.g. ``'g_Diffuse'``), or ``None`` if absent."""
+    scale: Vector2
     f2_unk_x10: int
     f2_unk_x11: bool
     f2_unk_x14: float
     f2_unk_x18: float
     f2_unk_x1c: float
 
-    @property
-    def texture_type(self) -> str | None:
-        """Decoded sampler type (e.g. ``'g_Diffuse'``), or ``None`` if absent."""
-        ...
-    @property
-    def scale(self) -> tuple[float, float]: ...
-
 # --- GXItem ------------------------------------------------------------------
 
 class GXItem:
-    """Read-only view of a C++ FLVER GXItem."""
+    """C++ FLVER GXItem."""
 
     index: int
 
@@ -112,7 +95,7 @@ class GXItem:
 # --- Material ----------------------------------------------------------------
 
 class Material:
-    """Read-only view of a C++ FLVER Material. Strings decoded in-place."""
+    """FLVER Material. Strings decoded in-place."""
 
     name: str
     mat_def_path: str
@@ -120,14 +103,17 @@ class Material:
     f2_unk_x18: int
 
     @property
-    def textures(self) -> list[Texture]: ...
+    def textures(self) -> list[Texture]:
+        """Live reference to texture list (mutable)."""
+        ...
     @property
-    def gx_items(self) -> list[GXItem]: ...
+    def gx_items(self) -> list[GXItem]:
+        """Live reference to GX item list (mutable)."""
+        ...
 
 # --- FaceSet -----------------------------------------------------------------
 
 class FaceSet:
-    """Read-only view of a C++ FLVER FaceSet."""
 
     flags: int
     is_triangle_strip: bool
@@ -142,7 +128,6 @@ class FaceSet:
 # --- Mesh --------------------------------------------------------------------
 
 class Mesh:
-    """Read-only view of a C++ FLVERMesh."""
 
     is_dynamic: bool
     default_bone_index: int
@@ -164,8 +149,8 @@ class Mesh:
         """Vertex count of the first vertex array (0 if none)."""
         ...
     @property
-    def use_backface_culling(self):
-        """Uses value of first FaceSet and throws if other FaceSets have different values."""
+    def use_backface_culling(self) -> bool:
+        """Value of first FaceSet; raises if FaceSets disagree."""
         ...
 
 # --- MergedMesh --------------------------------------------------------------
@@ -173,7 +158,7 @@ class Mesh:
 class MergedMesh:
     """Merged mesh built from all FLVER meshes, with deduplicated vertices.
 
-    Array properties are zero-copy numpy views into C++ memory. They remain
+    Array properties are zero-copy numpy views into C++ memory; they remain
     valid as long as this ``MergedMesh`` object is alive.
     """
 
@@ -227,56 +212,51 @@ class MergedMesh:
         """Shape ``(face_count, 4)``."""
         ...
 
-# --- FLVER (main entry point) -----------------------------------------------
+# --- FLVER -------------------------------------------------------------------
 
 class FLVER(GameFile):
+    """Top-level FLVER container. Inherits all GameFile I/O methods."""
+
+    version: int
+    big_endian: bool
+    unicode: bool
 
     @property
-    def version(self) -> int: ...
-    @property
-    def big_endian(self) -> bool: ...
-    @property
-    def unicode(self) -> bool: ...
-    @property
-    def bounding_box_min(self) -> tuple[float, float, float]: ...
-    @property
-    def bounding_box_max(self) -> tuple[float, float, float]: ...
+    def bounding_box(self) -> AABB:
+        """Axis-aligned bounding box (mutable reference)."""
+        ...
+
     @property
     def true_face_count(self) -> int: ...
     @property
     def total_face_count(self) -> int: ...
 
-    # FLVER0 unknowns
-    @property
-    def f0_unk_x4a(self) -> int: ...
-    @property
-    def f0_unk_x4b(self) -> int: ...
-    @property
-    def f0_unk_x4c(self) -> int: ...
-    @property
-    def f0_unk_x5c(self) -> int: ...
+    # FLVER0 preserved unknowns (read-write)
+    f0_unk_x4a: int
+    f0_unk_x4b: int
+    f0_unk_x4c: int
+    f0_unk_x5c: int
 
-    # FLVER2 unknowns
-    @property
-    def f2_unk_x4a(self) -> bool: ...
-    @property
-    def f2_unk_x4c(self) -> int: ...
-    @property
-    def f2_unk_x5c(self) -> int: ...
-    @property
-    def f2_unk_x5d(self) -> int: ...
-    @property
-    def f2_unk_x68(self) -> int: ...
+    # FLVER2 preserved unknowns (read-write)
+    f2_unk_x4a: bool
+    f2_unk_x4c: int
+    f2_unk_x5c: int
+    f2_unk_x5d: int
+    f2_unk_x68: int
 
-    # Collections (reference views into C++ data)
     @property
-    def bones(self) -> list[Bone]: ...
+    def bones(self) -> list[Bone]:
+        """Live reference to bone list (mutable)."""
+        ...
     @property
-    def dummies(self) -> list[Dummy]: ...
+    def dummies(self) -> list[Dummy]:
+        """Live reference to dummy list (mutable)."""
+        ...
     @property
-    def meshes(self) -> list[Mesh]: ...
+    def meshes(self) -> list[Mesh]:
+        """Live reference to mesh list (mutable)."""
+        ...
 
-    # Convenience counts
     @property
     def bone_count(self) -> int: ...
     @property
@@ -303,17 +283,13 @@ def batch_from_path(
 ) -> list[FLVER]:
     """Load multiple FLVERs from file paths in parallel.
 
-    Reads and DCX-decompresses all files, then parses them in parallel
-    using C++ threads (releasing the GIL during parsing).
-
     Args:
         paths: List of file paths (``str`` or ``Path``).
-        max_threads: Maximum number of threads. ``0`` (default) uses
-            ``std::thread::hardware_concurrency()``.
-        cache_merged_mesh: Automatically build MergedMesh at the same time.
+        max_threads: Maximum number of threads. ``0`` uses hardware concurrency.
+        cache_merged_mesh: Automatically build MergedMesh during load.
 
     Returns:
-        List of ``FLVER`` objects in the same order as the input paths.
+        List of ``FLVER`` objects in input order.
     """
     ...
 
@@ -321,20 +297,17 @@ def batch_from_path(
 def batch_from_bytes(
     data_list: list[bytes],
     max_threads: int = 0,
+    cache_merged_mesh: bool = False,
 ) -> list[FLVER]:
     """Parse multiple FLVERs from raw (decompressed) byte buffers in parallel.
 
-    Each element of *data_list* should be a ``bytes`` object containing
-    already-decompressed FLVER data.  Parsing happens in parallel using
-    C++ threads (the GIL is released during parsing).
-
     Args:
         data_list: List of raw FLVER ``bytes`` objects.
-        max_threads: Maximum number of threads. ``0`` (default) uses
-            ``std::thread::hardware_concurrency()``.
+        max_threads: Maximum number of threads. ``0`` uses hardware concurrency.
+        cache_merged_mesh: Automatically build MergedMesh during load.
 
     Returns:
-        List of ``FLVER`` objects in the same order as the input list.
+        List of ``FLVER`` objects in input order.
     """
     ...
 
@@ -350,21 +323,37 @@ class ImageFormat(IntEnum):
 
 
 class TextureFinder:
+    """Lazy texture discovery and caching for FromSoftware game files."""
 
-    def __init__(self, game: GameType, data_root: str) -> None: ...
+    def __init__(self, game: GameType, data_root: str) -> None:
+        """Create a TextureFinder for the given game and data root directory."""
+        ...
 
     def register_flver_sources(
         self,
         flver_source_path: str,
         flver_binder: Binder | None = None,
         prefer_hi_res: bool = True,
-    ) -> None: ...
+    ) -> None:
+        """Register texture source locations for a FLVER file."""
+        ...
 
-    def get_texture(self, texture_stem: str, model_name: str = "") -> TPFTexture | None: ...
+    def get_texture(self, texture_stem: str, model_name: str = "") -> TPFTexture | None:
+        """Look up a texture by stem. Returns None if not found."""
+        ...
 
-    def get_texture_as(self, texture_stem: str, format: ImageFormat, model_name: str = "") -> bytes: ...
+    def get_texture_as(
+        self,
+        texture_stem: str,
+        format: ImageFormat,
+        model_name: str = "",
+    ) -> bytes:
+        """Get texture converted to the requested format. Returns empty bytes if not found."""
+        ...
 
-    def set_aet_root(self, aet_root: str) -> None: ...
+    def set_aet_root(self, aet_root: str) -> None:
+        """Manually set the AET root directory for asset texture lookups."""
+        ...
 
     @property
     def cached_texture_count(self) -> int: ...

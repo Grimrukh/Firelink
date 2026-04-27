@@ -1,11 +1,19 @@
-"""Type stubs for the pyrelink_core pybind11 extension module (DCX + DDS)."""
+"""Type stubs for the pyrelink_core pybind11 extension module."""
 
 from __future__ import annotations
 
 __all__ = [
     # Core
-    "GameFile",
     "GameType",
+    "Vector2",
+    "Vector3",
+    "Vector4",
+    "EulerRad",
+    "Color4b",
+    "AABB",
+    "GroupBitSet128",
+    "GroupBitSet256",
+    "GroupBitSet1024",
     # Binder
     "BinderVersion",
     "BinderFlags",
@@ -40,25 +48,178 @@ __all__ = [
     "TPF",
 ]
 
-from enum import IntEnum
 from pathlib import Path
-from typing import Union, Optional
+from typing import Union, Optional, Sequence
+from enum import IntEnum
 
 # ---------------------------------------------------------------------------
-# GameFile (ABC)
+# Primitive math types
+# ---------------------------------------------------------------------------
+
+class Vector2:
+    """Basic XY vector."""
+    x: float
+    y: float
+    def __init__(self, x: float = 0.0, y: float = 0.0) -> None: ...
+    def __init__(self, seq: Sequence[float]) -> None: ...  # type: ignore[misc]
+    def __len__(self) -> int: ...
+    def __getitem__(self, i: int) -> float: ...
+    def __setitem__(self, i: int, val: float) -> None: ...
+    def __iter__(self): ...
+    def __repr__(self) -> str: ...
+
+class Vector3:
+    """Basic XYZ vector."""
+    x: float
+    y: float
+    z: float
+    def __init__(self, x: float = 0.0, y: float = 0.0, z: float = 0.0) -> None: ...
+    def __init__(self, seq: Sequence[float]) -> None: ...  # type: ignore[misc]
+    def __len__(self) -> int: ...
+    def __getitem__(self, i: int) -> float: ...
+    def __setitem__(self, i: int, val: float) -> None: ...
+    def __iter__(self): ...
+    def __repr__(self) -> str: ...
+    @staticmethod
+    def zero() -> Vector3: ...
+    @staticmethod
+    def one() -> Vector3: ...
+
+class Vector4:
+    """Basic XYZW vector."""
+    x: float
+    y: float
+    z: float
+    w: float
+    def __init__(self, x: float = 0.0, y: float = 0.0, z: float = 0.0, w: float = 0.0) -> None: ...
+    def __init__(self, seq: Sequence[float]) -> None: ...  # type: ignore[misc]
+    def __len__(self) -> int: ...
+    def __getitem__(self, i: int) -> float: ...
+    def __setitem__(self, i: int, val: float) -> None: ...
+    def __iter__(self): ...
+    def __repr__(self) -> str: ...
+
+class EulerRad:
+    """Euler XYZ angles in radians."""
+    x: float
+    y: float
+    z: float
+    def __init__(self, x: float = 0.0, y: float = 0.0, z: float = 0.0) -> None: ...
+    def __init__(self, seq: Sequence[float]) -> None: ...  # type: ignore[misc]
+    def __len__(self) -> int: ...
+    def __getitem__(self, i: int) -> float: ...
+    def __setitem__(self, i: int, val: float) -> None: ...
+    def __iter__(self): ...
+    def __repr__(self) -> str: ...
+    @staticmethod
+    def zero() -> EulerRad: ...
+
+class Color4b:
+    """Color RGBA as bytes [0-255]."""
+    r: int
+    g: int
+    b: int
+    a: int
+    def __init__(self, r: int = 0, g: int = 0, b: int = 0, a: int = 255) -> None: ...
+    def __init__(self, seq: Sequence[int]) -> None: ...  # type: ignore[misc]
+    def __getitem__(self, i: int) -> int: ...
+    def __setitem__(self, i: int, val: int) -> None: ...
+    def __iter__(self): ...
+
+class AABB:
+    """Axis-aligned bounding box."""
+    min: Vector3
+    max: Vector3
+    def __init__(self) -> None: ...
+
+class GroupBitSet128:
+    def __init__(self, bits: set[int] = ...) -> None: ...
+    @staticmethod
+    def all_on() -> GroupBitSet128: ...
+    @staticmethod
+    def all_off() -> GroupBitSet128: ...
+    def enable(self, index: int) -> None: ...
+    def disable(self, index: int) -> None: ...
+    def __getitem__(self, i: int) -> bool: ...
+    def to_list(self) -> list[int]: ...
+    def __repr__(self) -> str: ...
+    def __eq__(self, other: object) -> bool: ...
+    def __ne__(self, other: object) -> bool: ...
+
+class GroupBitSet256:
+    def __init__(self, bits: set[int] = ...) -> None: ...
+    @staticmethod
+    def all_on() -> GroupBitSet256: ...
+    @staticmethod
+    def all_off() -> GroupBitSet256: ...
+    def enable(self, index: int) -> None: ...
+    def disable(self, index: int) -> None: ...
+    def __getitem__(self, i: int) -> bool: ...
+    def to_list(self) -> list[int]: ...
+    def __repr__(self) -> str: ...
+    def __eq__(self, other: object) -> bool: ...
+    def __ne__(self, other: object) -> bool: ...
+
+class GroupBitSet1024:
+    def __init__(self, bits: set[int] = ...) -> None: ...
+    @staticmethod
+    def all_on() -> GroupBitSet1024: ...
+    @staticmethod
+    def all_off() -> GroupBitSet1024: ...
+    def enable(self, index: int) -> None: ...
+    def disable(self, index: int) -> None: ...
+    def __getitem__(self, i: int) -> bool: ...
+    def to_list(self) -> list[int]: ...
+    def __repr__(self) -> str: ...
+    def __eq__(self, other: object) -> bool: ...
+    def __ne__(self, other: object) -> bool: ...
+
+# ---------------------------------------------------------------------------
+# GameFile (mixin — methods added to all GameFile subclasses by bind_game_file)
 # ---------------------------------------------------------------------------
 
 class GameFile:
+    """Base mixin for all GameFile subclasses. Methods are defined on each concrete class."""
+
+    def __init__(self) -> None:
+        """All GameFiles are default constructible."""
+        ...
 
     @classmethod
-    def from_path(cls, path: Union[str, Path]) -> GameFile: ...
+    def from_path(cls, path: Union[str, Path]) -> GameFile:
+        """Read from a file path, decompressing DCX if needed."""
+        ...
 
     @classmethod
-    def from_bytes(cls, data: Union[bytes, bytearray, memoryview]) -> GameFile: ...
+    def from_paths_parallel(
+        cls,
+        paths: Sequence[Union[str, Path]],
+        max_threads: int = 0,
+    ) -> list[GameFile]:
+        """Read multiple files in parallel, decompressing DCX if needed."""
+        ...
 
-    def to_bytes(self) -> bytes: ...
+    @classmethod
+    def from_bytes(cls, data: Union[bytes, bytearray, memoryview]) -> GameFile:
+        """Parse from raw (already DCX-decompressed) bytes."""
+        ...
 
-    def write_to_path(self, path: Union[str | Path | None] = None) -> None: ...
+    @classmethod
+    def from_bytes_parallel(
+        cls,
+        buffers: list[Union[bytes, bytearray, memoryview]],
+        max_threads: int = 0,
+    ) -> list[GameFile]:
+        """Parse multiple byte buffers in parallel."""
+        ...
+
+    def to_bytes(self) -> bytes:
+        """Serialize to bytes, compressing with DCX if dcx_type is set."""
+        ...
+
+    def write_to_path(self, path: Union[str, Path, None] = None) -> None:
+        """Write to path (or stored path if None)."""
+        ...
 
     @property
     def dcx_type(self) -> DCXType: ...
@@ -66,26 +227,25 @@ class GameFile:
     def dcx_type(self, value: DCXType) -> None: ...
 
     @property
-    def path(self) -> Path | None: ...
+    def path(self) -> str | None:
+        """Stored file path as a string."""
+        ...
     @path.setter
-    def path(self, value: Path | None) -> None: ...
+    def path(self, value: Union[str, Path, None]) -> None: ...
 
     @property
     def path_name(self) -> str | None:
-        """Get name of `path`."""
+        """Filename portion of the stored path (e.g. 'c1000.chrbnd.dcx'), or None."""
         ...
+
     @property
     def path_stem(self) -> str | None:
-        """NOTE: Like `path.stem`, this only removes the LAST suffix, e.g. 'c1000.chrbnd.dcx' -> 'c1000.chrbnd'."""
-        ...
-    @property
-    def path_minimal_stem(self) -> str | None:
-        """Removes ALL suffixes from `path` name, e.g. 'c1000.chrbnd.dcx' -> 'c1000'."""
+        """Minimal stem with ALL suffixes removed (e.g. 'c1000.chrbnd.dcx' -> 'c1000'), or None."""
         ...
 
 
 class GameType(IntEnum):
-    """Game identifier for ImageImportManager."""
+    """Game identifier."""
     DemonsSouls = 0
     DarkSoulsPTDE = 1
     DarkSoulsDSR = 2
@@ -133,7 +293,14 @@ class BinderEntry:
     flags: int
     data: bytes
     @property
-    def name(self) -> str: ...
+    def name(self) -> str:
+        """Basename of the entry path."""
+        ...
+    @property
+    def stem(self) -> str:
+        """Minimal stem (before first '.') of the entry basename."""
+        ...
+    def __repr__(self) -> str: ...
 
 class BinderError(RuntimeError):
     """Error raised by Binder operations."""
@@ -146,13 +313,16 @@ class Binder(GameFile):
     flags: BinderFlags
     big_endian: bool
     bit_big_endian: bool
-    entries: list[BinderEntry]
+    @property
+    def entries(self) -> list[BinderEntry]:
+        """Live reference to the internal entry list (mutable)."""
+        ...
 
     @staticmethod
     def from_split_bytes(
         bhd_data: Union[bytes, bytearray, memoryview],
         bdt_data: Union[bytes, bytearray, memoryview],
-    ) -> "Binder":
+    ) -> Binder:
         """Parse a split BHF/BDT binder from raw bytes."""
         ...
 
@@ -168,6 +338,7 @@ class Binder(GameFile):
         ...
 
     def __len__(self) -> int: ...
+    def __repr__(self) -> str: ...
 
 
 # ---------------------------------------------------------------------------
@@ -193,66 +364,25 @@ class DCXType(IntEnum):
 class DCXResult:
     """Result of DCX decompression."""
     @property
-    def data(self) -> bytes:
-        """Decompressed payload."""
-        ...
+    def data(self) -> bytes: ...
     @property
-    def type(self) -> DCXType:
-        """Detected DCX variant."""
-        ...
+    def type(self) -> DCXType: ...
 
-class DCXError(RuntimeError):
-    """Error raised by DCX operations."""
-    ...
+class DCXError(RuntimeError): ...
 
-def is_dcx(data: Union[bytes, bytearray, memoryview]) -> bool:
-    """Return True if data appears to be DCX/DCP compressed (or raw zlib)."""
-    ...
-
-def detect_dcx(data: Union[bytes, bytearray, memoryview]) -> DCXType:
-    """Detect the DCXType from the header without decompressing."""
-    ...
-
-def decompress_dcx(data: Union[bytes, bytearray, memoryview]) -> DCXResult:
-    """Decompress DCX/DCP/raw-zlib data.
-
-    Returns a DCXResult with .data (bytes) and .type (DCXType).
-    """
-    ...
-
-def compress_dcx(
-    data: Union[bytes, bytearray, memoryview],
-    dcx_type: DCXType,
-) -> bytes:
-    """Compress data into the given DCX format."""
-    ...
+def is_dcx(data: Union[bytes, bytearray, memoryview]) -> bool: ...
+def detect_dcx(data: Union[bytes, bytearray, memoryview]) -> DCXType: ...
+def decompress_dcx(data: Union[bytes, bytearray, memoryview]) -> DCXResult: ...
+def compress_dcx(data: Union[bytes, bytearray, memoryview], dcx_type: DCXType) -> bytes: ...
 
 # ---------------------------------------------------------------------------
-# Oodle DLL configuration
+# Oodle
 # ---------------------------------------------------------------------------
 
-def set_oodle_dll_path(directory: str) -> None:
-    """Set the directory to search for oo2core_6_win64.dll before default paths.
-
-    Must be called before the first DCX_KRAK compress/decompress call to take effect.
-    """
-    ...
-
-def load_oodle_dll(directory: str) -> bool:
-    """Explicitly load oo2core_6_win64.dll from the given directory.
-
-    Returns True on success. Can be called at any time.
-    """
-    ...
-
-def is_oodle_available() -> bool:
-    """Return True if the Oodle DLL has been loaded and is ready for use."""
-    ...
-
-def oodle_dll_path() -> str:
-    """Return the path the Oodle DLL was loaded from, or empty string if not loaded."""
-    ...
-
+def set_oodle_dll_path(directory: str) -> None: ...
+def load_oodle_dll(directory: str) -> bool: ...
+def is_oodle_available() -> bool: ...
+def oodle_dll_path() -> str: ...
 
 # ---------------------------------------------------------------------------
 # DDS
@@ -261,12 +391,10 @@ def oodle_dll_path() -> str:
 class DXGIFormat(IntEnum):
     """DXGI pixel format identifiers (subset relevant to FromSoftware textures)."""
     UNKNOWN = 0
-    # Uncompressed
     R8G8B8A8_UNORM = 28
     R8G8B8A8_UNORM_SRGB = 29
     B8G8R8A8_UNORM = 87
     B8G8R8A8_UNORM_SRGB = 91
-    # BC compressed
     BC1_UNORM = 71
     BC1_UNORM_SRGB = 72
     BC2_UNORM = 74
@@ -281,7 +409,6 @@ class DXGIFormat(IntEnum):
     BC6H_SF16 = 96
     BC7_UNORM = 98
     BC7_UNORM_SRGB = 99
-    # Single/dual channel
     R8_UNORM = 61
     R8G8_UNORM = 49
     R16_FLOAT = 54
@@ -290,40 +417,10 @@ class DXGIFormat(IntEnum):
     R32_FLOAT = 41
     R32G32B32A32_FLOAT = 2
 
-
-def convert_dds_to_tga(data: Union[bytes, bytearray, memoryview]) -> bytes:
-    """Convert DDS texture bytes to TGA format.
-
-    Block-compressed formats (BC1-BC7) are automatically decompressed.
-    """
-    ...
-
-def convert_dds_to_png(data: Union[bytes, bytearray, memoryview]) -> bytes:
-    """Convert DDS texture bytes to PNG format.
-
-    Block-compressed formats (BC1-BC7) are automatically decompressed.
-    """
-    ...
-
-def convert_tga_to_dds(
-    data: Union[bytes, bytearray, memoryview],
-    format: DXGIFormat,
-) -> bytes:
-    """Convert TGA image bytes to DDS with the specified DXGI pixel format.
-
-    BC6H/BC7 compression uses GPU acceleration when available.
-    """
-    ...
-
-def convert_png_to_dds(
-    data: Union[bytes, bytearray, memoryview],
-    format: DXGIFormat,
-) -> bytes:
-    """Convert PNG image bytes to DDS with the specified DXGI pixel format.
-
-    BC6H/BC7 compression uses GPU acceleration when available.
-    """
-    ...
+def convert_dds_to_tga(data: Union[bytes, bytearray, memoryview]) -> bytes: ...
+def convert_dds_to_png(data: Union[bytes, bytearray, memoryview]) -> bytes: ...
+def convert_tga_to_dds(data: Union[bytes, bytearray, memoryview], format: DXGIFormat) -> bytes: ...
+def convert_png_to_dds(data: Union[bytes, bytearray, memoryview], format: DXGIFormat) -> bytes: ...
 
 # ---------------------------------------------------------------------------
 # TPF
@@ -351,17 +448,20 @@ class TPFTexture:
     mipmap_count: int
     texture_flags: int
     data: bytes
+    def __repr__(self) -> str: ...
 
-class TPFError(RuntimeError):
-    """Error raised by TPF operations."""
-    ...
+class TPFError(RuntimeError): ...
 
 class TPF(GameFile):
     """A FromSoftware TPF texture pack file."""
     platform: TPFPlatform
     tpf_flags: int
     encoding_type: int
-    textures: list[TPFTexture]
+
+    @property
+    def textures(self) -> list[TPFTexture]:
+        """Live reference to the internal texture list (mutable)."""
+        ...
 
     @property
     def texture_count(self) -> int: ...
@@ -371,3 +471,4 @@ class TPF(GameFile):
         ...
 
     def __len__(self) -> int: ...
+    def __repr__(self) -> str: ...

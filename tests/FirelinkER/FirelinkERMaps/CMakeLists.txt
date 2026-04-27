@@ -5,6 +5,7 @@ add_executable(FirelinkERMaps_test
     main.cpp
 
     EldenRingMSBTest.cpp
+    EldenRingNavmeshTest.cpp
 )
 
 target_link_libraries(FirelinkERMaps_test PRIVATE

@@ -6,13 +6,11 @@
 #include <pybind11/numpy.h>
 #include <pybind11/stl.h>
 
-#include <FirelinkCore/BinaryReadWrite.h>
 #include <FirelinkCore/Collections.h>
-#include <FirelinkCore/DCX.h>
 #include <FirelinkCore/MemoryUtils.h>
 #include <FirelinkERMaps/MapStudio/MSB.h>
+#include <pyrelink_helpers.h>
 
-#include <filesystem>
 #include <memory>
 #include <string>
 #include <vector>
@@ -20,50 +18,6 @@
 namespace py = pybind11;
 using namespace Firelink;
 using namespace Firelink::EldenRing::Maps::MapStudio;
-
-
-// ============================================================================
-// Helpers
-// ============================================================================
-
-/// Return a Python tuple from a Vector3.
-static py::tuple vec3_to_tuple(const Vector3& v)
-{
-    return py::make_tuple(v.x, v.y, v.z);
-}
-
-/// Build a Vector3 from a Python sequence.
-static Vector3 tuple_to_vec3(const py::object& obj)
-{
-    auto seq = obj.cast<py::sequence>();
-    return Vector3{seq[0].cast<float>(), seq[1].cast<float>(), seq[2].cast<float>()};
-}
-
-// ============================================================================
-// GroupBitSet binding helper
-// ============================================================================
-
-template <std::size_t N>
-static void bind_group_bitset(py::module_& m, const char* name)
-{
-    using GBS = GroupBitSet<N>;
-    py::class_<GBS>(m, name)
-        .def(py::init<>())
-        .def(py::init<const std::set<int>&>(), py::arg("bits"))
-        .def_static("all_on", &GBS::AllOn)
-        .def_static("all_off", &GBS::AllOff)
-        .def("enable", &GBS::Enable, py::arg("index"))
-        .def("disable", &GBS::Disable, py::arg("index"))
-        .def("__getitem__", [](const GBS& self, std::size_t i) { return self[i]; })
-        .def("to_list", &GBS::ToSortedBitList)
-        .def("__repr__", [](const GBS& self) { return static_cast<std::string>(self); })
-        .def("__eq__", &GBS::operator==)
-        .def("__ne__", &GBS::operator!=);
-}
-
-// ============================================================================
-// Shape binding helpers
-// ============================================================================
 
 static void bind_shapes(py::module_& m)
 {
@@ -90,6 +44,7 @@ static void bind_shapes(py::module_& m)
         .def_property("radius", &Cylinder::GetRadius, &Cylinder::SetRadius)
         .def_property("height", &Cylinder::GetHeight, &Cylinder::SetHeight);
 
+    // Name `Rectangle` conflicts with Windows API.
     py::class_<EldenRing::Maps::MapStudio::Rectangle, Shape>(m, "RectangleShape")
         .def(py::init<>())
         .def(py::init<float, float>(), py::arg("width"), py::arg("depth"))
@@ -253,11 +208,6 @@ static void bind_part_structs(py::module_& m)
 PYBIND11_MODULE(_bindings, m)
 {
     m.doc() = "C++ Elden Ring MSB (MapStudio) bindings";
-
-    // ---- Utility types ------------------------------------------------
-    bind_group_bitset<128>(m, "GroupBitSet128");
-    bind_group_bitset<256>(m, "GroupBitSet256");
-    bind_group_bitset<1024>(m, "GroupBitSet1024");
 
     bind_shapes(m);
     bind_part_structs(m);
@@ -582,12 +532,8 @@ PYBIND11_MODULE(_bindings, m)
         .def_property("entity_id",
             [](const Region& self) { return self.GetEntityId(); },
             [](Region& self, uint32_t id) { self.SetEntityId(id); })
-        .def_property("translate",
-            [](const Region& self) { return vec3_to_tuple(self.GetTranslate()); },
-            [](Region& self, const py::object& v) { self.SetTranslate(tuple_to_vec3(v)); })
-        .def_property("rotate",
-            [](const Region& self) { return vec3_to_tuple(self.GetRotate()); },
-            [](Region& self, const py::object& v) { self.SetRotate(tuple_to_vec3(v)); })
+        .def_property("translate", &Region::GetTranslate, &Region::SetTranslate)
+        .def_property("rotate", &Region::GetRotate, &Region::SetRotate)
         .def_property("h_unk_40", &Region::GetHUnk40, &Region::SetHUnk40)
         .def_property("event_layer", &Region::GetEventLayer, &Region::SetEventLayer)
         .def_property("attached_part",
@@ -911,15 +857,9 @@ PYBIND11_MODULE(_bindings, m)
         .def_property("sib_path",
             [](const Part& self) { return self.GetSibPathUTF8(); },
             [](Part& self, const std::string& p) { self.SetSibPath(UTF8ToUTF16(p)); })
-        .def_property("translate",
-            [](const Part& self) { return vec3_to_tuple(self.GetTranslate()); },
-            [](Part& self, const py::object& v) { self.SetTranslate(tuple_to_vec3(v)); })
-        .def_property("rotate",
-            [](const Part& self) { return vec3_to_tuple(self.GetRotate()); },
-            [](Part& self, const py::object& v) { self.SetRotate(tuple_to_vec3(v)); })
-        .def_property("scale",
-            [](const Part& self) { return vec3_to_tuple(self.GetScale()); },
-            [](Part& self, const py::object& v) { self.SetScale(tuple_to_vec3(v)); })
+        .def_property("translate", &Part::GetTranslate, &Part::SetTranslate)
+        .def_property("rotate", &Part::GetRotate, &Part::SetRotate)
+        .def_property("scale", &Part::GetScale, &Part::SetScale)
         .def_property("unk_44", &Part::GetUnk44, &Part::SetUnk44)
         .def_property("event_layer", &Part::GetEventLayer, &Part::SetEventLayer)
         .def_property("unk_04", &Part::GetUnk04, &Part::SetUnk04)
@@ -1225,9 +1165,11 @@ PYBIND11_MODULE(_bindings, m)
     // MSB (top-level)
     // ====================================================================
 
-    py::class_<MSB>(m, "MSB")
-        .def(py::init<>(), "Create an empty MSB.")
+    auto msb = py::class_<MSB>(m, "MSB", "Elden Ring MSB map contents file.");
 
+    bind_game_file(msb);
+
+    msb
         .def_property_readonly("model_param",
             [](py::object& self) -> ModelParam& {
                 return py::cast<MSB&>(self).GetModelParam();
@@ -1285,129 +1227,6 @@ PYBIND11_MODULE(_bindings, m)
                 result.append(py::cast(e, py::return_value_policy::reference_internal, self));
             return result;
         })
-
-        // ---- I/O with automatic DCX handling ----
-
-        .def_static("from_bytes", [](const py::bytes& data) {
-            std::string raw_str = data;
-            const auto* raw_data = reinterpret_cast<const std::byte*>(raw_str.data());
-            const std::size_t raw_size = raw_str.size();
-
-            MSB::Ptr msb;
-            {
-                py::gil_scoped_release release;
-
-                auto temp_path = std::filesystem::temp_directory_path() / "firelink_msb_from_bytes.msb";
-
-                if (IsDCX(raw_data, raw_size))
-                {
-                    DCXResult dcx_result = DecompressDCX(raw_data, raw_size);
-                    std::ofstream tmp(temp_path, std::ios::binary);
-                    tmp.write(reinterpret_cast<const char*>(dcx_result.data.data()),
-                        static_cast<std::streamsize>(dcx_result.data.size()));
-                    tmp.close();
-                }
-                else
-                {
-                    std::ofstream tmp(temp_path, std::ios::binary);
-                    tmp.write(raw_str.data(), static_cast<std::streamsize>(raw_size));
-                    tmp.close();
-                }
-
-                msb = MSB::FromPath(temp_path);
-                std::filesystem::remove(temp_path);
-            }
-            return msb;
-        },
-        py::arg("data"),
-        "Read an MSB from raw bytes, automatically decompressing DCX if needed.")
-
-        .def("to_bytes", [](MSB& self, int dcx_type) {
-            std::vector<std::byte> output;
-            {
-                py::gil_scoped_release release;
-
-                auto temp_path = std::filesystem::temp_directory_path() / "firelink_msb_to_bytes.msb";
-                self.WriteToPath(temp_path);
-
-                std::vector<std::byte> raw = BinaryReadWrite::ReadFileBytes(temp_path.string());
-                std::filesystem::remove(temp_path);
-
-                if (dcx_type != 0)
-                    output = CompressDCX(raw.data(), raw.size(), static_cast<DCXType>(dcx_type));
-                else
-                    output = std::move(raw);
-            }
-            return py::bytes(reinterpret_cast<const char*>(output.data()), output.size());
-        },
-        py::arg("dcx_type") = 0,
-        "Serialize this MSB to bytes, optionally with DCX compression.\n\n"
-        "dcx_type: integer DCXType value. 0 = no compression.")
-
-        .def_static("from_path", [](const py::object& path_obj) {
-            py::object os = py::module_::import("os");
-            std::string path_str = os.attr("fspath")(path_obj).cast<std::string>();
-
-            std::unique_ptr<MSB> msb;
-            {
-                py::gil_scoped_release release;
-
-                const std::vector<std::byte> raw = BinaryReadWrite::ReadFileBytes(path_str);
-
-                if (IsDCX(raw.data(), raw.size()))
-                {
-                    DCXResult dcx_result = DecompressDCX(raw.data(), raw.size());
-                    // Write decompressed data to a temp file for MSB stream-based parsing.
-                    auto temp_path = std::filesystem::temp_directory_path() / "firelink_msb_temp.msb";
-                    {
-                        std::ofstream tmp(temp_path, std::ios::binary);
-                        tmp.write(reinterpret_cast<const char*>(dcx_result.data.data()),
-                            static_cast<std::streamsize>(dcx_result.data.size()));
-                    }
-                    msb = MSB::FromPath(temp_path);
-                    std::filesystem::remove(temp_path);
-                }
-                else
-                {
-                    msb = MSB::FromPath(path_str);
-                }
-            }
-            return msb;
-        },
-        py::arg("path"),
-        "Read an MSB from a file path, automatically decompressing DCX if needed.")
-
-        .def("write_to_path", [](MSB& self, const py::object& path_obj, int dcx_type) {
-            py::object os = py::module_::import("os");
-            auto path_str = os.attr("fspath")(path_obj).cast<std::string>();
-
-            py::gil_scoped_release release;
-
-            if (dcx_type == 0)
-            {
-                self.WriteToPath(path_str);
-            }
-            else
-            {
-                auto temp_path = std::filesystem::temp_directory_path() / "firelink_msb_temp_write.msb";
-                self.WriteToPath(temp_path);
-
-                std::vector<std::byte> raw = BinaryReadWrite::ReadFileBytes(temp_path.string());
-                std::filesystem::remove(temp_path);
-
-                std::vector<std::byte> compressed = CompressDCX(
-                    raw.data(), raw.size(), static_cast<DCXType>(dcx_type));
-
-                std::ofstream out(path_str, std::ios::binary);
-                if (!out) throw std::runtime_error("Could not open file for writing: " + path_str);
-                out.write(reinterpret_cast<const char*>(compressed.data()),
-                    static_cast<std::streamsize>(compressed.size()));
-            }
-        },
-        py::arg("path"),
-        py::arg("dcx_type") = 0,
-        "Write this MSB to a file path, optionally with DCX compression.\n\n"
-        "dcx_type: integer DCXType value. 0 = no compression.")
 
         .def("__repr__", [](MSB& self) {
             return "<MSB: " +
