@@ -14,6 +14,7 @@ __all__ = [
     "GroupBitSet128",
     "GroupBitSet256",
     "GroupBitSet1024",
+    "GameFile",
     # Binder
     "BinderVersion",
     "BinderFlags",
@@ -217,8 +218,11 @@ class GameFile:
         """Serialize to bytes, compressing with DCX if dcx_type is set."""
         ...
 
-    def write_to_path(self, path: Union[str, Path, None] = None) -> None:
-        """Write to path (or stored path if None)."""
+    def write_to_path(self, path: Union[str, Path, None] = None) -> Path:
+        """Write to path (or stored path if None).
+
+        Returns actual path written, which may have '.dcx' suffix added.
+        """
         ...
 
     @property
