@@ -47,7 +47,6 @@ from __future__ import annotations
 import ast
 import argparse
 import re
-import sys
 from pathlib import Path
 from dataclasses import dataclass, field
 from typing import Optional
@@ -57,37 +56,60 @@ from typing import Optional
 # ---------------------------------------------------------------------------
 
 PRIMITIVE_MAP: dict[str, tuple[str, int, bool]] = {
-    "hkInt8":           ("int8_t",   1,  True),
-    "hkInt16":          ("int16_t",  2,  True),
-    "hkInt32":          ("int32_t",  4,  True),
-    "hkInt64":          ("int64_t",  8,  True),
-    "hkUint8":          ("uint8_t",  1,  True),
-    "hkUint16":         ("uint16_t", 2,  True),
-    "hkUint32":         ("uint32_t", 4,  True),
-    "hkUint64":         ("uint64_t", 8,  True),
-    "hkReal":           ("float",    4,  True),
-    "hkHalf16":         ("uint16_t", 2,  True),
-    "hkBool":           ("bool",     1,  True),
-    "hkUlong":          ("uint64_t", 8,  True),
-    "_int":             ("int32_t",  4,  True),
-    "_short":           ("int16_t",  2,  True),
-    "_char":            ("int8_t",   1,  True),
-    "_unsigned_char":   ("uint8_t",  1,  True),
-    "_unsigned_short":  ("uint16_t", 2,  True),
-    "_unsigned_int":    ("uint32_t", 4,  True),
-    "_unsigned_long_long": ("uint64_t", 8, True),
-    "_signed_char":     ("int8_t",   1,  True),
+    "hkInt8":              ("int8_t",         1,  True),
+    "hkInt16":             ("int16_t",        2,  True),
+    "hkInt32":             ("int32_t",        4,  True),
+    "hkInt64":             ("int64_t",        8,  True),
+    "hkUint8":             ("uint8_t",        1,  True),
+    "hkUint16":            ("uint16_t",       2,  True),
+    "hkUint32":            ("uint32_t",       4,  True),
+    "hkUint64":            ("uint64_t",       8,  True),
+    "hkReal":              ("float",          4,  True),
+    "hkUFloat8":           ("uint8_t",        1,  True),
+    "hkHalf16":            ("uint16_t",       2,  True),
+    "hkBool":              ("bool",           1,  True),
+    "hkUlong":             ("uint64_t",       8,  True),  # TODO: uint32_t in older games
+    "hkUintReal":          ("uint32_t",       4,  True),
+    "_bool":               ("bool",           1,  True),
+    "_int":                ("int32_t",        4,  True),
+    "_short":              ("int16_t",        2,  True),
+    "_char":               ("int8_t",         1,  True),
+    "_unsigned_char":      ("uint8_t",        1,  True),
+    "_unsigned_short":     ("uint16_t",       2,  True),
+    "_unsigned_int":       ("uint32_t",       4,  True),
+    "_unsigned_long_long": ("uint64_t",       8,  True),
+    "_signed_char":        ("int8_t",         1,  True),
+    "_float":              ("float",          4,  True),
+    "_double":             ("double",         8,  True),
+    "_void":               ("void",           8,  True),  # TODO: correct size?
     # Math types (defined in Types.h)
-    "hkVector4":        ("hkVector4",    16, True),
-    "hkAabb":           ("hkAabb",       32, True),
-    "hkMatrix4":        ("hkMatrix4",    64, True),
-    "hkMatrix3":        ("hkMatrix3",    48, True),
-    "hkRotation":       ("hkRotation",   48, True),
-    "hkTransform":      ("hkTransform",  64, True),
-    "hkQsTransform":    ("hkQsTransform",48, True),
-    "hkQuaternion":     ("hkQuaternion", 16, True),
-    # String pointer — non-POD
-    "hkStringPtr":      ("std::string",  8,  False),
+    "hkVector4f":           ("hkVector4f",     16,  True),
+    "hkVector4":           ("hkVector4",     16,  True),
+    "hkAabb":              ("hkAabb",        32,  True),
+    "hkMatrix4Impl":           ("hkMatrix4Impl",     64,  True),
+    "hkMatrix4f":           ("hkMatrix4f",     64,  True),
+    "hkMatrix4":           ("hkMatrix4",     64,  True),
+    "hkMatrix3Impl":           ("hkMatrix3Impl",     48,  True),
+    "hkMatrix3f":           ("hkMatrix3f",     48,  True),
+    "hkMatrix3":           ("hkMatrix3",     48,  True),
+    "hkRotationImpl":          ("hkRotationImpl",    48,  True),
+    "hkRotationf":          ("hkRotationf",    48,  True),
+    "hkRotation":          ("hkRotation",    48,  True),
+    "hkTransformf":         ("hkTransformf",   64,  True),
+    "hkTransform":         ("hkTransform",   64,  True),
+    "hkQsTransformf":       ("hkQsTransformf", 48,  True),
+    "hkQsTransform":       ("hkQsTransform", 48,  True),
+    "hkQuaternionf":        ("hkQuaternionf",  16,  True),
+    "hkQuaternion":        ("hkQuaternion",  16,  True),
+    # String pointers — non-POD
+    "_const_charSTAR":     ("std::string",    8, False),
+    "_charSTAR":           ("std::string",    8, False),
+    "hkStringPtr":         ("std::string",    8, False),
+    # Other types/pointers - POD
+    "hkContainerHeapAllocator":        ("uint8_t",           1, True),
+    "hkReflectType":        ("void",           8, True),
+    "hkReflectDetailOpaque":        ("void*",           8, True),
+    "hkBaseObject":        ("void*",           8, True),
 }
 
 # Types whose C++ base is  HkReferencedObject
@@ -138,8 +160,8 @@ class MemberDef:
 
 @dataclass
 class TypeDef:
-    class_name: str    # Python class name == C++ struct name
-    real_name:  str    # Havok dispatch name (real_name attr or class_name)
+    py_name: str       # Python class name
+    real_name:  str    # Havok C++ name
     base_class: str    # Python base class name
     alignment:  int
     byte_size:  int
@@ -265,7 +287,7 @@ def _parse_texpr(
             cpp = f"std::array<{inner_te.cpp_type}, {count}>"
             return TypeExpr("fixed_array", cpp, inner_te.cpp_type, "", True)
 
-        if fname in ("hkRefPtr", "hkRefVariant", "Ptr_", "Ptr"):
+        if fname in ("hkRefPtr", "hkRefVariant", "Ptr_", "Ptr", "hkBasePointer"):
             if not args:
                 return TypeExpr("refptr", "std::shared_ptr<HkObject>", "HkObject", "", False)
             inner_te = _parse_texpr(args[0], local_types, aliases)
@@ -307,9 +329,9 @@ def _is_pod(td: TypeDef, local_types: dict[str, TypeDef],
     """A type is POD iff it and all its base classes have only POD members."""
     if _visited is None:
         _visited = frozenset()
-    if td.class_name in _visited:
+    if td.py_name in _visited:
         return True  # cycle guard
-    _visited = _visited | {td.class_name}
+    _visited = _visited | {td.py_name}
 
     if td.kind in ("alias", "enum"):
         return True
@@ -321,8 +343,6 @@ def _is_pod(td: TypeDef, local_types: dict[str, TypeDef],
             return False
 
     for m in td.members:
-        if m.not_serializable:
-            continue
         te = m.texpr
         if te.kind in ("array", "relarray", "refptr", "viewptr", "string", "unknown",
                        "ptr_array"):
@@ -345,9 +365,9 @@ def _collect_all_members(td: TypeDef, local_types: dict[str, TypeDef],
     reads the fields it inherits."""
     if _visited is None:
         _visited = frozenset()
-    if td.class_name in _visited:
+    if td.py_name in _visited:
         return []
-    _visited = _visited | {td.class_name}
+    _visited = _visited | {td.py_name}
 
     result: list[MemberDef] = []
 
@@ -380,6 +400,8 @@ def _parse_member(call: ast.Call, local_types: dict, aliases: dict) -> Optional[
     name = _str_const(call.args[1])
     if offset is None or name is None:
         return None
+    if name[0].isnumeric():
+        name = f"_{name}"
 
     texpr = _parse_texpr(call.args[2], local_types, aliases)
 
@@ -408,13 +430,16 @@ def parse_py_file(
     path: Path,
     local_types: dict[str, TypeDef],
     aliases: dict[str, str],
-) -> Optional[TypeDef]:
+) -> list[TypeDef]:
     """Parse one Python Havok type file and return a TypeDef (or None on failure)."""
+
+    type_defs = []
+
     try:
         source = path.read_text(encoding="utf-8")
         tree = ast.parse(source)
     except Exception:
-        return None
+        return []
 
     for node in ast.walk(tree):
         if not isinstance(node, ast.ClassDef) or not node.bases:
@@ -422,6 +447,12 @@ def parse_py_file(
 
         class_name = node.name
         base_class = _name(node.bases[0]) or "hk"
+        if base_class == "hkBasePointer":
+            # Not a real base class (Python convenience for all types with a `data_type`).
+            base_class = "hk"
+
+        if class_name in PRIMITIVE_MAP:
+            continue  # ignore primitives (already defined in FirelinkCore/Havok/Types.h)
 
         real_name = class_name
         alignment = 8
@@ -496,8 +527,8 @@ def parse_py_file(
         else:
             kind = "struct"
 
-        return TypeDef(
-            class_name=class_name,
+        type_defs.append(TypeDef(
+            py_name=class_name,
             real_name=real_name,
             base_class=base_class,
             alignment=alignment,
@@ -506,9 +537,9 @@ def parse_py_file(
             members=members,
             hsh=hsh_val,
             version=ver_val,
-        )
+        ))
 
-    return None
+    return type_defs
 
 
 def _is_refobj_base(base: str, local_types: dict[str, TypeDef]) -> bool:
@@ -599,23 +630,25 @@ def gen_struct_decl(td: TypeDef, local_types: dict[str, TypeDef],
 
     dispatch = td.dispatch_name
     comment = f'/// Havok type "{dispatch}"'
-    if dispatch != td.class_name:
-        comment += f"  (Python class: {td.class_name})"
+    if dispatch != td.py_name:
+        comment += f"  (Python class: {td.py_name})"
     lines.append(comment)
     if td.byte_size:
-        lines.append(f"/// byte_size={td.byte_size}, alignment={td.alignment}")
+        is_pod = _is_pod(td, local_types)
+        lines.append(f"/// byte_size={td.byte_size}, alignment={td.alignment}, is_pod={is_pod}")
 
     # ---- alias / enum → using declaration (unless used as a base class) ----
-    if td.kind in ("alias", "enum") and td.class_name not in base_class_set:
-        base_cpp = PRIMITIVE_MAP.get(td.base_class, ("int32_t", 0, True))[0]
+    if td.kind in ("alias", "enum") and td.py_name not in base_class_set:
+        base_cpp = PRIMITIVE_MAP.get(td.base_class, ("ERROR", 0, True))[0]
         suffix = "  // Havok enum/alias" if td.kind == "enum" else ""
-        lines.append(f"using {td.class_name} = {base_cpp};{suffix}")
+        lines.append(f"using {td.py_name} = {base_cpp};{suffix}")
         lines.append("")
         return "\n".join(lines)
 
     # ---- alias/enum used as a base class → emit as empty struct ----
-    if td.kind in ("alias", "enum") and td.class_name in base_class_set:
-        lines.append(f"struct {td.class_name} {{}};  // empty base (Havok alias/enum used as base class)")
+    if td.kind in ("alias", "enum") and td.py_name in base_class_set:
+        print(f"# WARNING: Type {td.py_name} is an alias/enum, but is used as a base class.")
+        lines.append(f"struct {td.py_name} {{}};  // empty base (Havok alias/enum used as base class)")
         lines.append("")
         return "\n".join(lines)
 
@@ -623,8 +656,9 @@ def gen_struct_decl(td: TypeDef, local_types: dict[str, TypeDef],
     base = _cpp_base(td)
     # NOTE: Not using 'alignas' because ideally it isn't needed.
     # alignas_str = f"alignas({td.alignment}) " if td.alignment > 8 else ""
+    # TODO: Use true C++ name (td.real_name), nesting structs with '::' separators appropriately.
     alignas_str = ""
-    header = f"struct {alignas_str}{td.class_name}"
+    header = f"struct {alignas_str}{td.py_name}"
     if base:
         header += f" : {base}"
     lines.append(header)
@@ -639,19 +673,17 @@ def gen_struct_decl(td: TypeDef, local_types: dict[str, TypeDef],
         te = m.texpr
         comment = f"  // offset {m.offset}"
         if m.not_serializable:
-            comment += " [not serialized]"
+            comment += " [not serialized (null)]"
         default = ""
         # Give numeric/bool fields a zero-initializer
         if te.kind in ("primitive", "alias", "enum", "flags"):
             default = "{}"
         lines.append(f"{I}{te.cpp_type} {m.name}{default};{comment}")
 
-    if _is_trivially_pod(td, local_types) and td.byte_size:
-        lines.append("};")
-        lines.append(f"static_assert(sizeof({td.class_name}) == {td.byte_size},")
-        lines.append(f'              "Layout mismatch for {td.class_name}");')
-    else:
-        lines.append("};")
+    lines.append("};")
+    if _is_pod(td, local_types) and td.byte_size:
+        lines.append(f"static_assert(sizeof({td.py_name}) == {td.byte_size},")
+        lines.append(f'              "Layout mismatch for {td.py_name}");')
 
     lines.append("")
     return "\n".join(lines)
@@ -774,10 +806,10 @@ def gen_inline_deser(td: TypeDef, local_types: dict[str, TypeDef]) -> Optional[s
         return None  # POD → no inline deserializer needed
 
     lines: list[str] = []
-    lines.append(f"static {td.class_name} Deser_Inline_{td.class_name}"
+    lines.append(f"static {td.py_name} Deser_Inline_{td.py_name}"
                  f"(TagFileUnpacker& u, size_t base)")
     lines.append("{")
-    lines.append(f"{I}{td.class_name} r{{}};")
+    lines.append(f"{I}{td.py_name} r{{}};")
     all_members = _collect_all_members(td, local_types)
     for m in all_members:
         if m.not_serializable:
@@ -795,10 +827,10 @@ def gen_refobj_deser(td: TypeDef, local_types: dict[str, TypeDef]) -> Optional[s
         return None
 
     lines: list[str] = []
-    lines.append(f"std::shared_ptr<HkObject> Deser_{td.class_name}"
+    lines.append(f"std::shared_ptr<HkObject> Deser_{td.py_name}"
                  f"(TagFileUnpacker& u, const TagFileItem& item)")
     lines.append("{")
-    lines.append(f"{I}auto r = std::make_shared<{td.class_name}>();")
+    lines.append(f"{I}auto r = std::make_shared<{td.py_name}>();")
     lines.append(f"{I}const size_t base = item.absoluteDataOffset;")
     lines.append("")
     all_members = _collect_all_members(td, local_types)
@@ -821,7 +853,7 @@ def gen_register_func(sorted_types: list[TypeDef], func_name: str, ns: str) -> s
         if td.kind != "refobj":
             continue
         dn = td.dispatch_name
-        fn = f"Deser_{td.class_name}"
+        fn = f"Deser_{td.py_name}"
         lines.append(f'{I}u.Register("{dn}",'
                      f" [](TagFileUnpacker& u_, const TagFileItem& i_)"
                      f" -> std::shared_ptr<HkObject>")
@@ -851,10 +883,6 @@ def collect_forward_decls(sorted_types: list[TypeDef], local_names: set[str]) ->
     for py_name, (cpp_name, _, _) in PRIMITIVE_MAP.items():
         cpp_builtins.add(py_name)
         cpp_builtins.add(cpp_name)
-    # add math / container prefixes
-    math_types = {"hkVector4", "hkAabb", "hkMatrix4", "hkMatrix3", "hkRotation",
-                  "hkTransform", "hkQsTransform", "hkQuaternion"}
-    cpp_builtins |= math_types
 
     needed: set[str] = set()
     for td in sorted_types:
@@ -882,6 +910,8 @@ def main(argv: list[str] | None = None):
     ap.add_argument("input_folder", help="Folder with *.py Havok type definitions")
     ap.add_argument("output_h",   help="Output C++ header (.h)")
     ap.add_argument("output_cpp", help="Output C++ source (.cpp)")
+    ap.add_argument("--file-glob", default="*.py",
+                    help="Pattern than Python modules must match (default: *.py)")
     ap.add_argument("--reg-func", default=None,
                     help="Name of the registration function (default: Register<Folder>Dispatch)")
     ap.add_argument("--ns", default="Firelink::Havok", help="C++ namespace")
@@ -898,6 +928,8 @@ def main(argv: list[str] | None = None):
     args = ap.parse_args(argv)
 
     input_dir = Path(args.input_folder)
+    if not (input_dir.is_dir()):
+        raise FileNotFoundError(f"Input dir does not exist: {input_dir}")
     output_h   = Path(args.output_h)
     output_cpp = Path(args.output_cpp)
 
@@ -909,29 +941,37 @@ def main(argv: list[str] | None = None):
         reg_func = f"Register{cap}Dispatch"
 
     # ---- Pass 1: scan all files, build alias table for pass 2 ----
-    py_files = sorted(f for f in input_dir.glob("*.py") if f.name != "__init__.py")
+    py_files = sorted(
+        f for f in input_dir.glob(args.file_glob)
+        if f.name != "__init__.py")
+    if not py_files:
+        print(f"# WARNING: No valid Python modules in {input_dir}.")
 
     # First, build only alias/enum info so later types can resolve those names
     local_types_pass1: dict[str, TypeDef] = {}
     aliases_pass1: dict[str, str] = {}
 
     for pyf in py_files:
-        td = parse_py_file(pyf, local_types_pass1, aliases_pass1)
-        if td:
-            local_types_pass1[td.class_name] = td
+        tds = parse_py_file(pyf, local_types_pass1, aliases_pass1)
+        for td in tds:
+            local_types_pass1[td.py_name] = td
             if td.kind in ("alias", "enum"):
                 base_cpp = PRIMITIVE_MAP.get(td.base_class, (td.base_class, 0, True))[0]
-                aliases_pass1[td.class_name] = base_cpp
+                aliases_pass1[td.py_name] = base_cpp
+
+    print("Aliases (pass 1):")
+    for k, v in aliases_pass1.items():
+        print(f"{k} = {v}")
 
     # ---- Pass 2: full parse with the alias table ----
     local_types: dict[str, TypeDef] = {}
     for pyf in py_files:
-        td = parse_py_file(pyf, local_types, aliases_pass1)
-        if td:
-            local_types[td.class_name] = td
+        tds = parse_py_file(pyf, local_types, aliases_pass1)
+        for td in tds:
+            local_types[td.py_name] = td
             if td.kind in ("alias", "enum"):
                 base_cpp = PRIMITIVE_MAP.get(td.base_class, (td.base_class, 0, True))[0]
-                aliases_pass1[td.class_name] = base_cpp  # accumulate
+                aliases_pass1[td.py_name] = base_cpp  # accumulate
 
     # Fix up refobj kinds now that we have full inheritance chain
     for td in local_types.values():
@@ -962,6 +1002,7 @@ def main(argv: list[str] | None = None):
         "#include <string>",
         "#include <vector>",
         "#include <FirelinkCore/Havok/Types.h>",
+        f"#include <{args.tagfile_h}>",
         "",
         f"namespace {args.ns}",
         "{",
@@ -975,11 +1016,10 @@ def main(argv: list[str] | None = None):
     for td in sorted_types:
         h_lines.append(gen_struct_decl(td, local_types, base_class_set))
 
-    # Forward-declare the register function
+    # Declare the register function (TagFileUnpacker is now fully defined via the include above)
     h_lines += [
         "// Registers all deserializers for this type set.",
-        f"// Call after constructing TagFileUnpacker (or from TagFileUnpacker::RegisterDispatch).",
-        "class TagFileUnpacker;",
+        f"// Call from your HKX subclass after constructing TagFileUnpacker.",
         f"void {reg_func}(TagFileUnpacker& u);",
         "",
         f"}}  // namespace {args.ns}",
@@ -993,7 +1033,6 @@ def main(argv: list[str] | None = None):
     cpp_lines: list[str] = [
         "// AUTO-GENERATED by gen_hk_types.py — do not edit manually",
         f"#include <{args.self_include or f'FirelinkCore/Havok/{output_h.name}'}>",
-        f"#include <{args.tagfile_h}>",
         "#include <cstring>",
     ]
     for dep in args.dep_headers:

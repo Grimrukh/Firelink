@@ -1,1 +1,1 @@
-add_subdirectory(EldenRingNavmeshDev)
+#add_subdirectory(EldenRingNavmeshDev)  # TODO: Not ready.

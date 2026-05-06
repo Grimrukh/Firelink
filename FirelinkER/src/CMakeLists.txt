@@ -1,3 +1,0 @@
-add_subdirectory(FirelinkERHavok)
-add_subdirectory(FirelinkERHook)
-add_subdirectory(FirelinkERMaps)
