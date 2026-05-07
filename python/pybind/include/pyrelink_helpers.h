@@ -22,7 +22,7 @@ inline std::pair<const std::byte*, std::size_t> borrow_buffer(const py::buffer& 
 /// Convert a std::vector<std::byte> to a Python `bytes` object.
 inline py::bytes vector_to_bytes(const std::vector<std::byte>& v)
 {
-    return py::bytes(reinterpret_cast<const char*>(v.data()), v.size());
+    return {reinterpret_cast<const char*>(v.data()), v.size()};
 }
 
 /// @brief Convert a Python path-like (str, Path, os.PathLike) to std::filesystem::path.
@@ -30,7 +30,7 @@ inline py::bytes vector_to_bytes(const std::vector<std::byte>& v)
 inline std::filesystem::path to_fs_path(const py::object& obj)
 {
     // py::str handles both str and os.PathLike (including pathlib.Path) via __fspath__
-    return std::filesystem::path(py::str(obj).cast<std::string>());
+    return {py::str(obj).cast<std::string>()};
 }
 
 /// @brief Template function for binding C++ classes `T` that inherit from `GameFile<T>`.

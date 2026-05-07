@@ -13,6 +13,9 @@ test = ["pytest"]
 
 [tool.scikit-build]
 wheel.packages = ["python/pyrelink"]
-
 # Optional: speed up dev rebuilds
 build-dir = "build/{wheel_tag}"
+# Ensure the CMake helper modules are included in the sdist.
+sdist.include = ["CMake/**"]
+# Disable tests and standalone app targets when building the wheel.
+cmake.args = ["-DFIRELINK_BUILD_TESTS=OFF"]

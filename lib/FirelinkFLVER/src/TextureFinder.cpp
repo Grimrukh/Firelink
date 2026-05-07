@@ -7,7 +7,7 @@
 #include <FirelinkCore/Logging.h>
 #include <FirelinkCore/Paths.h>
 
-#include <re2/re2.h>
+#include <regex>
 
 #include <algorithm>
 
@@ -17,7 +17,8 @@ namespace Firelink
 
     namespace
     {
-        RE2 TPF_RE(R"((?i).*\.tpf(\.dcx)?$)"); // case-insensitive regex for *.tpf or *.tpf.dcx
+        // Matches *.tpf or *.tpf.dcx (case-insensitive).
+        const std::regex TPF_RE(R"(.*\.tpf(\.dcx)?$)", std::regex_constants::icase);
     }
 
     // ========================================================================
@@ -261,11 +262,12 @@ namespace Firelink
     void TextureFinder::RegisterMapTextures(const fs::path& source_dir)
     {
         // Extract map area from directory name (mAA_BB_CC_DD → mAA).
-        const auto dir_name = source_dir.filename().string();
-        static const RE2 map_re(R"(^(m\d\d)_)");
-        std::string area;
-        if (!RE2::PartialMatch(dir_name, map_re, &area))
+        auto dir_name = source_dir.filename().string();
+        static const std::regex map_re(R"(^(m\d\d)_)");
+        std::smatch match;
+        if (!std::regex_search(dir_name, match, map_re))
             return;
+        const auto area = match[1].str();
 
         const auto map_area_dir = (source_dir.parent_path() / area).lexically_normal();
         RegisterMapAreaTextures(map_area_dir);
@@ -296,7 +298,7 @@ namespace Firelink
                 if (!m_scannedBinders.contains(stem))
                     m_pendingBinders.try_emplace(stem, entry.path());
             }
-            else if (RE2::FullMatch(name, TPF_RE))
+            else if (std::regex_match(name, TPF_RE))
             {
                 auto stem = StemOf(entry.path());
                 if (!m_scannedTPFs.contains(stem))
@@ -339,7 +341,7 @@ namespace Firelink
         for (auto& entry : fs::directory_iterator(dir))
         {
             if (!entry.is_regular_file()) continue;
-            if (RE2::FullMatch(entry.path().filename().string(), TPF_RE))
+            if (std::regex_match(entry.path().filename().string(), TPF_RE))
             {
                 auto stem = StemOf(entry.path());
                 if (!m_scannedTPFs.contains(stem))
@@ -351,7 +353,7 @@ namespace Firelink
     void TextureFinder::RegisterChrTPFBDTs(const fs::path& source_dir, const Binder& chrbnd)
     {
         // Look for a .chrtpfbhd entry inside the CHRBND.
-        static const RE2 bhd_re(R"(\.chrtpfbhd$)");
+        static const std::regex bhd_re(R"(\.chrtpfbhd$)");
         const BinderEntry* bhd_entry = chrbnd.FindEntryByNameRegex(bhd_re);
         if (!bhd_entry) return;
 

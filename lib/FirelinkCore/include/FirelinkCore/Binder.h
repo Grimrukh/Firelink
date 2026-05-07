@@ -11,11 +11,12 @@
 #include <FirelinkCore/Export.h>
 #include <FirelinkCore/GameFile.h>
 
-#include <re2/re2.h>
 
 #include <cstddef>
 #include <filesystem>
+#include <functional>
 #include <optional>
+#include <regex>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -164,14 +165,14 @@ namespace Firelink
 
         /// @brief Find entry by regex match to name (basename). Returns nullptr if not found.
         /// @note Exactly one entry must match, or a `MultipleBinderEntriesFoundError` will be thrown.
-        [[nodiscard]] const BinderEntry* FindEntryByNameRegex(const RE2& regex, bool fullMatch = false) const;
-        [[nodiscard]] BinderEntry* FindEntryByNameRegex(const RE2& regex, bool fullMatch = false);
+        [[nodiscard]] const BinderEntry* FindEntryByNameRegex(const std::regex& pattern, bool fullMatch = false) const;
+        [[nodiscard]] BinderEntry* FindEntryByNameRegex(const std::regex& pattern, bool fullMatch = false);
 
         /// @brief Find all entries whose names match the given regex.
         [[nodiscard]] std::vector<const BinderEntry*> FindEntriesByNameRegex(
-            const RE2& regex, bool fullMatch = false) const;
+            const std::regex& pattern, bool fullMatch = false) const;
         [[nodiscard]] std::vector<BinderEntry*> FindEntriesByNameRegex(
-            const RE2& regex, bool fullMatch = false);
+            const std::regex& pattern, bool fullMatch = false);
 
         /// @brief Alias for entry filter function.
         using EntryFilter = std::function<bool(const BinderEntry&)>;

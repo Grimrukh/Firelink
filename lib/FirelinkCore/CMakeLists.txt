@@ -67,26 +67,6 @@ generate_firelink_export_header(FirelinkCore FIRELINK_CORE_API)
 include(FetchContent)
 
 macro(get_firelink_core_dependencies)
-    # Abseil
-    FetchContent_Declare(
-        abseil
-        GIT_REPOSITORY https://github.com/abseil/abseil-cpp
-        GIT_TAG        20250814.2
-        GIT_SHALLOW    TRUE
-    )
-    set(ABSL_ENABLE_INSTALL ON)
-    FetchContent_MakeAvailable(abseil)
-
-    # re2
-    include(FetchContent)
-    FetchContent_Declare(
-        re2
-        GIT_REPOSITORY https://github.com/google/re2
-        GIT_TAG        2025-11-05
-        GIT_SHALLOW    TRUE
-    )
-    set(RE2_INSTALL ON)
-    FetchContent_MakeAvailable(re2)
 
     # --- zlib ---
     FetchContent_Declare(
@@ -140,9 +120,6 @@ endmacro()
 
 get_firelink_core_dependencies()
 
-target_link_libraries(FirelinkCore PUBLIC
-    re2::re2
-)
 
 # Link against the fetched dependencies.
 # ole32   — COM / WIC (PNG output via SaveToWICMemory)

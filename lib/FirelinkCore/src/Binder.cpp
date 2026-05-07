@@ -700,50 +700,50 @@ namespace Firelink
         return const_cast<BinderEntry*>(std::as_const(*this).FindEntryByName(name));
     }
 
-    const BinderEntry* Binder::FindEntryByNameRegex(const RE2& regex, const bool fullMatch) const
+    const BinderEntry* Binder::FindEntryByNameRegex(const std::regex& pattern, const bool fullMatch) const
     {
         BinderEntry const* candidate = nullptr;
         for (auto& entry : m_entries)
         {
-            if (fullMatch ? RE2::FullMatch(entry.name(), regex) : RE2::PartialMatch(entry.name(), regex))
+            const auto& n = entry.name();
+            const bool matched = fullMatch ? std::regex_match(n, pattern) : std::regex_search(n, pattern);
+            if (matched)
             {
                 if (candidate != nullptr)
                     throw MultipleBinderEntriesFoundError(std::format(
-                        "Multiple entries match regex '{}': '{}' and '{}'.",
-                        regex.pattern(), candidate->path, entry.path));
+                        "Multiple entries match regex: '{}' and '{}'.",
+                        candidate->path, entry.path));
                 candidate = &entry;
             }
         }
-        return nullptr;
+        return candidate;
     }
 
-    BinderEntry* Binder::FindEntryByNameRegex(const RE2& regex, const bool fullMatch)
+    BinderEntry* Binder::FindEntryByNameRegex(const std::regex& pattern, const bool fullMatch)
     {
-        return const_cast<BinderEntry*>(std::as_const(*this).FindEntryByNameRegex(regex, fullMatch));
+        return const_cast<BinderEntry*>(std::as_const(*this).FindEntryByNameRegex(pattern, fullMatch));
     }
 
-    std::vector<const BinderEntry*> Binder::FindEntriesByNameRegex(const RE2& regex, const bool fullMatch) const
+    std::vector<const BinderEntry*> Binder::FindEntriesByNameRegex(const std::regex& pattern, const bool fullMatch) const
     {
         std::vector<const BinderEntry*> entries;
         for (auto& e : m_entries)
         {
-            if (fullMatch ? RE2::FullMatch(e.name(), regex) : RE2::PartialMatch(e.name(), regex))
-            {
+            const auto& n = e.name();
+            if (fullMatch ? std::regex_match(n, pattern) : std::regex_search(n, pattern))
                 entries.push_back(&e);
-            }
         }
         return entries;
     }
 
-    std::vector<BinderEntry*> Binder::FindEntriesByNameRegex(const RE2& regex, const bool fullMatch)
+    std::vector<BinderEntry*> Binder::FindEntriesByNameRegex(const std::regex& pattern, const bool fullMatch)
     {
         std::vector<BinderEntry*> entries;
         for (auto& e : m_entries)
         {
-            if (fullMatch ? RE2::FullMatch(e.name(), regex) : RE2::PartialMatch(e.name(), regex))
-            {
+            const auto& n = e.name();
+            if (fullMatch ? std::regex_match(n, pattern) : std::regex_search(n, pattern))
                 entries.push_back(&e);
-            }
         }
         return entries;
     }
