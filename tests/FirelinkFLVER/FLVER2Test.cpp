@@ -244,24 +244,24 @@ TEST_CASE("FLVER2 round-trip: write and re-read")
     }
 }
 
-TEST_CASE("FLVER2 round-trip: DCX compressed fixture")
+TEST_CASE("FLVER2 round-trip: Dark Souls Remastered simple Map Piece FLVER")
 {
-    const auto path = GetResourcePath("darksouls1r/m0100B2A10.flver.dcx");
+    const auto path = GetResourcePath("darksouls1r/m0100B2A10.flver");
     const auto raw = LoadFile(path);
     if (raw.empty())
     {
-        MESSAGE("Skipping — fixture not found");
+        MESSAGE("Skipping — fixture darksouls1r/m0100B2A10.flver not found");
         return;
     }
 
-    // Read (handles DCX internally).
+    // Read.
     const FLVER::CPtr orig = FLVER::FromBytes(raw.data(), raw.size());
 
-    // Write (produces uncompressed FLVER bytes).
+    // Write (produces FLVER bytes).
     const std::vector<std::byte> written = orig->ToBytes();
     REQUIRE(written.size() > 128);
 
-    // Re-read the uncompressed FLVER.
+    // Re-read the FLVER.
     const FLVER::CPtr reread = FLVER::FromBytes(written.data(), written.size());
 
     CheckFLVEREqual(*orig, *reread);
@@ -450,31 +450,4 @@ TEST_CASE("MergedMesh: builds successfully for all fixtures")
             CHECK(all_valid);
         }
     }
-}
-
-TEST_CASE("FLVER: reads from DCX compressed file")
-{
-    auto path = GetResourcePath("darksouls1r/m0100B2A10.flver.dcx");
-    auto raw = LoadFile(path);
-    if (raw.empty())
-    {
-        MESSAGE("Skipping — fixture not found");
-        return;
-    }
-
-    DCXResult result = DecompressDCX(raw.data(), raw.size());
-
-    // Should have decompressed to a non-empty buffer.
-    REQUIRE(result.data.size() > 0);
-    CHECK(result.type != DCXType::Unknown);
-    CHECK(result.type != DCXType::Null);
-
-    // First 4 bytes of a FLVER file are "FLVR" (little-endian magic).
-    // Actually the FLVER magic is "FLVER\0" at offset 6. Let's just parse it.
-    FLVER::CPtr flver = FLVER::FromBytes(result.data.data(), result.data.size());
-
-    // Basic sanity checks on the parsed FLVER.
-    CHECK(flver->Meshes().size() > 0);
-    CHECK(flver->Bones().size() > 0);
-    CHECK(flver->GetIsBigEndian() == false);
 }

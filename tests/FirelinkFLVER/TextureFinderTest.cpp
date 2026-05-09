@@ -8,7 +8,6 @@
 
 #include <FirelinkFLVER/TextureFinder.h>
 
-#include <FirelinkCore/DCX.h>
 #include <FirelinkCore/Paths.h>
 
 #include <filesystem>
@@ -45,20 +44,19 @@ TEST_CASE("TextureFinder: DSR character texture loading")
     }
 
     // The test resources directory acts as a fake game data root.
-    // c2300.chrbnd.dcx and c2300.chrtpfbdt are in the resources directory.
+    // c2300.chrbnd and c2300.chrtpfbdt are in the resources directory.
     auto res = GetResourcePath("darksouls1r");
 
     // Load the CHRBND so we can pass it as the flver_binder.
-    auto chrbnd_path = GetResourcePath("darksouls1r/c2300.chrbnd.dcx");
+    auto chrbnd_path = GetResourcePath("darksouls1r/c2300.chrbnd");
     auto raw = LoadFile(chrbnd_path);
     if (raw.empty())
     {
-        MESSAGE("Skipping — c2300.chrbnd.dcx not found");
+        MESSAGE("Skipping — c2300.chrbnd not found");
         return;
     }
 
-    auto dcx_result = DecompressDCX(raw.data(), raw.size());
-    auto chrbnd = Binder::FromBytes(dcx_result.data.data(), dcx_result.data.size());
+    const auto chrbnd = Binder::FromPath(chrbnd_path);
 
     TextureFinder mgr(GameType::DarkSoulsDSR, res.string());
     mgr.RegisterFLVERSources(chrbnd_path, chrbnd.get());

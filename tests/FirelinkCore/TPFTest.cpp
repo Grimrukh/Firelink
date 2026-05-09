@@ -125,7 +125,7 @@ TEST_CASE("TPF: read TPF from c2300 split binder")
 {
     // Load split binder.
     auto binder = LoadSplitChrtpfbxf(
-        "darksouls1r/c2300.chrbnd.dcx", "darksouls1r/c2300.chrtpfbdt");
+        "darksouls1r/c2300.chrbnd", "darksouls1r/c2300.chrtpfbdt");
 
     REQUIRE(binder->Entries().size() > 0);
 

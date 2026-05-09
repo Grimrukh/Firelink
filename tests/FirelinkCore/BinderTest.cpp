@@ -1,7 +1,6 @@
 // Unit tests for the Binder (BND3/BND4) archive reader/writer.
 //
-// Uses *.bnd.dcx test fixtures to verify:
-//   - Parsing DCX-compressed BND files
+// Uses *.bnd test fixtures to verify:
 //   - Entry count and entry properties
 //   - Round-trip: read -> write -> re-read produces identical entries
 
@@ -9,8 +8,6 @@
 
 #include <FirelinkTestHelpers.h>
 #include <FirelinkCore/Binder.h>
-#include <FirelinkCore/DCX.h>
-#include <FirelinkCore/Oodle.h>
 #include <FirelinkCore/TPF.h>
 #include "FirelinkCoreTestHelpers.h"
 
@@ -19,44 +16,23 @@
 
 using namespace Firelink;
 
-namespace
-{
-    // Decompress a DCX file and parse as Binder.
-    Binder::Ptr LoadBinderDCX(const char* name)
-    {
-        auto path = GetResourcePath(name);
-        
-        auto raw = LoadFile(path);
-        if (raw.empty())
-            return nullptr;
-
-        // Detect DCX type; skip if KRAK and no Oodle.
-        auto dcx_type = DetectDCX(raw.data(), raw.size());
-        if (dcx_type == DCXType::DCX_KRAK && !Oodle::IsAvailable())
-            return nullptr;
-
-        auto result = DecompressDCX(raw.data(), raw.size());
-        return Binder::FromBytes(result.data.data(), result.data.size());
-    }
-} // namespace
-
 // ---------------------------------------------------------------------------
-// Fixture: c2300.chrbnd.dcx (Elden Ring character binder, BND4, DCX_KRAK)
+// Fixture: c2300.chrbnd (Elden Ring character binder, BND4, DCX_KRAK)
 // ---------------------------------------------------------------------------
 
-TEST_CASE("Binder: read c2300.chrbnd.dcx")
+TEST_CASE("Binder: read c2300.chrbnd")
 {
-    auto binder = LoadBinderDCX("darksouls1r/c2300.chrbnd.dcx");
+    auto binder = Binder::FromPath(GetResourcePath("darksouls1r/c2300.chrbnd"));
     if (!binder)
     {
-        MESSAGE("Skipping — c2300.chrbnd.dcx not available (missing fixture or Oodle DLL)");
+        MESSAGE("Skipping — c2300.chrbnd not available (missing fixture or Oodle DLL)");
         return;
     }
 
     CHECK((binder->GetVersion() == BinderVersion::V3 || binder->GetVersion() == BinderVersion::V4));
     CHECK(binder->Entries().size() > 0);
-    MESSAGE("c2300.chrbnd.dcx version: " << static_cast<int>(binder->GetVersion()));
-    MESSAGE("c2300.chrbnd.dcx entry count: " << binder->Entries().size());
+    MESSAGE("c2300.chrbnd version: " << static_cast<int>(binder->GetVersion()));
+    MESSAGE("c2300.chrbnd entry count: " << binder->Entries().size());
 
     // All entries should have IDs and paths.
     for (const auto& e : binder->Entries())
@@ -67,12 +43,12 @@ TEST_CASE("Binder: read c2300.chrbnd.dcx")
     }
 }
 
-TEST_CASE("Binder: round-trip c2300.chrbnd.dcx")
+TEST_CASE("Binder: round-trip c2300.chrbnd")
 {
-    auto binder = LoadBinderDCX("darksouls1r/c2300.chrbnd.dcx");
+    auto binder = Binder::FromPath(GetResourcePath("darksouls1r/c2300.chrbnd"));
     if (!binder)
     {
-        MESSAGE("Skipping — c2300.chrbnd.dcx not available");
+        MESSAGE("Skipping — c2300.chrbnd not available");
         return;
     }
 
@@ -97,30 +73,30 @@ TEST_CASE("Binder: round-trip c2300.chrbnd.dcx")
 }
 
 // ---------------------------------------------------------------------------
-// Fixture: c2010.anibnd.dcx (Elden Ring animation binder, BND4, DCX_KRAK)
+// Fixture: c2010.anibnd (Elden Ring animation binder, BND4, DCX_KRAK)
 // ---------------------------------------------------------------------------
 
-TEST_CASE("Binder: read c2010.anibnd.dcx")
+TEST_CASE("Binder: read c2010.anibnd")
 {
-    auto binder = LoadBinderDCX("eldenring/c2010.anibnd.dcx");
+    auto binder = Binder::FromPath(GetResourcePath("eldenring/c2010.anibnd"));
     if (!binder)
     {
-        MESSAGE("Skipping — c2010.anibnd.dcx not available");
+        MESSAGE("Skipping — c2010.anibnd not available");
         return;
     }
 
     CHECK((binder->GetVersion() == BinderVersion::V3 || binder->GetVersion() == BinderVersion::V4));
     CHECK(binder->Entries().size() > 0);
-    MESSAGE("c2010.anibnd.dcx version: " << static_cast<int>(binder->GetVersion()));
-    MESSAGE("c2010.anibnd.dcx entry count: " << binder->Entries().size());
+    MESSAGE("c2010.anibnd version: " << static_cast<int>(binder->GetVersion()));
+    MESSAGE("c2010.anibnd entry count: " << binder->Entries().size());
 }
 
-TEST_CASE("Binder: round-trip c2010.anibnd.dcx")
+TEST_CASE("Binder: round-trip c2010.anibnd")
 {
-    auto binder = LoadBinderDCX("eldenring/c2010.anibnd.dcx");
+    auto binder = Binder::FromPath(GetResourcePath("eldenring/c2010.anibnd"));
     if (!binder)
     {
-        MESSAGE("Skipping — c2010.anibnd.dcx not available");
+        MESSAGE("Skipping — c2010.anibnd not available");
         return;
     }
 
@@ -146,10 +122,10 @@ TEST_CASE("Binder: round-trip c2010.anibnd.dcx")
 
 TEST_CASE("Binder: double-write produces identical bytes")
 {
-    auto binder = LoadBinderDCX("darksouls1r/c2300.chrbnd.dcx");
+    auto binder = Binder::FromPath(GetResourcePath("darksouls1r/c2300.chrbnd"));
     if (!binder)
     {
-        MESSAGE("Skipping — c2300.chrbnd.dcx not available");
+        MESSAGE("Skipping — c2300.chrbnd not available");
         return;
     }
 
@@ -163,7 +139,7 @@ TEST_CASE("Binder: double-write produces identical bytes")
 }
 
 // ---------------------------------------------------------------------------
-// Split binder: c2300.chrbnd.dcx (BHD) + c2300.chrtpfbdt (texture pack BXF)
+// Split binder: c2300.chrbnd (BHD) + c2300.chrtpfbdt (texture pack BXF)
 // ---------------------------------------------------------------------------
 
 namespace
@@ -173,7 +149,7 @@ namespace
 
 TEST_CASE("Binder: read split c2300.chrtpfbhd + chrtpfbdt")
 {
-    auto binder = LoadSplitChrtpfbxf("darksouls1r/c2300.chrbnd.dcx", "darksouls1r/c2300.chrtpfbdt");
+    auto binder = LoadSplitChrtpfbxf("darksouls1r/c2300.chrbnd", "darksouls1r/c2300.chrtpfbdt");
     if (!binder)
     {
         MESSAGE("Skipping — c2300.chrbnd/chrtpfbdt not available (missing fixture or Oodle DLL)");
@@ -194,7 +170,7 @@ TEST_CASE("Binder: read split c2300.chrtpfbhd + chrtpfbdt")
 
 TEST_CASE("Binder: split c2300.chrtpfbhd contains TPF entries")
 {
-    auto binder = LoadSplitChrtpfbxf("darksouls1r/c2300.chrbnd.dcx", "darksouls1r/c2300.chrtpfbdt");
+    auto binder = LoadSplitChrtpfbxf("darksouls1r/c2300.chrbnd", "darksouls1r/c2300.chrtpfbdt");
     if (!binder)
     {
         MESSAGE("Skipping — c2300.chrbnd/chrtpfbdt not available");
@@ -208,7 +184,7 @@ TEST_CASE("Binder: split c2300.chrtpfbhd contains TPF entries")
         auto name = entry.name();
         bool is_tpf = false;
 
-        // Check for .tpf or .tpf->dcx
+        // Check for .tpf or DCX-compressed .tpf
         if (entry.data.size() >= 4)
         {
             if (std::memcmp(entry.data.data(), "TPF\0", 4) == 0)

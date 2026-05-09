@@ -1,11 +1,12 @@
 // Unit tests for the native DCX compression / decompression module.
 //
-// Uses the m0100B2A10.flver.dcx fixture (a DCX-compressed FLVER file) to verify:
+// Uses the darksouls1r/m0100B2A10.flver.dcx fixture (a DCX-compressed FLVER file) to verify:
 //   - IsDCX() detection
 //   - DetectDCX() type identification
 //   - DecompressDCX() produces valid FLVER data
 //   - Round-trip: decompress -> compress -> decompress yields identical bytes
 //   - ReadFileBytes() utility
+// Uses the eldenring/m12_02_00_00.msb.dcx fixture to verify DCX_KRAK compression.
 
 #include <doctest/doctest.h>
 
@@ -142,7 +143,7 @@ TEST_CASE("DCX: round-trip compress/decompress preserves data")
 TEST_CASE("DCX: DecompressDCX throws on truncated data")
 {
     // Just "DCX\0" magic with no payload.
-    std::byte tiny[] = {
+    constexpr std::byte tiny[] = {
         std::byte('D'), std::byte('C'), std::byte('X'), std::byte('\0')
     };
     CHECK_THROWS((void)DecompressDCX(tiny, sizeof(tiny)));

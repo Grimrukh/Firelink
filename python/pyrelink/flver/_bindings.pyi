@@ -23,7 +23,9 @@ from pathlib import Path
 import numpy as np
 from numpy.typing import NDArray
 
-from pyrelink.core import GameFile, GameType, Binder, TPFTexture, Vector2, Vector3, Vector4, EulerRad, Color4b, AABB
+from pyrelink.core import (
+    GameFile, GameType, Binder, TPFTexture, Vector2, Vector3, EulerRad, Color4b, AABB
+)
 
 # --- Bone --------------------------------------------------------------------
 

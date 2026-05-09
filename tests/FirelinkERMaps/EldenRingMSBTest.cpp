@@ -9,6 +9,7 @@
 //   6.  Draw-parent cross-references can be mutated.
 //   7.  Write -> re-read produces identical param counts and entry data.
 //   8.  Double write produces byte-identical files (stable serialization).
+// If Oodle is available, test automatic DCX extension on MSB write.
 
 #include <doctest/doctest.h>
 
@@ -38,22 +39,13 @@ using namespace Firelink::EldenRing::Maps::MapStudio;
 
 namespace
 {
-    /// Resolve the bundled MSB resource path.
-    std::filesystem::path GetMSBPath()
-    {
-        std::filesystem::path p = std::filesystem::path(TEST_RESOURCES_DIR) / "eldenring/m12_02_00_00.msb.dcx";
-        REQUIRE_MESSAGE(exists(p), "MSB resource not found: ", p.string());
-        return p;
-    }
-
     /// Lazily load and cache the original MSB (shared across read-only tests).
-    /// Removes DCX compression for round-trip testing.
     const MSB& GetOriginalMSB()
     {
         static MSB::CPtr msb = [] {
             const auto start = std::chrono::high_resolution_clock::now();
-            MSB::Ptr ptr = MSB::FromPath(GetMSBPath());
-            ptr->SetDCXType(DCXType::Null);
+            // Use MSB test file with DCX already removed.
+            MSB::Ptr ptr = MSB::FromPath(GetResourcePath("eldenring/m12_02_00_00.msb"));
             const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
                 std::chrono::high_resolution_clock::now() - start);
             MESSAGE("MSB loaded in " << elapsed.count() << " ms");
@@ -290,7 +282,7 @@ TEST_CASE("MSB: all regions have a shape object")
 TEST_CASE("MSB: draw parent can be cleared and reassigned")
 {
     // Load a fresh copy so mutations don't pollute other tests.
-    const MSB::CPtr msb = MSB::FromPath(GetMSBPath());
+    const MSB::CPtr msb = MSB::FromPath(GetResourcePath("eldenring/m12_02_00_00.msb"));
     auto allParts = msb->GetPartParamConst().GetAllEntries();
     auto characters = msb->GetPartParamConst().GetSubtypeEntries<CharacterPart>();
     REQUIRE_FALSE(allParts.empty());
@@ -319,8 +311,13 @@ TEST_CASE("MSB: draw parent can be cleared and reassigned")
 
 TEST_CASE("MSB: write adds '.dcx' suffix to path")
 {
+    if (!IsOodleAvailable())
+    {
+        MESSAGE("Oodle not available; skipping MSB write test that verifies DCX suffix is added");
+        return;
+    }
     // Read test-specific copy of MSB with DCX preserved.
-    const MSB::CPtr msbPtr = MSB::FromPath(GetMSBPath());
+    const MSB::CPtr msbPtr = MSB::FromPath(GetResourcePath("eldenring/m12_02_00_00.msb.dcx"));
     const auto writePath = GetOutDir() / "m12_02_00_00_roundtrip.msb";  // DCX not explicit
     const auto actualWritePath = msbPtr->WriteToPath(writePath);
     REQUIRE(actualWritePath == GetOutDir() / "m12_02_00_00_roundtrip.msb.dcx");
@@ -329,7 +326,7 @@ TEST_CASE("MSB: write adds '.dcx' suffix to path")
 TEST_CASE("MSB: round-trip preserves param counts")
 {
     const MSB& original = GetOriginalMSB();
-    const auto writePath = GetOutDir() / "m12_02_00_00_roundtrip.msb.dcx";
+    const auto writePath = GetOutDir() / "m12_02_00_00_roundtrip.msb";
     std::ignore = original.WriteToPath(writePath);
     MSB::CPtr reloaded = MSB::FromPath(writePath);
     REQUIRE(reloaded->GetEntryCount() > 0);
@@ -344,7 +341,7 @@ TEST_CASE("MSB: round-trip preserves param counts")
 TEST_CASE("MSB: round-trip preserves entry names")
 {
     const MSB& original = GetOriginalMSB();
-    const auto writePath = GetOutDir() / "m12_02_00_00_roundtrip.msb.dcx";
+    const auto writePath = GetOutDir() / "m12_02_00_00_roundtrip.msb";
     std::ignore = original.WriteToPath(writePath);
     auto reloaded = MSB::FromPath(writePath);
     REQUIRE(reloaded->GetEntryCount() > 0);
@@ -389,7 +386,7 @@ TEST_CASE("MSB: round-trip preserves entry names")
 TEST_CASE("MSB: round-trip preserves character fields")
 {
     const MSB& original = GetOriginalMSB();
-    const auto writePath = GetOutDir() / "m12_02_00_00_roundtrip.msb.dcx";
+    const auto writePath = GetOutDir() / "m12_02_00_00_roundtrip.msb";
     std::ignore = original.WriteToPath(writePath);
     auto reloaded = MSB::FromPath(writePath);
     REQUIRE(reloaded->GetEntryCount() > 0);
@@ -430,7 +427,7 @@ TEST_CASE("MSB: round-trip preserves character fields")
 TEST_CASE("MSB: round-trip preserves collision fields")
 {
     const MSB& original = GetOriginalMSB();
-    const auto writePath = GetOutDir() / "m12_02_00_00_roundtrip.msb.dcx";
+    const auto writePath = GetOutDir() / "m12_02_00_00_roundtrip.msb";
     std::ignore = original.WriteToPath(writePath);
     auto reloaded = MSB::FromPath(writePath);
     REQUIRE(reloaded->GetEntryCount() > 0);
@@ -450,7 +447,7 @@ TEST_CASE("MSB: round-trip preserves collision fields")
 TEST_CASE("MSB: round-trip preserves asset fields")
 {
     const MSB& original = GetOriginalMSB();
-    const auto writePath = GetOutDir() / "m12_02_00_00_roundtrip.msb.dcx";
+    const auto writePath = GetOutDir() / "m12_02_00_00_roundtrip.msb";
     std::ignore = original.WriteToPath(writePath);
     auto reloaded = MSB::FromPath(writePath);
     REQUIRE(reloaded->GetEntryCount() > 0);
@@ -469,7 +466,7 @@ TEST_CASE("MSB: round-trip preserves asset fields")
 TEST_CASE("MSB: round-trip preserves region fields")
 {
     const MSB& original = GetOriginalMSB();
-    const auto writePath = GetOutDir() / "m12_02_00_00_roundtrip.msb.dcx";
+    const auto writePath = GetOutDir() / "m12_02_00_00_roundtrip.msb";
     std::ignore = original.WriteToPath(writePath);
     auto reloaded = MSB::FromPath(writePath);
     REQUIRE(reloaded->GetEntryCount() > 0);
@@ -489,7 +486,7 @@ TEST_CASE("MSB: round-trip preserves region fields")
 TEST_CASE("MSB: round-trip preserves event fields")
 {
     const MSB& original = GetOriginalMSB();
-    const auto writePath = GetOutDir() / "m12_02_00_00_roundtrip.msb.dcx";
+    const auto writePath = GetOutDir() / "m12_02_00_00_roundtrip.msb";
     std::ignore = original.WriteToPath(writePath);
     auto reloaded = MSB::FromPath(writePath);
     REQUIRE(reloaded->GetEntryCount() > 0);
