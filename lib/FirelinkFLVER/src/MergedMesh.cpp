@@ -1,4 +1,4 @@
-// merged_mesh.cpp — C++ port of MergedMesh from soulstruct.flver.python.mesh_tools.
+// merged_mesh.cpp — C++ port of MergedMesh from soulstruct.python.mesh_tools.
 
 #include "../include/FirelinkFLVER/MergedMesh.h"
 

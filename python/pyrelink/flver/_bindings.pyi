@@ -12,8 +12,6 @@ __all__ = [
     "Mesh",
     "MergedMesh",
     "FLVER",
-    "batch_from_path",
-    "batch_from_bytes",
     # TextureFinder
     "ImageFormat",
     "TextureFinder",
@@ -264,6 +262,14 @@ class FLVER(GameFile):
     @property
     def mesh_count(self) -> int: ...
 
+    def get_cached_merged_mesh(self) -> MergedMesh:
+        """Get cached MergedMesh, generating it once if required."""
+        ...
+
+    def clear_cached_merged_mesh(self) -> None:
+        """Clear cached MergedMesh. It will be regenerated from current FLVER state on next access."""
+        ...
+
     def build_merged_mesh(
         self,
         mesh_material_indices: list[int] | None = None,
@@ -273,43 +279,23 @@ class FLVER(GameFile):
         """Build a MergedMesh from this FLVER."""
         ...
 
+    @classmethod
+    def from_paths_parallel_with_merged_mesh(
+        cls,
+        paths: list[str | Path],
+        max_threads: int = 0
+    ) -> list[FLVER]:
+        """Load FLVERs from multiple paths in parallel and auto-compute cached MergedMesh."""
+        ...
 
-# --- Module-level functions --------------------------------------------------
-
-def batch_from_path(
-    paths: list[str | Path],
-    max_threads: int = 0,
-    cache_merged_mesh: bool = False,
-) -> list[FLVER]:
-    """Load multiple FLVERs from file paths in parallel.
-
-    Args:
-        paths: List of file paths (``str`` or ``Path``).
-        max_threads: Maximum number of threads. ``0`` uses hardware concurrency.
-        cache_merged_mesh: Automatically build MergedMesh during load.
-
-    Returns:
-        List of ``FLVER`` objects in input order.
-    """
-    ...
-
-
-def batch_from_bytes(
-    data_list: list[bytes],
-    max_threads: int = 0,
-    cache_merged_mesh: bool = False,
-) -> list[FLVER]:
-    """Parse multiple FLVERs from raw (decompressed) byte buffers in parallel.
-
-    Args:
-        data_list: List of raw FLVER ``bytes`` objects.
-        max_threads: Maximum number of threads. ``0`` uses hardware concurrency.
-        cache_merged_mesh: Automatically build MergedMesh during load.
-
-    Returns:
-        List of ``FLVER`` objects in input order.
-    """
-    ...
+    @classmethod
+    def from_bytes_parallel_with_merged_mesh(
+        cls,
+        buffers: list[bytes | bytearray | memoryview],
+        max_threads: int = 0,
+    ) -> list[FLVER]:
+        """Load FLVERs from multiple buffers in parallel and auto-compute cached MergedMesh."""
+        ...
 
 
 # ---------------------------------------------------------------------------

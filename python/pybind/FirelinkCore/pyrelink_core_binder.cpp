@@ -14,8 +14,7 @@ void bind_firelink_core_binder(py::module& m)
     py::enum_<BinderVersion>(m, "BinderVersion",
         "Binder archive version.")
         .value("V3", BinderVersion::V3)
-        .value("V4", BinderVersion::V4)
-        .export_values();
+        .value("V4", BinderVersion::V4);
 
     py::class_<BinderFlags>(m, "BinderFlags",
         "Bit flags for a Binder archive header.")

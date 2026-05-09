@@ -1,6 +1,6 @@
 // flver/merged_mesh.hpp
 //
-// C++ port of soulstruct.flver.python.mesh_tools.MergedMesh.
+// C++ port of soulstruct.flver.mesh_tools.MergedMesh.
 //
 // Merges all FLVER meshes into a single combined mesh suitable for Blender
 // import. Unique vertices are identified by (position, bone_indices,

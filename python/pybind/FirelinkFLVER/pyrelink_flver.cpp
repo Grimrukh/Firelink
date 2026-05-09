@@ -51,8 +51,7 @@ void bind_firelink_flver(py::module& m)
         .value("Bloodborne_DS3_B", FLVERVersion::Bloodborne_DS3_B)
         .value("Sekiro_TestChr", FLVERVersion::Sekiro_TestChr)
         .value("Sekiro_EldenRing", FLVERVersion::Sekiro_EldenRing)
-        .value("ArmoredCore6", FLVERVersion::ArmoredCore6)
-        .export_values();
+        .value("ArmoredCore6", FLVERVersion::ArmoredCore6);
 
     // --- Bone ---------------------------------------------------------------
     // Exposed directly from C++ Bone; name is already decoded UTF-8.
@@ -447,45 +446,51 @@ void bind_firelink_flver(py::module& m)
         .def_property_readonly("mesh_count", [](const FLVER& f) { return f.Meshes().size(); });
 
     flver
-        .def_static("from_paths_parallel_with_merged_mesh", [](
-            const py::object& paths, const int max_threads = 0)
-        {
-            // With GIL held: convert `paths` (sequence of path-likes) to a vector of paths.
-            const py::sequence seq(paths);
-            std::vector<std::filesystem::path> fs_paths;
-            for (const auto& item : seq)
+        .def_static(
+            "from_paths_parallel_with_merged_mesh",
+            [](const py::object& paths, const int max_threads = 0)
             {
-                fs_paths.push_back(to_fs_path(item));
-            }
-            // Callback: cache merged mesh immediately.
-            auto callback = [](FLVER& f)
+                // With GIL held: convert `paths` (sequence of path-likes) to a vector of paths.
+                const py::sequence seq(paths);
+                std::vector<std::filesystem::path> fs_paths;
+                for (const auto& item : seq)
+                {
+                    fs_paths.push_back(to_fs_path(item));
+                }
+                // Callback: cache merged mesh immediately.
+                auto callback = [](FLVER& f)
+                {
+                    f.GetCachedMergedMesh();
+                };
+                // GIL released: parse in parallel.
+                py::gil_scoped_release release;
+                return FLVER::FromPathsParallel(fs_paths, max_threads, callback);
+            },
+            py::arg("paths"),
+            py::arg("max_threads") = 0)
+        .def_static(
+            "from_bytes_parallel_with_merged_mesh",
+            [](const py::list& buffers, const int max_threads = 0)
             {
-                f.GetCachedMergedMesh();
-            };
-            // GIL released: parse in parallel.
-            py::gil_scoped_release release;
-            return FLVER::FromPathsParallel(fs_paths, max_threads, callback);
-        })
-        .def_static("from_bytes_parallel_with_merged_mesh", [](
-            const py::list& buffers, int max_threads = 0)
-        {
-            // With GIL held: copy each buffer into a C++ vector.
-            std::vector<std::vector<std::byte>> data;
-            data.reserve(buffers.size());
-            for (const auto& item : buffers)
-            {
-                auto [ptr, size] = borrow_buffer(py::cast<py::buffer>(item));
-                data.emplace_back(ptr, ptr + size);
-            }
-            // Callback: cache merged mesh immediately.
-            auto callback = [](FLVER& f)
-            {
-                f.GetCachedMergedMesh();
-            };
-            // GIL released: parse in parallel.
-            py::gil_scoped_release release;
-            return FLVER::FromBytesParallel(std::move(data), max_threads, callback);
-        });
+                // With GIL held: copy each buffer into a C++ vector.
+                std::vector<std::vector<std::byte>> data;
+                data.reserve(buffers.size());
+                for (const auto& item : buffers)
+                {
+                    auto [ptr, size] = borrow_buffer(py::cast<py::buffer>(item));
+                    data.emplace_back(ptr, ptr + size);
+                }
+                // Callback: cache merged mesh immediately.
+                auto callback = [](FLVER& f)
+                {
+                    f.GetCachedMergedMesh();
+                };
+                // GIL released: parse in parallel.
+                py::gil_scoped_release release;
+                return FLVER::FromBytesParallel(std::move(data), max_threads, callback);
+            },
+            py::arg("buffers"),
+            py::arg("max_threads") = 0);
 }
 
 PYBIND11_MODULE(_bindings, m)

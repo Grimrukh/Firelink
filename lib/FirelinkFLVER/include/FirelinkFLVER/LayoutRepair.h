@@ -1,6 +1,6 @@
 // flver/layout_repair.hpp
 //
-// C++ port of soulstruct.flver.python.layout_repair.
+// C++ port of soulstruct.flver.layout_repair.
 //
 // QLOC botched some vertex layouts in DS1R: the layout stored in the FLVER
 // says one thing, but the actual on-disk vertex data has extra fields (often

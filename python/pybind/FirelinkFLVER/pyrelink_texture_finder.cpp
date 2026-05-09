@@ -15,8 +15,7 @@ void bind_firelink_flver_texture_finder(py::module& m)
         "Output image format for texture conversion.")
         .value("DDS", ImageFormat::DDS)
         .value("PNG", ImageFormat::PNG)
-        .value("TGA", ImageFormat::TGA)
-        .export_values();
+        .value("TGA", ImageFormat::TGA);
 
     py::class_<TextureFinder>(m, "TextureFinder",
         "Lazy texture discovery and caching for FromSoftware game files.")

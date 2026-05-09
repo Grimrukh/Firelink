@@ -42,8 +42,7 @@ void bind_firelink_core(py::module& m)
         .value("Bloodborne", GameType::Bloodborne)
         .value("DarkSouls3", GameType::DarkSouls3)
         .value("Sekiro", GameType::Sekiro)
-        .value("EldenRing", GameType::EldenRing)
-        .export_values();
+        .value("EldenRing", GameType::EldenRing);
 
     py::class_<Vector2>(m, "Vector2", "Basic XY vector.")
         .def(py::init<float, float>(), py::arg("x") = 0.f, py::arg("y") = 0.f)

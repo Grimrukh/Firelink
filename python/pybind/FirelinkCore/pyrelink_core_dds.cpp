@@ -45,8 +45,7 @@ void bind_firelink_core_dds(py::module& m)
         .value("R16G16_FLOAT",         DXGI_FORMAT_R16G16_FLOAT)
         .value("R16G16B16A16_FLOAT",   DXGI_FORMAT_R16G16B16A16_FLOAT)
         .value("R32_FLOAT",            DXGI_FORMAT_R32_FLOAT)
-        .value("R32G32B32A32_FLOAT",   DXGI_FORMAT_R32G32B32A32_FLOAT)
-        .export_values();
+        .value("R32G32B32A32_FLOAT",   DXGI_FORMAT_R32G32B32A32_FLOAT);
 
     // --- DDS → Image ---
 

@@ -28,8 +28,7 @@ void bind_firelink_core_dcx(py::module& m)
         .value("DCX_DFLT_11000_44_9",      DCXType::DCX_DFLT_11000_44_9)
         .value("DCX_DFLT_11000_44_9_15",   DCXType::DCX_DFLT_11000_44_9_15)
         .value("DCX_KRAK",                 DCXType::DCX_KRAK)
-        .value("DCX_ZSTD",                 DCXType::DCX_ZSTD)
-        .export_values();
+        .value("DCX_ZSTD",                 DCXType::DCX_ZSTD);
 
     // Register DCXError as a Python exception inheriting from RuntimeError.
     py::register_exception<DCXError>(m, "DCXError", PyExc_RuntimeError);

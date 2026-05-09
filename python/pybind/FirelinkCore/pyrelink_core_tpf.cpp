@@ -17,15 +17,13 @@ void bind_firelink_core_tpf(py::module& m)
         .value("Xbox360", TPFPlatform::Xbox360)
         .value("PS3", TPFPlatform::PS3)
         .value("PS4", TPFPlatform::PS4)
-        .value("XboxOne", TPFPlatform::XboxOne)
-        .export_values();
+        .value("XboxOne", TPFPlatform::XboxOne);
 
     py::enum_<TextureType>(m, "TextureType",
         "TPF texture type.")
         .value("Texture", TextureType::Texture)
         .value("Cubemap", TextureType::Cubemap)
-        .value("Volume", TextureType::Volume)
-        .export_values();
+        .value("Volume", TextureType::Volume);
 
     py::class_<TPFTexture>(m, "TPFTexture",
         "A single texture in a TPF archive.")
