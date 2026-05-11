@@ -427,8 +427,8 @@ namespace Firelink
         for (std::size_t mi = 0; mi < valid_meshes.size(); ++mi)
         {
             const auto& mesh = flver.GetMesh(valid_meshes[mi].original_index);
-            auto& [fields, _] = mesh_caches[mi];
-            vertex_count = mesh.vertex_arrays[0].vertex_count;
+            auto& [fields, mesh_vc] = mesh_caches[mi];
+            mesh_vc = mesh.vertex_arrays[0].vertex_count;
 
             // VA 0: all fields used directly.
             {

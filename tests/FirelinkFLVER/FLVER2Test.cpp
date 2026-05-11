@@ -410,10 +410,10 @@ TEST_CASE("MergedMesh: builds successfully for all fixtures")
             FLVER::CPtr flver = FLVER::FromBytes(buf.data(), buf.size());
             MergedMesh mm(*flver);
 
-            // Basic non-empty checks.
-            CHECK(mm.vertex_count > 0);
-            CHECK(mm.face_count > 0);
-            CHECK(mm.total_loop_count > 0);
+            // Basic non-empty/non-degenerate checks.
+            CHECK(mm.vertex_count > 10);
+            CHECK(mm.face_count > 10);
+            CHECK(mm.total_loop_count > 10);
 
             // Array size invariants.
             CHECK(mm.positions.size() == mm.vertex_count * 3);

@@ -183,14 +183,14 @@ void bind_firelink_core(py::module& m)
         .def_readwrite("g", &ColorRGBA::g)
         .def_readwrite("b", &ColorRGBA::b)
         .def_readwrite("a", &ColorRGBA::a)
-        .def("__getitem__", [](const ColorRGBA& v, int i) -> float {
+        .def("__getitem__", [](const ColorRGBA& v, int i) -> int {
             if (i == 0) return v.r;
             if (i == 1) return v.g;
             if (i == 2) return v.b;
             if (i == 3) return v.a;
             throw py::index_error("ColorRGBA index out of range");
         })
-        .def("__setitem__", [](ColorRGBA& v, int i, float val) {
+        .def("__setitem__", [](ColorRGBA& v, int i, std::uint8_t val) {
             if (i == 0) v.r = val;
             else if (i == 1) v.g = val;
             else if (i == 2) v.b = val;

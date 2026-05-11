@@ -127,14 +127,28 @@ namespace Firelink
         return SerializeFLVER2(w);
     }
 
-    MergedMesh FLVER::GetCachedMergedMesh(
-        const std::vector<std::uint32_t>& meshMaterialIndices,
-        const std::vector<std::vector<std::string>>& materialUVLayerNames,
-        bool merge_vertices)
+    bool FLVER::HasCachedMergedMesh() const noexcept
+    {
+        return m_cachedMergedMesh != nullptr;
+    }
+
+    const MergedMesh& FLVER::GetCachedMergedMesh() const
     {
         if (!m_cachedMergedMesh)
-            m_cachedMergedMesh = std::make_unique<MergedMesh>(
-                *this, meshMaterialIndices, materialUVLayerNames, merge_vertices);
+            throw std::runtime_error("FLVER does not have a cached MergedMesh");
+        return *m_cachedMergedMesh;
+    }
+
+    const MergedMesh& FLVER::UpdateCachedMergedMesh(
+        const std::vector<std::uint32_t>& meshMaterialIndices,
+        const std::vector<std::vector<std::string>>& materialUVLayerNames,
+        bool mergeVertices)
+    {
+        if (m_cachedMergedMesh)
+            throw std::runtime_error("Cached MergedMesh already exists on FLVER; you must clear it before setting a new one.");
+
+        m_cachedMergedMesh = std::make_unique<MergedMesh>(
+            *this, meshMaterialIndices, materialUVLayerNames, mergeVertices);
         return *m_cachedMergedMesh;
     }
 

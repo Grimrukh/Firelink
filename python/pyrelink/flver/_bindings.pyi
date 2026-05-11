@@ -19,6 +19,7 @@ __all__ = [
 
 from enum import IntEnum
 from pathlib import Path
+from typing import Sequence
 
 import numpy as np
 from numpy.typing import NDArray
@@ -266,12 +267,25 @@ class FLVER(GameFile):
     @property
     def mesh_count(self) -> int: ...
 
+    def has_cached_merged_mesh(self) -> bool:
+        """Return True if a cached MergedMesh is available for this FLVER."""
+        ...
+
     def get_cached_merged_mesh(self) -> MergedMesh:
-        """Get cached MergedMesh, generating it once if required."""
+        """Get cached MergedMesh. Raises an exception if it doesn't exist."""
+        ...
+
+    def update_cached_merged_mesh(
+        self,
+        mesh_material_indices: Sequence[int] = (),
+        material_uv_layer_names: Sequence[Sequence[str]] = (),
+        merge_vertices: bool = True,
+    ) -> MergedMesh:
+        """Update and return new cached MergedMesh."""
         ...
 
     def clear_cached_merged_mesh(self) -> None:
-        """Clear cached MergedMesh. It will be regenerated from current FLVER state on next access."""
+        """Clear cached MergedMesh."""
         ...
 
     def build_merged_mesh(

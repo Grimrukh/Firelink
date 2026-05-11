@@ -447,7 +447,11 @@ void bind_firelink_flver(py::module& m)
     flver
         .def_static(
             "from_paths_parallel_with_merged_mesh",
-            [](const py::object& paths, const int max_threads = 0)
+            [](const py::object& paths,
+                 const std::vector<std::uint32_t>& mesh_material_indices = {},
+                 const std::vector<std::vector<std::string>>& material_uv_layer_names = {},
+                 const bool merge_vertices = true,
+                 const int max_threads = 0)
             {
                 // With GIL held: convert `paths` (sequence of path-likes) to a vector of paths.
                 const py::sequence seq(paths);
@@ -457,19 +461,27 @@ void bind_firelink_flver(py::module& m)
                     fs_paths.push_back(to_fs_path(item));
                 }
                 // Callback: cache merged mesh immediately.
-                auto callback = [](FLVER& f)
+                auto callback = [&](FLVER& f)
                 {
-                    f.GetCachedMergedMesh();
+                    f.UpdateCachedMergedMesh(
+                        mesh_material_indices, material_uv_layer_names, merge_vertices);
                 };
                 // GIL released: parse in parallel.
                 py::gil_scoped_release release;
                 return FLVER::FromPathsParallel(fs_paths, max_threads, callback);
             },
             py::arg("paths"),
+            py::arg("mesh_material_indices") = std::vector<std::uint32_t>{},
+            py::arg("material_uv_layer_names") = std::vector<std::vector<std::string>>{},
+            py::arg("merge_vertices") = true,
             py::arg("max_threads") = 0)
         .def_static(
             "from_bytes_parallel_with_merged_mesh",
-            [](const py::list& buffers, const int max_threads = 0)
+            [](const py::list& buffers,
+                 const std::vector<std::uint32_t>& mesh_material_indices = {},
+                 const std::vector<std::vector<std::string>>& material_uv_layer_names = {},
+                 const bool merge_vertices = true,
+                 const int max_threads = 0)
             {
                 // With GIL held: copy each buffer into a C++ vector.
                 std::vector<std::vector<std::byte>> data;
@@ -480,15 +492,19 @@ void bind_firelink_flver(py::module& m)
                     data.emplace_back(ptr, ptr + size);
                 }
                 // Callback: cache merged mesh immediately.
-                auto callback = [](FLVER& f)
+                auto callback = [&](FLVER& f)
                 {
-                    f.GetCachedMergedMesh();
+                    f.UpdateCachedMergedMesh(
+                        mesh_material_indices, material_uv_layer_names, merge_vertices);
                 };
                 // GIL released: parse in parallel.
                 py::gil_scoped_release release;
                 return FLVER::FromBytesParallel(std::move(data), max_threads, callback);
             },
             py::arg("buffers"),
+            py::arg("mesh_material_indices") = std::vector<std::uint32_t>{},
+            py::arg("material_uv_layer_names") = std::vector<std::vector<std::string>>{},
+            py::arg("merge_vertices") = true,
             py::arg("max_threads") = 0);
 }
 

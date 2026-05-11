@@ -81,11 +81,20 @@ namespace Firelink
         [[nodiscard]] const Mesh& GetMesh(const std::size_t index) const { return m_meshes[index]; }
         [[nodiscard]] Mesh& GetMesh(const std::size_t index) { return m_meshes[index]; }
 
-        /// @brief Create and cache a Merged Mesh suitable for external model import.
-        MergedMesh GetCachedMergedMesh(
+        /// @brief Returns true if cached Merged Mesh exists.
+        [[nodiscard]] bool HasCachedMergedMesh() const noexcept;
+
+        /// @brief Get a const reference to the cached merged mesh.
+        /// @pre Cached merged mesh must exist; check with `HasCachedMergedMesh()` first.
+        [[nodiscard]] const MergedMesh& GetCachedMergedMesh() const;
+
+        /// @brief Cache a Merged Mesh suitable for external model import and return a
+        /// const reference to it.
+        /// @note Will clear the cached Merged Mesh if it already exists.
+        const MergedMesh& UpdateCachedMergedMesh(
             const std::vector<std::uint32_t>& meshMaterialIndices = {},
             const std::vector<std::vector<std::string>>& materialUVLayerNames = {},
-            bool merge_vertices = true);
+            bool mergeVertices = true);
 
         /// @brief Clear the cached Merged Mesh for re-computation.
         void ClearCachedMergedMesh();
