@@ -69,7 +69,6 @@ void bind_firelink_flver(py::module& m)
         .def_readwrite("bounding_box", &Bone::bounding_box);
 
     // --- Dummy --------------------------------------------------------------
-    // No strings; just rename `color` -> `color_rgba`.
 
     py::class_<Dummy>(m, "Dummy")
         .def(py::init<>())

@@ -1069,12 +1069,12 @@ namespace Firelink
             else
             {
                 w.FillWithPosition<std::uint32_t>("mesh2_bbox_offset", scope);
-                w.Write<float>(mesh.bounding_box_min.x);
-                w.Write<float>(mesh.bounding_box_min.y);
-                w.Write<float>(mesh.bounding_box_min.z);
-                w.Write<float>(mesh.bounding_box_max.x);
-                w.Write<float>(mesh.bounding_box_max.y);
-                w.Write<float>(mesh.bounding_box_max.z);
+                w.Write<float>(mesh.bounding_box.min.x);
+                w.Write<float>(mesh.bounding_box.min.y);
+                w.Write<float>(mesh.bounding_box.min.z);
+                w.Write<float>(mesh.bounding_box.max.x);
+                w.Write<float>(mesh.bounding_box.max.y);
+                w.Write<float>(mesh.bounding_box.max.z);
                 if (mesh.sekiro_bbox_unk.has_value())
                 {
                     w.Write<float>(mesh.sekiro_bbox_unk->x);

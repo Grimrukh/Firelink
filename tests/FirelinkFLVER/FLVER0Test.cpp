@@ -150,12 +150,12 @@ namespace
         CHECK(orig.big_endian == reread.big_endian);
         CHECK(orig.unicode == reread.unicode);
 
-        CHECK(orig.bounding_box_min.x == doctest::Approx(reread.bounding_box_min.x));
-        CHECK(orig.bounding_box_min.y == doctest::Approx(reread.bounding_box_min.y));
-        CHECK(orig.bounding_box_min.z == doctest::Approx(reread.bounding_box_min.z));
-        CHECK(orig.bounding_box_max.x == doctest::Approx(reread.bounding_box_max.x));
-        CHECK(orig.bounding_box_max.y == doctest::Approx(reread.bounding_box_max.y));
-        CHECK(orig.bounding_box_max.z == doctest::Approx(reread.bounding_box_max.z));
+        CHECK(orig.bounding_box.min.x == doctest::Approx(reread.bounding_box.min.x));
+        CHECK(orig.bounding_box.min.y == doctest::Approx(reread.bounding_box.min.y));
+        CHECK(orig.bounding_box.min.z == doctest::Approx(reread.bounding_box.min.z));
+        CHECK(orig.bounding_box.max.x == doctest::Approx(reread.bounding_box.max.x));
+        CHECK(orig.bounding_box.max.y == doctest::Approx(reread.bounding_box.max.y));
+        CHECK(orig.bounding_box.max.z == doctest::Approx(reread.bounding_box.max.z));
 
         check_bones_equal(orig.bones, reread.bones);
         check_dummies_equal(orig.dummies, reread.dummies);
@@ -222,8 +222,8 @@ TEST_CASE("FLVER0 round-trip: synthetic minimal FLVER")
     flver.f0_unk_x4b = 0;
     flver.f0_unk_x4c = 65535;
     flver.f0_unk_x5c = 0;
-    flver.bounding_box_min = {-1.f, -1.f, -1.f};
-    flver.bounding_box_max = {1.f, 1.f, 1.f};
+    flver.bounding_box.min = {-1.f, -1.f, -1.f};
+    flver.bounding_box.max = {1.f, 1.f, 1.f};
 
     // One bone.
     Bone bone;

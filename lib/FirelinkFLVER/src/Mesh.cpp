@@ -82,12 +82,12 @@ namespace Firelink
         {
             m.uses_bounding_boxes = true;
             auto guard = r.TempOffset(bounding_box_offset);
-            m.bounding_box_min.x = r.Read<float>();
-            m.bounding_box_min.y = r.Read<float>();
-            m.bounding_box_min.z = r.Read<float>();
-            m.bounding_box_max.x = r.Read<float>();
-            m.bounding_box_max.y = r.Read<float>();
-            m.bounding_box_max.z = r.Read<float>();
+            m.bounding_box.min.x = r.Read<float>();
+            m.bounding_box.min.y = r.Read<float>();
+            m.bounding_box.min.z = r.Read<float>();
+            m.bounding_box.max.x = r.Read<float>();
+            m.bounding_box.max.y = r.Read<float>();
+            m.bounding_box.max.z = r.Read<float>();
             if (bounding_box_has_unknown)
             {
                 Vector3 unk;

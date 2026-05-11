@@ -136,8 +136,7 @@ namespace Firelink
         // is written and the offset field is 0 on disk. `sekiro_bbox_unk` is
         // only present in Sekiro+ and encodes an unknown third vector.
         bool uses_bounding_boxes = true;
-        Vector3 bounding_box_min = Vector3::SingleMax();
-        Vector3 bounding_box_max = Vector3::SingleMin();
+        AABB bounding_box = AABB::Invalid();
         std::optional<Vector3> sekiro_bbox_unk;
 
         // FLVER0-specific.

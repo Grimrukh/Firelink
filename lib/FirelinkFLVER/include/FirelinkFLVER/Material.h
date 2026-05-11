@@ -13,7 +13,7 @@
 
 namespace Firelink
 {
-    class VertexArrayLayout;
+    struct VertexArrayLayout;
 
     namespace BinaryReadWrite
     {
