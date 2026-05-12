@@ -288,6 +288,20 @@ class FLVER(GameFile):
         """Clear cached MergedMesh."""
         ...
 
+    @classmethod
+    def update_cached_merged_meshes_parallel(
+        cls,
+        flvers: Sequence[FLVER],
+        mesh_material_indices: Sequence[list[int]] | None = None,
+        material_uv_layer_names: Sequence[list[list[str]]] | None = None,
+        merge_vertices: Sequence[bool] = None,
+    ) -> list[bool]:
+        """Update the cached Merged Meshes of multiple FLVERs at once, with per-FLVER arguments.
+
+        Returns `True` or `False` for each FLVER, depending on whether any errors occurred.
+        """
+        ...
+
     def build_merged_mesh(
         self,
         mesh_material_indices: list[int] | None = None,

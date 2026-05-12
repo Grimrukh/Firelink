@@ -1,8 +1,9 @@
 #include <FirelinkFLVER/FLVER.h>
 
-#include <FirelinkFLVER/Encodings.h>
 #include <FirelinkFLVER/LayoutRepair.h>
 #include <FirelinkFLVER/MergedMesh.h>
+
+#include <FirelinkCore/Encodings.h>
 
 #include <algorithm>
 #include <functional>
@@ -155,6 +156,90 @@ namespace Firelink
     void FLVER::ClearCachedMergedMesh()
     {
         m_cachedMergedMesh.reset();
+    }
+
+    std::vector<bool> FLVER::UpdateCachedMergedMeshesParallel(
+        const std::vector<FLVER*>& flvers,
+        const std::vector<std::vector<std::uint32_t>>& meshMaterialIndices,
+        const std::vector<std::vector<std::vector<std::string>>>& materialUVLayerNames,
+        const std::vector<bool>& mergeVertices,
+        const int maxThreads)
+    {
+        // Non-empty override vectors must each match flvers.size().
+        // An empty vector means "use the default for every FLVER".
+        if ((!meshMaterialIndices.empty()   && meshMaterialIndices.size()   != flvers.size()) ||
+            (!materialUVLayerNames.empty()  && materialUVLayerNames.size()  != flvers.size()) ||
+            (!mergeVertices.empty()         && mergeVertices.size()         != flvers.size()))
+        {
+            throw std::invalid_argument(
+                "Non-empty argument vectors passed to UpdateCachedMergedMeshesParallel must have the same size as `flvers`");
+        }
+
+        const int count = static_cast<int>(flvers.size());
+        std::vector<bool> results(count, false);
+        std::vector<std::exception_ptr> errors(count);
+
+        int hw_threads = static_cast<int>(std::thread::hardware_concurrency());
+        if (hw_threads < 1) hw_threads = 4;
+        const int num_threads = (maxThreads > 0)
+                                    ? std::min(maxThreads, static_cast<int>(count))
+                                    : std::min(hw_threads, static_cast<int>(count));
+
+        std::atomic<std::size_t> next_index{0};
+        auto worker = [&]
+        {
+            while (true)
+            {
+                std::size_t idx = next_index.fetch_add(1);
+                if (idx >= count) break;
+                try
+                {
+                    flvers[idx]->UpdateCachedMergedMesh(
+                        meshMaterialIndices.empty()  ? std::vector<std::uint32_t>{}              : meshMaterialIndices[idx],
+                        materialUVLayerNames.empty() ? std::vector<std::vector<std::string>>{}   : materialUVLayerNames[idx],
+                        mergeVertices.empty()        ? true                                       : mergeVertices[idx]);
+                    results[idx] = true;
+                }
+                catch (...)
+                {
+                    results[idx] = false;
+                    errors[idx] = std::current_exception();
+                }
+            }
+        };
+
+        std::vector<std::thread> threads;
+        threads.reserve(num_threads);
+        for (int t = 0; t < num_threads; ++t)
+        {
+            threads.emplace_back(worker);
+        }
+        for (auto& th : threads)
+        {
+            th.join();
+        }
+
+        // Check for errors from the parallel phase.
+        // Rethrow-to-catch is the only standard way to extract a message from
+        // an exception_ptr; the exception does not escape the catch block.
+        for (std::size_t i = 0; i < count; ++i)
+        {
+            if (!errors[i]) continue;
+            try
+            {
+                std::rethrow_exception(errors[i]);
+            }
+            catch (const std::exception& e)
+            {
+                Error("Error caching MergedMesh for FLVER at index " + std::to_string(i) + ": " + e.what());
+            }
+            catch (...)
+            {
+                Error("Error caching MergedMesh for FLVER at index " + std::to_string(i) + ": (unknown exception)");
+            }
+        }
+
+        return results;
     }
 
     void FLVER::DeserializeFLVER0(BufferReader& r)
@@ -592,11 +677,11 @@ namespace Firelink
 
             // Name.
             w.FillWithPosition<std::uint32_t>("mat_name_offset", scope);
-            w.WriteString(EncodeFLVERString(mat->name, m_isUnicode), ue);
+            w.WriteString(EncodeString(mat->name, m_isUnicode), ue);
 
             // Mat def path.
             w.FillWithPosition<std::uint32_t>("mat_def_offset", scope);
-            w.WriteString(EncodeFLVERString(mat->mat_def_path, m_isUnicode), ue);
+            w.WriteString(EncodeString(mat->mat_def_path, m_isUnicode), ue);
 
             // Textures.
             w.FillWithPosition<std::uint32_t>("mat_tex_offset", scope);
@@ -618,11 +703,11 @@ namespace Firelink
             {
                 const void* tex_scope = &tex;
                 w.FillWithPosition<std::uint32_t>("tex_path_offset", tex_scope);
-                w.WriteString(EncodeFLVERString(tex.path, m_isUnicode), ue);
+                w.WriteString(EncodeString(tex.path, m_isUnicode), ue);
                 if (tex.texture_type.has_value())
                 {
                     w.FillWithPosition<std::uint32_t>("tex_type_offset", tex_scope);
-                    w.WriteString(EncodeFLVERString(tex.texture_type.value(), m_isUnicode), ue);
+                    w.WriteString(EncodeString(tex.texture_type.value(), m_isUnicode), ue);
                 }
                 else
                 {
@@ -681,7 +766,7 @@ namespace Firelink
         for (const auto& bone : m_bones)
         {
             w.FillWithPosition<std::uint32_t>("bone_name_offset", &bone);
-            w.WriteString(EncodeFLVERString(bone.name, m_isUnicode), ue);
+            w.WriteString(EncodeString(bone.name, m_isUnicode), ue);
         }
 
         // --- Mesh vertex array headers ---
@@ -1181,17 +1266,17 @@ namespace Firelink
         {
             const void* scope = mat;
             w.FillWithPosition<std::uint32_t>("mat2_name_offset", scope);
-            w.WriteString(EncodeFLVERString(mat->name, m_isUnicode), ue);
+            w.WriteString(EncodeString(mat->name, m_isUnicode), ue);
             w.FillWithPosition<std::uint32_t>("mat2_def_offset", scope);
-            w.WriteString(EncodeFLVERString(mat->mat_def_path, m_isUnicode), ue);
+            w.WriteString(EncodeString(mat->mat_def_path, m_isUnicode), ue);
 
             for (const auto& tex : mat->textures)
             {
                 const void* tex_scope = &tex;
                 w.FillWithPosition<std::uint32_t>("tex2_path_offset", tex_scope);
-                w.WriteString(EncodeFLVERString(tex.path, m_isUnicode), ue);
+                w.WriteString(EncodeString(tex.path, m_isUnicode), ue);
                 w.FillWithPosition<std::uint32_t>("tex2_type_offset", tex_scope);
-                w.WriteString(EncodeFLVERString(tex.texture_type.value_or(""), m_isUnicode), ue);
+                w.WriteString(EncodeString(tex.texture_type.value_or(""), m_isUnicode), ue);
             }
         }
 
@@ -1200,7 +1285,7 @@ namespace Firelink
         for (const auto& bone : m_bones)
         {
             w.FillWithPosition<std::uint32_t>("bone_name_offset", &bone);
-            std::string encodedBoneName = EncodeFLVERString(bone.name, m_isUnicode);
+            std::string encodedBoneName = EncodeString(bone.name, m_isUnicode);
             w.WriteString(encodedBoneName, ue);
         }
 

@@ -5,7 +5,6 @@ target_sources(FirelinkFLVER
     PRIVATE
     src/Bone.cpp
     src/Dummy.cpp
-    src/Encodings.cpp
     src/FLVER.cpp
     src/LayoutRepair.cpp
     src/Material.cpp
@@ -23,7 +22,6 @@ target_sources(FirelinkFLVER
     FILES
         include/FirelinkFLVER/Bone.h
         include/FirelinkFLVER/Dummy.h
-        include/FirelinkFLVER/Encodings.h
         include/FirelinkFLVER/Exceptions.h
         include/FirelinkFLVER/FLVER.h
         include/FirelinkFLVER/LayoutRepair.h

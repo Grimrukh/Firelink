@@ -1,15 +1,15 @@
-#include <FirelinkFLVER/Encodings.h>
+#include <FirelinkCore/Encodings.h>
+
+#include <FirelinkCore/Logging.h>
 
 #include <stdexcept>
-
-#include "FirelinkCore/Logging.h"
 
 #ifdef WIN32
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #endif
 
-std::string Firelink::DecodeFLVERString(const char* raw, const size_t byteLen, const bool isUTF16)
+std::string Firelink::DecodeString(const char* raw, const size_t byteLen, const bool isUTF16)
 {
 #ifndef WIN32
     // Can only decode strings on Windows currently. Return raw.
@@ -48,12 +48,12 @@ std::string Firelink::DecodeFLVERString(const char* raw, const size_t byteLen, c
 #endif
 }
 
-std::string Firelink::DecodeFLVERString(const std::string& raw, const bool isUTF16)
+std::string Firelink::DecodeString(const std::string& raw, const bool isUTF16)
 {
-    return DecodeFLVERString(raw.data(), raw.size(), isUTF16);
+    return DecodeString(raw.data(), raw.size(), isUTF16);
 }
 
-std::string Firelink::EncodeFLVERString(const std::string& utf8, const bool isUTF16) {
+std::string Firelink::EncodeString(const std::string& utf8, const bool isUTF16) {
 #ifndef WIN32
     // Can only encode strings on Windows currently. Return UTF8 (should still be raw).
     return std::string(utf8);
@@ -83,8 +83,6 @@ std::string Firelink::EncodeFLVERString(const std::string& utf8, const bool isUT
 
     if (used_default)
         throw std::runtime_error("String contains characters not representable in Shift-JIS");
-
-    // Firelink::Info("Encoded FLVER string (Shift-JIS): {} -> '{}'", utf8, sjis);
 
     return sjis;
 #endif

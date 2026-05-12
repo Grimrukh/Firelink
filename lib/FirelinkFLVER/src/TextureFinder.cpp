@@ -2,7 +2,6 @@
 #include <FirelinkFLVER/TextureFinder.h>
 
 #include <FirelinkCore/BinaryReadWrite.h>
-#include <FirelinkCore/DCX.h>
 #include <FirelinkCore/DDS.h>
 #include <FirelinkCore/Logging.h>
 #include <FirelinkCore/Paths.h>
@@ -18,7 +17,19 @@ namespace Firelink
     namespace
     {
         // Matches *.tpf or *.tpf.dcx (case-insensitive).
-        const std::regex TPF_RE(R"(.*\.tpf(\.dcx)?$)", std::regex_constants::icase);
+        const std::string TPF_RE_STR = R"(.*\.tpf(\.dcx)?$)";
+        const std::regex TPF_RE(TPF_RE_STR, std::regex_constants::icase);
+
+        bool IsTPFFileName(const std::string& name)
+        {
+            return name.ends_with(".tpf") || name.ends_with(".tpf.dcx");
+        }
+
+        std::string ToLowerStem(const std::filesystem::path& path)
+        {
+            return ToLower(StemOf(path));
+        }
+
     }
 
     // ========================================================================
@@ -29,9 +40,9 @@ namespace Firelink
         : m_game(game), m_dataRoot(std::move(dataRoot))
     {
         // Eagerly register parts/Common*.tpf textures.
-        const auto parts_dir = m_dataRoot / "parts";
-        if (fs::is_directory(parts_dir))
-            RegisterPartsCommonTPFs(parts_dir);
+        const fs::path partsDir = m_dataRoot / "parts";
+        if (fs::is_directory(partsDir))
+            RegisterPartsCommonTPFs(partsDir);
     }
 
     // ========================================================================
@@ -43,35 +54,44 @@ namespace Firelink
         const Binder* flverBinder,
         const bool preferHiRes)
     {
+        // Multiple threads may use the same TextureFinder.
         std::unique_lock lock(m_mutex);
 
         const auto source_name = flverSourcePath.filename().string();
         // Remove .dcx suffix for type detection.
-        auto base_name = source_name;
-        if (base_name.ends_with(".dcx"))
-            base_name = base_name.substr(0, base_name.size() - 4);
+        auto baseName = source_name;
+        if (baseName.ends_with(".dcx"))
+            baseName = baseName.substr(0, baseName.size() - 4);
 
-        const auto model_stem = base_name.substr(0, base_name.find('.'));
+        const auto modelStem = baseName.substr(0, baseName.find('.'));
         const auto source_dir = flverSourcePath.parent_path();
 
         // MAP PIECES
-        if (model_stem.starts_with("m") && base_name.ends_with(".flver"))
+        if (modelStem.starts_with("m") && baseName.ends_with(".flver"))
         {
+            // Loose Map Piece FLVER. Texture sources vary by game.
             RegisterMapTextures(source_dir);
+            return;
         }
-        else if (base_name.ends_with(".mapbnd"))
+
+        if (baseName.ends_with(".mapbnd") || baseName.ends_with(".geombnd"))
         {
-            // Asset FLVER textures are in 'asset/aet'.
-            if (m_aetRoot.empty())
-                m_aetRoot = (source_dir / "../../../asset/aet").lexically_normal();
+            // Elden Ring Map Piece/Asset FLVERs use 'aet' textures, which are always checked.
+            // Nothing additional to register.
+            return;
         }
+
         // CHARACTERS
-        else if (model_stem.starts_with("c") && base_name.ends_with(".flver"))
+        if (modelStem.starts_with("c") && baseName.ends_with(".flver"))
         {
+            // Loose Character FLVER.
             RegisterChrLooseTPFs(source_dir);
+            return;
         }
-        else if (base_name.ends_with(".chrbnd"))
+
+        if (baseName.ends_with(".chrbnd"))
         {
+            // Character textures sources vary by game, the most variance out of any FLVER category.
             if (flverBinder)
             {
                 ScanBinderForTPFs(*flverBinder);
@@ -82,7 +102,7 @@ namespace Firelink
                         RegisterChrLooseTPFs(source_dir);
                         break;
                     case GameType::DarkSoulsPTDE:
-                        RegisterChrLooseTPFs(source_dir / model_stem);
+                        RegisterChrLooseTPFs(source_dir / modelStem);
                         break;
                     case GameType::DarkSoulsDSR:
                         RegisterChrTPFBDTs(source_dir, *flverBinder);
@@ -91,26 +111,26 @@ namespace Firelink
                         break; // all TPFs inside CHRBND
                     case GameType::DarkSouls3:
                     case GameType::Sekiro:
-                        RegisterChrTexbnd(source_dir, model_stem, "");
+                        RegisterChrTexbnd(source_dir, modelStem, "");
                         break;
                     case GameType::EldenRing:
-                        RegisterChrTexbnd(source_dir, model_stem, preferHiRes ? "_h" : "_l");
+                        RegisterChrTexbnd(source_dir, modelStem, preferHiRes ? "_h" : "_l");
                         break;
                 }
             }
 
             // Check for cXXX9 shared texture CHRBND.
-            if (model_stem.size() >= 5 && model_stem[4] != '9')
+            if (modelStem.size() >= 5 && modelStem[4] != '9')
             {
-                const auto c9_stem = model_stem.substr(0, 4) + "9";
+                const auto c9_stem = modelStem.substr(0, 4) + "9";
                 auto c9_name = c9_stem + ".chrbnd";
                 if (flverSourcePath.extension() == ".dcx" || source_name.ends_with(".dcx"))
                     c9_name += ".dcx";
                 const auto c9_path = source_dir / c9_name;
                 const auto c9_key = ToLower(c9_path.string());
-                if (!m_scannedBinders.contains(c9_key) && fs::is_regular_file(c9_path))
+                if (!m_scannedBinderPaths.contains(c9_key) && fs::is_regular_file(c9_path))
                 {
-                    m_scannedBinders.insert(c9_key);
+                    m_scannedBinderPaths.insert(c9_key);
                     const Binder::CPtr c9_binder = Binder::FromPath(c9_path);
                     ScanBinderForTPFs(*c9_binder);
 
@@ -118,28 +138,12 @@ namespace Firelink
                         RegisterChrTPFBDTs(source_dir, *c9_binder);
                 }
             }
+
+            return;
         }
-        // EQUIPMENT
-        else if (base_name.ends_with(".partsbnd"))
-        {
-            if (flverBinder)
-                ScanBinderForTPFs(*flverBinder);
-        }
-        // ASSETS (Elden Ring)
-        else if (base_name.ends_with(".geombnd"))
-        {
-            if (m_aetRoot.empty())
-            {
-                // Guess AET root as 'asset/aet', assuming GEOMBND is in 'asset/aeg/aegXXX'.
-                m_aetRoot = (source_dir / "../../aet").lexically_normal();
-            }
-        }
-        // GENERIC BINDERS
-        else if (base_name.ends_with("bnd"))
-        {
-            if (flverBinder)
-                ScanBinderForTPFs(*flverBinder);
-        }
+        // ALL OTHER BINDERS (including 'partsbnd' Equipment Binders)
+        if (flverBinder)
+            ScanBinderForTPFs(*flverBinder);
     }
 
     // ========================================================================
@@ -152,7 +156,7 @@ namespace Firelink
         const auto key = ToLower(textureStem);
         const auto model_key = ToLower(modelName);
 
-        // Fast path: check cache with shared lock.
+        // 0. Fast path: check cache with shared lock.
         {
             std::shared_lock lock(m_mutex);
             const auto it = m_textureCache.find(key);
@@ -163,21 +167,60 @@ namespace Firelink
         // Slow path: unique lock for lazy loading.
         std::unique_lock lock(m_mutex);
 
-        // Double-check after acquiring unique lock.
+        // 0. Double-check after acquiring unique lock.
         if (const auto it = m_textureCache.find(key); it != m_textureCache.end())
             return &it->second;
 
-        // Check for AET texture.
-        if (key.starts_with("aet") && !m_aetRoot.empty())
-        {
-            const auto aet_prefix = key.substr(0, 6);  // "aetXXX"
-            const auto aet_tpf_prefix = key.substr(0, 10); // "aetXXX_XXX"
-            auto aet_tpf_path = m_aetRoot / aet_prefix / (aet_tpf_prefix + ".tpf.dcx");
-            if (!m_scannedTPFs.contains(aet_tpf_prefix) && fs::is_regular_file(aet_tpf_path))
-                m_pendingTPFs.try_emplace(aet_tpf_prefix, aet_tpf_path);
-        }
+        // 0a. If texture is known to be missing, ignore it.
+        if (m_missingStems.contains(key))
+            return nullptr;
 
-        // Check pending TPFs: exact stem match.
+        // 1. Special 'global' texture cases recognized by name.
+        if (m_game == GameType::EldenRing && key.starts_with("aet"))
+        {
+            // Asset AET texture.
+            const auto aetPrefix = key.substr(0, 6);  // "aetXXX"
+            const auto aetTpfStem = key.substr(0, 10); // "aetXXX_XXX"
+            const fs::path aetTpfPath = m_dataRoot / "asset/aet" / aetPrefix / (aetTpfStem + ".tpf.dcx");
+            if (!fs::is_regular_file(aetTpfPath))
+                // This texture will not be found.
+                return nullptr;
+
+            if (!m_scannedTPFStems.contains(aetTpfStem))
+                // Texture can be found below.
+                m_pendingTPFs.try_emplace(aetTpfStem, aetTpfPath);
+        }
+        else if (m_game != GameType::EldenRing && key.starts_with("o"))
+        {
+            // Object texture. Can be used lazily by any FLVERs in the same map as the relevant object model.
+            // We find the OBJBND and load its TPFs immediately.
+            const auto objModelStem = key.substr(0, 5);  // "oXXXX"
+            const auto fileName = objModelStem + ".objbnd" + (UsesBinderDcx(m_game) ? ".dcx" : "");
+            const fs::path objbndPath = m_dataRoot / "obj" / fileName;
+            const std::string lowerObjbndPath = ToLower(objbndPath.string());
+
+            if (!m_scannedBinderPaths.contains(lowerObjbndPath))
+            {
+                if (fs::is_regular_file(objbndPath))
+                {
+                    const auto binder = Binder::FromPath(objbndPath);
+                    ScanBinderForTPFs(*binder);
+                    // Texture can be found below.
+                }
+                else
+                {
+                    Warning("Expected object binder not found for texture '{}': {}", key, objbndPath.string());
+                    // Don't bother trying same Binder path again.
+                    m_scannedBinderPaths.insert(lowerObjbndPath);
+                    // This texture will not be found.
+                    return nullptr;
+                }
+            }
+        }
+        // TODO: If characters can randomly share textures with each other, other than the known cXXX9 case, this
+        //  would be where to check.
+
+        // 2. Check pending TPFs: exact stem match.
         if (m_pendingTPFs.contains(key))
         {
             LoadTPF(key);
@@ -185,7 +228,7 @@ namespace Firelink
                 return &it->second;
         }
 
-        // Check pending TPFs: prefix match (multi-DDS TPFs).
+        // 3. Check pending TPFs: prefix match (multi-DDS TPFs).
         for (auto it = m_pendingTPFs.begin(); it != m_pendingTPFs.end(); )
         {
             auto& tpf_stem = it->first;
@@ -203,18 +246,18 @@ namespace Firelink
             }
         }
 
-        // Last resort: load all pending binders.
-        if (!m_pendingBinders.empty())
+        // 4. Last resort: load all pending Binders.
+        if (!m_pendingBinderPaths.empty())
         {
-            auto binder_stems = std::vector<std::string>();
-            binder_stems.reserve(m_pendingBinders.size());
-            for (const auto& stem : m_pendingBinders | std::views::keys)
-                binder_stems.push_back(stem);
+            auto binderStems = std::vector<std::string>();
+            binderStems.reserve(m_pendingBinderPaths.size());
+            for (const auto& stem : m_pendingBinderPaths | std::views::keys)
+                binderStems.push_back(stem);
 
-            for (auto& stem : binder_stems)
-                LoadBinder(stem);
+            for (auto& stem : binderStems)
+                LoadPendingBinder(stem);
 
-            // Retry with new TPF sources.
+            // Retry with new TPF sources extracted from all pending Binders.
             lock.unlock();
             return GetTexture(textureStem, modelName);
         }
@@ -246,8 +289,17 @@ namespace Firelink
     }
 
     // ========================================================================
-    // CachedTextureCount
+    // Read-only getters
     // ========================================================================
+
+    std::vector<std::string> TextureFinder::PendingTPFStems() const
+    {
+        std::vector<std::string> names;
+        names.reserve(m_pendingTPFs.size());
+        for (const auto& tpfStem : m_pendingTPFs | std::views::keys)
+            names.push_back(tpfStem);
+        return names;
+    }
 
     std::size_t TextureFinder::CachedTextureCount() const
     {
@@ -259,60 +311,57 @@ namespace Firelink
     // Registration helpers
     // ========================================================================
 
-    void TextureFinder::RegisterMapTextures(const fs::path& source_dir)
+    void TextureFinder::RegisterMapTextures(const fs::path& sourceDir)
     {
         // Extract map area from directory name (mAA_BB_CC_DD → mAA).
-        auto dir_name = source_dir.filename().string();
+        auto dir_name = sourceDir.filename().string();
         static const std::regex map_re(R"(^(m\d\d)_)");
         std::smatch match;
         if (!std::regex_search(dir_name, match, map_re))
             return;
         const auto area = match[1].str();
 
-        const auto map_area_dir = (source_dir.parent_path() / area).lexically_normal();
+        const auto map_area_dir = (sourceDir.parent_path() / area).lexically_normal();
         RegisterMapAreaTextures(map_area_dir);
 
         if (m_game == GameType::DarkSoulsPTDE)
         {
             // PTDE: also check map/tx folder.
-            const auto tx_dir = (source_dir.parent_path() / "tx").lexically_normal();
+            const auto tx_dir = (sourceDir.parent_path() / "tx").lexically_normal();
             if (fs::is_directory(tx_dir))
                 RegisterTPFsInDir(tx_dir);
         }
     }
 
-    void TextureFinder::RegisterMapAreaTextures(const fs::path& map_area_dir)
+    void TextureFinder::RegisterMapAreaTextures(const fs::path& mapAreaDir)
     {
-        if (!fs::is_directory(map_area_dir))
+        if (!fs::is_directory(mapAreaDir))
             return;
 
-        for (auto& entry : fs::directory_iterator(map_area_dir))
+        for (auto& dirEntry : fs::directory_iterator(mapAreaDir))
         {
-            if (!entry.is_regular_file()) continue;
-            auto name = entry.path().filename().string();
-            auto lower_name_str = ToLower(name);
+            if (!dirEntry.is_regular_file()) continue;
+            auto name = ToLower(dirEntry.path().filename().string());
 
-            if (lower_name_str.ends_with(".tpfbhd"))
+            if (name.ends_with(".tpfbhd"))
             {
-                auto stem = StemOf(entry.path());
-                if (!m_scannedBinders.contains(stem))
-                    m_pendingBinders.try_emplace(stem, entry.path());
+                RegisterBinder(dirEntry);
             }
-            else if (std::regex_match(name, TPF_RE))
+            else if (IsTPFFileName(name))
             {
-                auto stem = StemOf(entry.path());
-                if (!m_scannedTPFs.contains(stem))
+                auto stem = ToLowerStem(dirEntry);
+                if (!m_scannedTPFStems.contains(stem))
                 {
-                    // Multi-texture map TPF — load immediately.
-                    m_scannedTPFs.insert(stem);
+                    // Multi-texture map TPF — load immediately (steal TPFTextures).
+                    m_scannedTPFStems.insert(stem);
                     try
                     {
-                        for (const TPF::Ptr tpf = TPF::FromPath(entry); auto& tex : tpf->Textures())
+                        for (auto& tex : TPF::FromPath(dirEntry)->Textures())
                             m_textureCache.try_emplace(ToLower(tex.stem), std::move(tex));
                     }
                     catch (const std::exception& e)
                     {
-                        Warning("[TextureFinder] Failed to load TPF: " + entry.path().string() + " — " + e.what());
+                        Warning("[TextureFinder] Failed to load TPF: " + dirEntry.path().string() + " — " + e.what());
                     }
                 }
             }
@@ -321,31 +370,33 @@ namespace Firelink
 
     void TextureFinder::RegisterTPFsInDir(const fs::path& dir, const std::string& glob)
     {
-        if (!fs::is_directory(dir)) return;
-        for (auto& entry : fs::directory_iterator(dir))
+        if (!fs::is_directory(dir))
+            return;
+
+        for (auto& dirEntry : fs::directory_iterator(dir))
         {
-            if (!entry.is_regular_file()) continue;
-            auto name = entry.path().filename().string();
+            if (!dirEntry.is_regular_file())
+                continue;
+            auto name = dirEntry.path().filename().string();
             if (MatchesGlob(name, glob) || MatchesGlob(name, glob + ".dcx"))
             {
-                auto stem = StemOf(entry.path());
-                if (!m_scannedTPFs.contains(stem))
-                    m_pendingTPFs.try_emplace(stem, entry.path());
+                RegisterTPF(dirEntry);
             }
         }
     }
 
     void TextureFinder::RegisterChrLooseTPFs(const fs::path& dir)
     {
-        if (!fs::is_directory(dir)) return;
-        for (auto& entry : fs::directory_iterator(dir))
+        if (!fs::is_directory(dir))
+            return;
+
+        for (auto& dirEntry : fs::directory_iterator(dir))
         {
-            if (!entry.is_regular_file()) continue;
-            if (std::regex_match(entry.path().filename().string(), TPF_RE))
+            if (!dirEntry.is_regular_file())
+                continue;
+            if (std::regex_match(dirEntry.path().filename().string(), TPF_RE))
             {
-                auto stem = StemOf(entry.path());
-                if (!m_scannedTPFs.contains(stem))
-                    m_pendingTPFs.try_emplace(stem, entry.path());
+                RegisterTPF(dirEntry);
             }
         }
     }
@@ -353,11 +404,19 @@ namespace Firelink
     void TextureFinder::RegisterChrTPFBDTs(const fs::path& source_dir, const Binder& chrbnd)
     {
         // Look for a .chrtpfbhd entry inside the CHRBND.
-        static const std::regex bhd_re(R"(\.chrtpfbhd$)");
-        const BinderEntry* bhd_entry = chrbnd.FindEntryByNameRegex(bhd_re);
-        if (!bhd_entry) return;
+        static const std::string bhd_re(R"(\.chrtpfbhd$)");
+        BinderEntry::Ptr bhdEntry;
+        try
+        {
+            bhdEntry = chrbnd.FindEntryByNameRegex(bhd_re);
+        }
+        catch (BinderEntryNotFoundError&)
+        {
+            // No .chrtpfbhd entry — no split TPF/BDT, so nothing to register.
+            return;
+        }
 
-        const auto bdt_stem = bhd_entry->stem();
+        const auto bdt_stem = bhdEntry->stem();
         const auto bdt_path = source_dir / (bdt_stem + ".chrtpfbdt");
         if (!fs::is_regular_file(bdt_path))
             return;
@@ -366,15 +425,13 @@ namespace Firelink
         {
             const auto bdt_data = BinaryReadWrite::ReadFileBytes(bdt_path);
             auto bxf = Binder::FromSplitBytes(
-                bhd_entry->data.data(), bhd_entry->data.size(),
+                bhdEntry->data.data(), bhdEntry->data.size(),
                 bdt_data.data(), bdt_data.size());
 
-            // Steal new TPF entries from transient Binder.
-            for (auto& tpf_entry : bxf->FindEntriesByNameRegex(TPF_RE, /*fullMatch*/ true))
+            // Get new TPF entries from transient Binder.
+            for (auto& tpfEntry : bxf->FindEntriesByNameRegex(TPF_RE_STR, /*fullMatch*/ true))
             {
-                auto stem = tpf_entry->stem();
-                if (!m_scannedTPFs.contains(stem))
-                    m_pendingTPFs.try_emplace(stem, std::move(*tpf_entry));
+                RegisterTPF(tpfEntry);
             }
         }
         catch (const std::exception& e)
@@ -386,72 +443,71 @@ namespace Firelink
     void TextureFinder::RegisterChrTexbnd(
         const fs::path& source_dir, const std::string& model_stem, const std::string& res)
     {
-        auto texbnd_path = source_dir / (model_stem + res + ".texbnd.dcx");
-        if (!fs::is_regular_file(texbnd_path))
-        {
-            texbnd_path = source_dir / (model_stem + res + ".texbnd");
-            if (!fs::is_regular_file(texbnd_path))
-                return;
-        }
-
-        const auto texbnd_key = ToLower(texbnd_path.string());
-        if (m_scannedBinders.contains(texbnd_key))
+        const fs::path texbndPath = source_dir / (model_stem + res + ".texbnd" + (UsesBinderDcx(m_game) ? ".dcx" : ""));
+        if (!fs::is_regular_file(texbndPath))
             return;
-        m_scannedBinders.insert(texbnd_key);
+
+        const auto lowerTexbndPath = ToLower(texbndPath.string());
+        if (m_scannedBinderPaths.contains(lowerTexbndPath))
+            return;
+        m_scannedBinderPaths.insert(lowerTexbndPath);
 
         try
         {
-            const auto texbnd = Binder::FromPath(texbnd_path);
+            const auto texbnd = Binder::FromPath(texbndPath);
 
-            for (auto& tpf_entry : texbnd->FindEntriesByNameRegex(TPF_RE, /*fullMatch*/ true))
+            for (auto& tpfEntry : texbnd->FindEntriesByNameRegex(TPF_RE_STR, /*fullMatch*/ true))
             {
-                auto stem = tpf_entry->stem();
-                if (m_scannedTPFs.contains(stem)) continue;
-                m_scannedTPFs.insert(stem);
+                auto stem = ToLower(tpfEntry->stem());
+                if (m_scannedTPFStems.contains(stem))
+                    continue;
+                m_scannedTPFStems.insert(stem);
 
-                // Multi-texture TPF — load immediately.
-                const std::byte* tpf_data = tpf_entry->data.data();
-                std::size_t tpf_size = tpf_entry->data.size();
-                std::vector<std::byte> decompressed;
-                if (IsDCX(tpf_data, tpf_size))
-                {
-                    decompressed = DecompressDCX(tpf_data, tpf_size).data;
-                    tpf_data = decompressed.data();
-                    tpf_size = decompressed.size();
-                }
-                const auto tpf = TPF::FromBytes(tpf_data, tpf_size);
+                // Multi-texture TPF — load immediately and cache textures.
+                const auto tpf = TPF::FromBytes(tpfEntry->data.data(), tpfEntry->data.size());
                 for (auto& tex : tpf->Textures())
                     m_textureCache.try_emplace(ToLower(tex.stem), std::move(tex));
             }
         }
         catch (const std::exception& e)
         {
-            Warning("[TextureFinder] Failed to read texbnd: " + texbnd_path.string() + " — " + e.what());
+            Warning("[TextureFinder] Failed to read texbnd: {} — {}", texbndPath.string(), e.what());
         }
     }
 
-    void TextureFinder::RegisterPartsCommonTPFs(const fs::path& parts_dir)
+    void TextureFinder::RegisterPartsCommonTPFs(const fs::path& partsDir)
     {
-        if (!fs::is_directory(parts_dir)) return;
-        for (auto& entry : fs::directory_iterator(parts_dir))
+        if (!fs::is_directory(partsDir))
+            return;
+
+        for (auto& dirEntry : fs::directory_iterator(partsDir))
         {
-            if (!entry.is_regular_file()) continue;
-            auto name = entry.path().filename().string();
-            if (MatchesGlob(name, "Common*.tpf") || MatchesGlob(name, "Common*.tpf.dcx")
-                || MatchesGlob(name, "common*.tpf") || MatchesGlob(name, "common*.tpf.dcx"))
+            if (!dirEntry.is_regular_file())
+                continue;
+
+            auto name = dirEntry.path().filename().string();
+
+            bool matchesGlob;
+            if (UsesBinderDcx(m_game))
+                matchesGlob = MatchesGlob(name, "Common*.tpf.dcx") || MatchesGlob(name, "common*.tpf.dcx");
+            else
+                matchesGlob = MatchesGlob(name, "Common*.tpf") || MatchesGlob(name, "common*.tpf");
+
+            if (matchesGlob)
             {
-                auto stem = StemOf(entry.path());
-                if (m_scannedTPFs.contains(stem)) continue;
-                m_scannedTPFs.insert(stem);
+                auto stem = ToLowerStem(dirEntry);
+                if (m_scannedTPFStems.contains(stem))
+                    continue;
+
+                m_scannedTPFStems.insert(stem);
                 try
                 {
-                    const auto tpf = TPF::FromPath(entry.path());
-                    for (auto& tex : tpf->Textures())
+                    for (auto& tex : TPF::FromPath(dirEntry.path())->Textures())
                         m_textureCache.try_emplace(ToLower(tex.stem), std::move(tex));
                 }
                 catch (const std::exception& e)
                 {
-                    Warning("[TextureFinder] Failed to load Common TPF: " + entry.path().string() + " — " + e.what());
+                    Warning("[TextureFinder] Failed to load Common TPF: " + dirEntry.path().string() + " — " + e.what());
                 }
             }
         }
@@ -459,27 +515,42 @@ namespace Firelink
 
     void TextureFinder::ScanBinderForTPFs(const Binder& binder)
     {
-        for (auto& entry : binder.FindEntriesByNameRegex(TPF_RE, /*fullMatch*/ true))
+        for (auto& entry : binder.FindEntriesByNameRegex(TPF_RE_STR, /*fullMatch*/ true))
         {
-            // We copy the BinderEntry here, as this is likely an externally-passed Binder.
-            auto stem = entry->stem();
-            if (!m_scannedTPFs.contains(stem))
-                m_pendingTPFs.try_emplace(stem, *entry);
+            RegisterTPF(entry);
         }
+    }
+
+    void TextureFinder::RegisterBinder(const std::filesystem::path& binderPath)
+    {
+        if (const auto lowerPath = ToLower(binderPath.string()); !m_scannedBinderPaths.contains(lowerPath))
+            m_pendingBinderPaths.try_emplace(ToLowerStem(binderPath), binderPath);
+    }
+
+    void TextureFinder::RegisterTPF(const std::filesystem::path& tpfPath)
+    {
+        if (const auto stem = ToLowerStem(tpfPath); !m_scannedTPFStems.contains(stem))
+            m_pendingTPFs.try_emplace(stem, tpfPath);
+    }
+
+    void TextureFinder::RegisterTPF(const std::shared_ptr<BinderEntry>& tpfBinderEntry)
+    {
+        if (const auto stem = ToLower(tpfBinderEntry->stem()); !m_scannedTPFStems.contains(stem))
+            m_pendingTPFs.try_emplace(stem, tpfBinderEntry);
     }
 
     // ========================================================================
     // Lazy loading
     // ========================================================================
 
-    void TextureFinder::LoadBinder(const std::string& binder_stem)
+    void TextureFinder::LoadPendingBinder(const std::string& binderStem)
     {
-        const auto it = m_pendingBinders.find(binder_stem);
-        if (it == m_pendingBinders.end()) return;
+        const auto it = m_pendingBinderPaths.find(binderStem);
+        if (it == m_pendingBinderPaths.end()) return;
 
         const auto path = std::move(it->second);
-        m_pendingBinders.erase(it);
-        m_scannedBinders.insert(ToLower(path.string()));
+        m_pendingBinderPaths.erase(it);
+        m_scannedBinderPaths.insert(ToLower(path.string()));
 
         try
         {
@@ -501,12 +572,10 @@ namespace Firelink
                     bhd_data.data(), bhd_data.size(),
                     bdt_data.data(), bdt_data.size());
 
-                // Steal new TPF entries from transient Binder.
-                for (auto& entry : binder->FindEntriesByNameRegex(TPF_RE, /*fullMatch*/ true))
+                // Get new TPF entries from transient Binder.
+                for (auto& entry : binder->FindEntriesByNameRegex(TPF_RE_STR, /*fullMatch*/ true))
                 {
-                    auto stem = entry->stem();
-                    if (!m_scannedTPFs.contains(stem))
-                        m_pendingTPFs.try_emplace(stem, std::move(*entry));
+                    RegisterTPF(entry);
                 }
             }
             else
@@ -528,38 +597,28 @@ namespace Firelink
 
         const auto source = std::move(it->second);
         m_pendingTPFs.erase(it);
-        m_scannedTPFs.insert(tpf_stem);
+        m_scannedTPFStems.insert(tpf_stem);
 
         try
         {
+            std::unique_ptr<TPF> tpf = nullptr;
             const std::byte* tpf_data = nullptr;
             std::size_t tpf_size = 0;
             std::vector<std::byte> buf;
 
             if (const auto* path = std::get_if<fs::path>(&source))
             {
-                auto [storage, type] = TryDecompressDCX(*path);
-                buf = std::move(storage);  // discard DCX type
-                tpf_data = buf.data();
-                tpf_size = buf.size();
+                tpf = TPF::FromPath(*path);
             }
-            else if (const auto* entry = std::get_if<BinderEntry>(&source))
+            else if (const auto& entry = std::get_if<std::shared_ptr<BinderEntry>>(&source))
             {
-                tpf_data = entry->data.data();
-                tpf_size = entry->data.size();
-
-                // Entry data may itself be DCX-compressed.
-                if (tpf_size >= 4 && IsDCX(tpf_data, tpf_size))
-                {
-                    buf = DecompressDCX(tpf_data, tpf_size).data;
-                    tpf_data = buf.data();
-                    tpf_size = buf.size();
-                }
+                tpf_data = (*entry)->data.data();
+                tpf_size = (*entry)->data.size();
+                tpf = TPF::FromBytes(tpf_data, tpf_size);
             }
 
-            if (tpf_data && tpf_size >= 4)
+            if (tpf)
             {
-                const auto tpf = TPF::FromBytes(tpf_data, tpf_size);
                 for (auto& tex : tpf->Textures())
                     m_textureCache.try_emplace(ToLower(tex.stem), std::move(tex));
             }

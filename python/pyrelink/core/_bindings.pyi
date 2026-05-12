@@ -49,8 +49,9 @@ __all__ = [
     "TPF",
 ]
 
+import re
 from pathlib import Path
-from typing import Union, Optional, Sequence
+from typing import Callable, Union, Optional, Self, Sequence
 from enum import IntEnum
 
 # ---------------------------------------------------------------------------
@@ -187,7 +188,7 @@ class GameFile:
         ...
 
     @classmethod
-    def from_path(cls, path: Union[str, Path]) -> GameFile:
+    def from_path(cls, path: Union[str, Path]) -> Self:
         """Read from a file path, decompressing DCX if needed."""
         ...
 
@@ -196,12 +197,12 @@ class GameFile:
         cls,
         paths: Sequence[Union[str, Path]],
         max_threads: int = 0,
-    ) -> list[GameFile]:
+    ) -> list[Self]:
         """Read multiple files in parallel, decompressing DCX if needed."""
         ...
 
     @classmethod
-    def from_bytes(cls, data: Union[bytes, bytearray, memoryview]) -> GameFile:
+    def from_bytes(cls, data: Union[bytes, bytearray, memoryview]) -> Self:
         """Parse from raw (already DCX-decompressed) bytes."""
         ...
 
@@ -210,7 +211,7 @@ class GameFile:
         cls,
         buffers: list[Union[bytes, bytearray, memoryview]],
         max_threads: int = 0,
-    ) -> list[GameFile]:
+    ) -> list[Self]:
         """Parse multiple byte buffers in parallel."""
         ...
 
@@ -304,6 +305,11 @@ class BinderEntry:
     def stem(self) -> str:
         """Minimal stem (before first '.') of the entry basename."""
         ...
+
+    def get_uncompressed_data(self) -> bytes:
+        """Decompress entry data if compression flag is set, or just return data."""
+        ...
+
     def __repr__(self) -> str: ...
 
 class BinderError(RuntimeError):
@@ -333,12 +339,28 @@ class Binder(GameFile):
     @property
     def entry_count(self) -> int: ...
 
-    def find_entry_by_id(self, entry_id: int) -> Optional[BinderEntry]:
-        """Find entry by ID. Returns None if not found."""
+    def find_entry_by_id(self, entry_id: int) -> BinderEntry:
+        """Find entry by ID. Raises a KeyError if not found."""
         ...
 
-    def find_entry_by_name(self, name: str) -> Optional[BinderEntry]:
-        """Find entry by basename. Returns None if not found."""
+    def find_entry_by_name(self, name: str) -> BinderEntry:
+        """Find entry by basename. Raises a KeyError if not found."""
+        ...
+
+    def find_entry_by_name_regex(self, pattern: str | re.Pattern, full_match: bool = False) -> BinderEntry:
+        """Find entry by regex on basename. Raises a KeyError if not found."""
+        ...
+
+    def find_entries_by_name_regex(self, pattern: str | re.Pattern, full_match: bool = False) -> list[BinderEntry]:
+        """Find all entries that match regex on basename."""
+        ...
+
+    def find_entry_by_filter(self, filter: Callable[[BinderEntry], bool]) -> BinderEntry:
+        """Find entry by generic `BinderEntry` filter function. Raises a KeyError if not found."""
+        ...
+
+    def find_entries_by_filter(self, filter: Callable[[BinderEntry], bool]) -> list[BinderEntry]:
+        """Find all entries that match generic `BinderEntry` filter function."""
         ...
 
     def __len__(self) -> int: ...

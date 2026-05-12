@@ -73,50 +73,57 @@ namespace Firelink
             ImageFormat format,
             const std::string& model_name = "");
 
-        /// @brief Manually set the AET root directory for asset texture lookups (Elden Ring).
-        void SetAETRoot(const std::filesystem::path& aetRoot)
-        {
-            m_aetRoot = aetRoot;
-        }
+        /// @brief Get the names of all pending TPFs.
+        [[nodiscard]] std::vector<std::string> PendingTPFStems() const;
 
         /// @brief Get the number of cached textures.
         [[nodiscard]] std::size_t CachedTextureCount() const;
 
     private:
+        // Game being searched, which determines custom texture resolution strategies.
         GameType m_game;
+
+        // Game data root, required to find arbitrary textures (not bundled in/adjacent to FLVERs/BNDs).
         std::filesystem::path m_dataRoot;
-        std::filesystem::path m_aetRoot;
 
-        // Pending binder file paths (lowercase stem -> path). Not yet opened.
-        std::unordered_map<std::string, std::filesystem::path> m_pendingBinders;
+        // Pending binder file paths (lowercase stem -> full path). Not yet opened.
+        std::unordered_map<std::string, std::filesystem::path> m_pendingBinderPaths;
 
-        // Pending TPF sources (lowercase stem -> file path or BinderEntry).
-        // BinderEntry is stored by value (owns its data) for simple lifetime management.
-        std::unordered_map<std::string, std::variant<std::filesystem::path, BinderEntry>> m_pendingTPFs;
+        // Pending TPF sources (lowercase stem -> file path or BinderEntry shared pointer).
+        std::unordered_map<std::string, std::variant<std::filesystem::path, std::shared_ptr<BinderEntry>>> m_pendingTPFs;
 
         // Loaded texture cache (lowercase stem -> TPFTexture).
         std::unordered_map<std::string, TPFTexture> m_textureCache;
 
-        // Already-scanned paths to avoid re-scanning.
-        std::unordered_set<std::string> m_scannedBinders;
-        std::unordered_set<std::string> m_scannedTPFs;
+        // Already-scanned lowercase Binder paths (full path) and TPF stems and to avoid re-scanning.
+        std::unordered_set<std::string> m_scannedBinderPaths;
+        std::unordered_set<std::string> m_scannedTPFStems;
+
+        // Textures that could not be found and need not be searched for again (global process).
+        std::unordered_set<std::string> m_missingStems;
 
         mutable std::shared_mutex m_mutex;
 
         // --- Registration helpers (no locking — caller must hold unique lock) ---
 
-        void RegisterMapTextures(const std::filesystem::path& source_dir);
-        void RegisterMapAreaTextures(const std::filesystem::path& map_area_dir);
+        void RegisterMapTextures(const std::filesystem::path& sourceDir);
+        void RegisterMapAreaTextures(const std::filesystem::path& mapAreaDir);
         void RegisterTPFsInDir(const std::filesystem::path& dir, const std::string& glob = "*.tpf");
         void RegisterChrLooseTPFs(const std::filesystem::path& dir);
         void RegisterChrTPFBDTs(const std::filesystem::path& source_dir, const Binder& chrbnd);
         void RegisterChrTexbnd(const std::filesystem::path& source_dir, const std::string& model_stem, const std::string& res);
-        void RegisterPartsCommonTPFs(const std::filesystem::path& parts_dir);
+        void RegisterPartsCommonTPFs(const std::filesystem::path& partsDir);
         void ScanBinderForTPFs(const Binder& binder);
+
+        // --- First-time stem registration for Binders/TPFs ---
+
+        void RegisterBinder(const std::filesystem::path& binderPath);
+        void RegisterTPF(const std::filesystem::path& tpfPath);
+        void RegisterTPF(const std::shared_ptr<BinderEntry>& tpfBinderEntry);
 
         // --- Lazy loading helpers (no locking — caller must hold unique lock) ---
 
-        void LoadBinder(const std::string& binder_stem);
+        void LoadPendingBinder(const std::string& binderStem);
         void LoadTPF(const std::string& tpf_stem);
     };
 

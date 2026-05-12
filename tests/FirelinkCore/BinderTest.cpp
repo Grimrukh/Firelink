@@ -37,9 +37,9 @@ TEST_CASE("Binder: read c2300.chrbnd")
     // All entries should have IDs and paths.
     for (const auto& e : binder->Entries())
     {
-        CHECK(e.entry_id >= 0);
-        CHECK(!e.path.empty());
-        CHECK(!e.data.empty());
+        CHECK(e->entry_id >= 0);
+        CHECK(!e->path.empty());
+        CHECK(!e->data.empty());
     }
 }
 
@@ -61,8 +61,8 @@ TEST_CASE("Binder: round-trip c2300.chrbnd")
 
     for (std::size_t i = 0; i < binder->Entries().size(); ++i)
     {
-        const auto& a = binder->Entries()[i];
-        const auto& b = reread->Entries()[i];
+        const auto& a = *binder->Entries()[i];
+        const auto& b = *reread->Entries()[i];
         CHECK(a.entry_id == b.entry_id);
         CHECK(a.path == b.path);
         CHECK(a.flags == b.flags);
@@ -108,8 +108,8 @@ TEST_CASE("Binder: round-trip c2010.anibnd")
 
     for (std::size_t i = 0; i < binder->Entries().size(); ++i)
     {
-        const auto& a = binder->Entries()[i];
-        const auto& b = reread->Entries()[i];
+        const auto& a = *binder->Entries()[i];
+        const auto& b = *reread->Entries()[i];
         CHECK(a.entry_id == b.entry_id);
         CHECK(a.path == b.path);
         CHECK(a.data.size() == b.data.size());
@@ -163,8 +163,8 @@ TEST_CASE("Binder: read split c2300.chrtpfbhd + chrtpfbdt")
     // Entries should have paths and non-empty data.
     for (const auto& e : binder->Entries())
     {
-        CHECK(!e.path.empty());
-        CHECK(!e.data.empty());
+        CHECK(!e->path.empty());
+        CHECK(!e->data.empty());
     }
 }
 
@@ -181,20 +181,20 @@ TEST_CASE("Binder: split c2300.chrtpfbhd contains TPF entries")
     int tpf_count = 0;
     for (auto& entry : binder->Entries())
     {
-        auto name = entry.name();
+        auto name = entry->name();
         bool is_tpf = false;
 
         // Check for .tpf or DCX-compressed .tpf
-        if (entry.data.size() >= 4)
+        if (entry->data.size() >= 4)
         {
-            if (std::memcmp(entry.data.data(), "TPF\0", 4) == 0)
+            if (std::memcmp(entry->data.data(), "TPF\0", 4) == 0)
                 is_tpf = true;
-            else if (IsDCX(entry.data.data(), entry.data.size()))
+            else if (IsDCX(entry->data.data(), entry->data.size()))
             {
                 // Try to decompress and check for TPF magic.
                 try
                 {
-                    auto inner = DecompressDCX(entry.data.data(), entry.data.size());
+                    auto inner = DecompressDCX(entry->data.data(), entry->data.size());
                     if (inner.data.size() >= 4 && std::memcmp(inner.data.data(), "TPF\0", 4) == 0)
                         is_tpf = true;
                 }
@@ -208,8 +208,8 @@ TEST_CASE("Binder: split c2300.chrtpfbhd contains TPF entries")
             // Parse the first TPF to verify it works.
             if (tpf_count == 1)
             {
-                const std::byte* tpf_data = entry.data.data();
-                std::size_t tpf_size = entry.data.size();
+                const std::byte* tpf_data = entry->data.data();
+                std::size_t tpf_size = entry->data.size();
                 std::vector<std::byte> decompressed;
 
                 if (IsDCX(tpf_data, tpf_size))
@@ -229,6 +229,123 @@ TEST_CASE("Binder: split c2300.chrtpfbhd contains TPF entries")
 
     CHECK(tpf_count > 0);
     MESSAGE("Found " << tpf_count << " TPF entries in split binder");
+}
+
+// ---------------------------------------------------------------------------
+// Entry-finding methods (c2300.chrbnd contains c2300.flver, c2300.hkx, c2300.tpf)
+// ---------------------------------------------------------------------------
+
+TEST_CASE("Binder: FindEntryByID returns correct entry")
+{
+    auto binder = Binder::FromPath(GetResourcePath("darksouls1r/c2300.chrbnd"));
+    if (!binder) { MESSAGE("Skipping"); return; }
+
+    // Grab the ID of the first entry and look it up.
+    const auto& first = binder->Entries().front();
+    auto found = binder->FindEntryByID(first->entry_id);
+    CHECK(found->entry_id == first->entry_id);
+    CHECK(found->path == first->path);
+
+    // Non-existent ID throws.
+    CHECK_THROWS_AS((void)binder->FindEntryByID(-999), BinderEntryNotFoundError);
+}
+
+TEST_CASE("Binder: FindEntryByName finds known entries")
+{
+    auto binder = Binder::FromPath(GetResourcePath("darksouls1r/c2300.chrbnd"));
+    if (!binder) { MESSAGE("Skipping"); return; }
+
+    auto flver = binder->FindEntryByName("c2300.flver");
+    CHECK(flver->name() == "c2300.flver");
+    CHECK(!flver->data.empty());
+
+    auto hkx = binder->FindEntryByName("c2300.hkx");
+    CHECK(hkx->name() == "c2300.hkx");
+
+    // Unknown name throws.
+    CHECK_THROWS_AS((void)binder->FindEntryByName("does_not_exist.xyz"), BinderEntryNotFoundError);
+}
+
+TEST_CASE("Binder: FindEntryByNameRegex finds a unique entry")
+{
+    auto binder = Binder::FromPath(GetResourcePath("darksouls1r/c2300.chrbnd"));
+    if (!binder) { MESSAGE("Skipping"); return; }
+
+    auto flver = binder->FindEntryByNameRegex(R"(.*\.flver)");
+    CHECK(flver->name() == "c2300.flver");
+
+    // Full-match variant.
+    auto hkx = binder->FindEntryByNameRegex(R"(c2300\.hkx)", true);
+    CHECK(hkx->name() == "c2300.hkx");
+}
+
+TEST_CASE("Binder: FindEntryByNameRegex throws on ambiguous pattern")
+{
+    auto binder = Binder::FromPath(GetResourcePath("darksouls1r/c2300.chrbnd"));
+    if (!binder) { MESSAGE("Skipping"); return; }
+
+    CHECK_THROWS_AS(
+        (void)binder->FindEntryByNameRegex(R"(c2300\..+)"),
+        MultipleBinderEntriesFoundError);
+}
+
+TEST_CASE("Binder: FindEntriesByNameRegex returns all matching entries")
+{
+    auto binder = Binder::FromPath(GetResourcePath("darksouls1r/c2300.chrbnd"));
+    if (!binder) { MESSAGE("Skipping"); return; }
+
+    auto matches = binder->FindEntriesByNameRegex(R"(c2300\..+)");
+    CHECK(matches.size() >= 3);
+
+    for (const auto& e : matches)
+    {
+        REQUIRE(e != nullptr);
+        CHECK(e->stem() == "c2300");
+    }
+
+    auto none = binder->FindEntriesByNameRegex(R"(zzz_no_match)");
+    CHECK(none.empty());
+}
+
+TEST_CASE("Binder: FindEntryByFilter finds a unique entry")
+{
+    auto binder = Binder::FromPath(GetResourcePath("darksouls1r/c2300.chrbnd"));
+    if (!binder) { MESSAGE("Skipping"); return; }
+
+    auto chrtpfbhd = binder->FindEntryByFilter(
+        [](const BinderEntry& e) { return e.name() == "c2300.chrtpfbhd"; });
+    CHECK(chrtpfbhd->name() == "c2300.chrtpfbhd");
+
+    // Filter that matches nothing throws.
+    CHECK_THROWS_AS(
+        (void)binder->FindEntryByFilter([](const BinderEntry&) { return false; }),
+        BinderEntryNotFoundError);
+}
+
+TEST_CASE("Binder: FindEntryByFilter throws on ambiguous filter")
+{
+    auto binder = Binder::FromPath(GetResourcePath("darksouls1r/c2300.chrbnd"));
+    if (!binder) { MESSAGE("Skipping"); return; }
+
+    CHECK_THROWS_AS(
+        (void)binder->FindEntryByFilter([](const BinderEntry&) { return true; }),
+        MultipleBinderEntriesFoundError);
+}
+
+TEST_CASE("Binder: FindEntriesByFilter returns all matching entries")
+{
+    auto binder = Binder::FromPath(GetResourcePath("darksouls1r/c2300.chrbnd"));
+    if (!binder) { MESSAGE("Skipping"); return; }
+
+    auto all = binder->FindEntriesByFilter([](const BinderEntry& e) { return !e.data.empty(); });
+    CHECK(all.size() == binder->Entries().size());
+
+    auto c2300 = binder->FindEntriesByFilter(
+        [](const BinderEntry& e) { return e.stem() == "c2300"; });
+    CHECK(c2300.size() >= 3);
+
+    auto none = binder->FindEntriesByFilter([](const BinderEntry&) { return false; });
+    CHECK(none.empty());
 }
 
 // ---------------------------------------------------------------------------

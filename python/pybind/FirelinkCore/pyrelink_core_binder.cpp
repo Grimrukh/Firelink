@@ -1,13 +1,31 @@
 // pyrelink_core_binder.cpp — pybind11 bindings for FirelinkCore Binder module.
 
 #include <pybind11/pybind11.h>
+#include <pybind11/functional.h>
 #include <pybind11/stl.h>
 
 #include <FirelinkCore/Binder.h>
 #include <pyrelink_helpers.h>
 
+#include <regex>
+
 namespace py = pybind11;
 using namespace Firelink;
+
+/// Convert a Python `str` or `re.Pattern` to a `std::string` ready for `std::regex`.
+/// Raises `TypeError` if the argument is neither.
+static std::string py_to_regex(const py::object& pat)
+{
+    if (py::isinstance<py::str>(pat))
+        return pat.cast<std::string>();
+
+    // re.Pattern objects expose their source via the `.pattern` attribute.
+    if (py::hasattr(pat, "pattern"))
+        return pat.attr("pattern").cast<std::string>();
+
+    throw py::type_error("Expected a str or re.Pattern, got " +
+                         py::cast<std::string>(py::str(py::type::handle_of(pat))));
+}
 
 void bind_firelink_core_binder(py::module& m)
 {
@@ -35,7 +53,7 @@ void bind_firelink_core_binder(py::module& m)
         .def_readwrite("unicode", &BinderVersion4Info::unicode)
         .def_readwrite("hash_table_type", &BinderVersion4Info::hash_table_type);
 
-    py::class_<BinderEntry>(m, "BinderEntry",
+    py::class_<BinderEntry, std::shared_ptr<BinderEntry>>(m, "BinderEntry",
         "A single entry in a Binder archive.")
         .def(py::init<>())
         .def_readwrite("entry_id", &BinderEntry::entry_id)
@@ -56,12 +74,20 @@ void bind_firelink_core_binder(py::module& m)
             "Basename of the entry path.")
         .def_property_readonly("stem", &BinderEntry::stem,
             "Minimal stem (before first '.') of the entry path basename.")
+        .def("get_uncompressed_data",
+            [](const BinderEntry& e) {
+                const auto bytes = e.GetUncompressedData();
+                return py::bytes(reinterpret_cast<const char*>(bytes.data()), bytes.size());
+            },
+            "Return the entry payload as bytes, decompressing with zlib if the compression flag is set.")
         .def("__repr__", [](const BinderEntry& e) {
             return "<BinderEntry id=" + std::to_string(e.entry_id) +
                    " path='" + e.path + "' " + std::to_string(e.data.size()) + " bytes>";
         });
 
     py::register_exception<BinderError>(m, "BinderError", PyExc_RuntimeError);
+    py::register_exception<BinderEntryNotFoundError>(m, "BinderEntryNotFoundError", PyExc_KeyError);
+    py::register_exception<MultipleBinderEntriesFoundError>(m, "MultipleBinderEntriesFoundError", PyExc_LookupError);
 
     auto binder = py::class_<Binder>(m, "Binder",
         "A FromSoftware BND3/BND4 multi-file archive.");
@@ -85,21 +111,45 @@ void bind_firelink_core_binder(py::module& m)
         .def_property("big_endian", &Binder::GetBigEndian, &Binder::SetBigEndian)
         .def_property("bit_big_endian", &Binder::GetBitBigEndian, &Binder::SetBitBigEndian)
         .def_property_readonly("entries",
-            [](Binder& b) -> std::vector<BinderEntry>& {
-                return b.Entries();
-            },
-            py::return_value_policy::reference_internal,
-            "List of binder entries (mutable).")
+            [](const Binder& b) { return b.Entries(); },
+            "List of binder entries (each a shared BinderEntry).")
         .def_property_readonly("entry_count", &Binder::EntryCount);
 
     binder
-        .def("find_entry_by_id", [](const Binder& b, std::int32_t id) -> const BinderEntry* {
-            return b.FindEntryByID(id);
-        }, py::return_value_policy::reference_internal, py::arg("entry_id"))
-        .def("find_entry_by_name", [](const Binder& b, const std::string& name) -> const BinderEntry* {
-            return b.FindEntryByName(name);
-        }, py::return_value_policy::reference_internal, py::arg("name"));
-        // TODO: Bind other find methods.
+        .def("find_entry_by_id", &Binder::FindEntryByID, py::arg("entry_id"),
+            "Find entry by ID. Raises BinderEntryNotFoundError if not found.")
+        .def("find_entry_by_name", &Binder::FindEntryByName, py::arg("name"),
+            "Find entry by basename. Raises BinderEntryNotFoundError if not found.")
+        .def("find_entry_by_name_regex",
+            [](const Binder& b, const py::object& pat, bool full_match) {
+                return b.FindEntryByNameRegex(py_to_regex(pat), full_match);
+            },
+            py::arg("pattern"), py::arg("full_match") = false,
+            "Find the single entry whose name matches *pattern* (str or re.Pattern).\n"
+            "Raises BinderEntryNotFoundError if none match, MultipleBinderEntriesFoundError if several do.")
+        .def("find_entries_by_name_regex",
+            [](const Binder& b, const py::object& pat, bool full_match) {
+                return b.FindEntriesByNameRegex(py_to_regex(pat), full_match);
+            },
+            py::arg("pattern"), py::arg("full_match") = false,
+            "Return all entries whose names match *pattern* (str or re.Pattern).")
+        .def("find_entry_by_filter",
+            [](const Binder& b, const py::function& fn) {
+                return b.FindEntryByFilter([&fn](const BinderEntry& e) -> bool {
+                    return fn(e).cast<bool>();
+                });
+            },
+            py::arg("filter"),
+            "Find the single entry for which *filter(entry)* returns True.\n"
+            "Raises BinderEntryNotFoundError if none match, MultipleBinderEntriesFoundError if several do.")
+        .def("find_entries_by_filter",
+            [](const Binder& b, const py::function& fn) {
+                return b.FindEntriesByFilter([&fn](const BinderEntry& e) -> bool {
+                    return fn(e).cast<bool>();
+                });
+            },
+            py::arg("filter"),
+            "Return all entries for which *filter(entry)* returns True.");
 
     binder
         .def("__len__", &Binder::EntryCount)

@@ -1,7 +1,7 @@
 #include <FirelinkFLVER/Bone.h>
-#include <FirelinkFLVER/Encodings.h>
 
 #include <FirelinkCore/BinaryReadWrite.h>
+#include <FirelinkCore/Encodings.h>
 
 namespace Firelink
 {
@@ -33,7 +33,7 @@ namespace Firelink
         b.bounding_box.max.z = r.Read<float>();
         r.AssertPad(52);
 
-        b.name = DecodeFLVERString(r.ReadStringAt(name_offset, unicode_encoding), unicode_encoding);
+        b.name = DecodeString(r.ReadStringAt(name_offset, unicode_encoding), unicode_encoding);
         return b;
     }
 

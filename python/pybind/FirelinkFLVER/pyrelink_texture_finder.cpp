@@ -54,9 +54,6 @@ void bind_firelink_flver_texture_finder(py::module& m)
             py::arg("texture_stem"), py::arg("format"),
             py::arg("model_name") = "",
             "Get texture data converted to the requested format. Returns empty bytes if not found.")
-        .def("set_aet_root", &TextureFinder::SetAETRoot,
-            py::arg("aet_root"),
-            "Manually set the AET root directory for asset texture lookups.")
         .def_property_readonly("cached_texture_count", &TextureFinder::CachedTextureCount)
         .def("__repr__", [](const TextureFinder& mgr) {
             return "<TextureFinder cached=" + std::to_string(mgr.CachedTextureCount()) + ">";

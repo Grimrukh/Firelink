@@ -1,10 +1,10 @@
 #include <FirelinkFLVER/Material.h>
 
-#include <FirelinkFLVER/Encodings.h>
 #include <FirelinkFLVER/Mesh.h>
 #include <FirelinkFLVER/Version.h>
 
 #include <FirelinkCore/BinaryReadWrite.h>
+#include <FirelinkCore/Encodings.h>
 
 namespace Firelink
 {
@@ -17,10 +17,10 @@ namespace Firelink
         const auto type_offset = r.Read<std::uint32_t>();
         r.AssertPad(8);
 
-        tex.path = DecodeFLVERString(r.ReadStringAt(path_offset, unicode_encoding), unicode_encoding);
+        tex.path = DecodeString(r.ReadStringAt(path_offset, unicode_encoding), unicode_encoding);
         if (type_offset > 0)
         {
-            tex.texture_type = DecodeFLVERString(r.ReadStringAt(type_offset, unicode_encoding), unicode_encoding);
+            tex.texture_type = DecodeString(r.ReadStringAt(type_offset, unicode_encoding), unicode_encoding);
         }
         else
             tex.texture_type = std::nullopt;
@@ -41,8 +41,8 @@ namespace Firelink
         tex.f2_unk_x18 = r.Read<float>();
         tex.f2_unk_x1c = r.Read<float>();
 
-        tex.path = DecodeFLVERString(r.ReadStringAt(path_offset, unicode_encoding), unicode_encoding);
-        tex.texture_type = DecodeFLVERString(r.ReadStringAt(type_offset, unicode_encoding), unicode_encoding);
+        tex.path = DecodeString(r.ReadStringAt(path_offset, unicode_encoding), unicode_encoding);
+        tex.texture_type = DecodeString(r.ReadStringAt(type_offset, unicode_encoding), unicode_encoding);
         return tex;
     }
 
@@ -95,8 +95,8 @@ namespace Firelink
         mat.f2_unk_x18 = r.Read<std::int32_t>();
         r.AssertPad(4);
 
-        mat.name = DecodeFLVERString(r.ReadStringAt(name_offset, unicode_encoding), unicode_encoding);
-        mat.mat_def_path = DecodeFLVERString(r.ReadStringAt(mat_def_offset, unicode_encoding), unicode_encoding);
+        mat.name = DecodeString(r.ReadStringAt(name_offset, unicode_encoding), unicode_encoding);
+        mat.mat_def_path = DecodeString(r.ReadStringAt(mat_def_offset, unicode_encoding), unicode_encoding);
 
         // GX items.
         if (gx_offset > 0)
@@ -177,8 +177,8 @@ namespace Firelink
         const auto layout_header_offset = r.Read<std::uint32_t>();
         r.AssertPad(8);
 
-        result.mat.name = DecodeFLVERString(r.ReadStringAt(name_offset, unicode_encoding), unicode_encoding);
-        result.mat.mat_def_path = DecodeFLVERString(r.ReadStringAt(mat_def_path_offset, unicode_encoding), unicode_encoding);
+        result.mat.name = DecodeString(r.ReadStringAt(name_offset, unicode_encoding), unicode_encoding);
+        result.mat.mat_def_path = DecodeString(r.ReadStringAt(mat_def_path_offset, unicode_encoding), unicode_encoding);
 
         // Read textures.
         {

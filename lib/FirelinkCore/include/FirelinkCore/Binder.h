@@ -11,12 +11,11 @@
 #include <FirelinkCore/Export.h>
 #include <FirelinkCore/GameFile.h>
 
-
 #include <cstddef>
 #include <filesystem>
 #include <functional>
+#include <memory>
 #include <optional>
-#include <regex>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -25,19 +24,19 @@ namespace Firelink
 {
     // --- BinderError ---
 
-    class BinderError : public std::runtime_error
+    class FIRELINK_CORE_API BinderError : public std::runtime_error
     {
     public:
         using std::runtime_error::runtime_error;
     };
 
-    class BinderEntryNotFoundError : public BinderError
+    class FIRELINK_CORE_API BinderEntryNotFoundError : public BinderError
     {
     public:
         using BinderError::BinderError;
     };
 
-    class MultipleBinderEntriesFoundError : public BinderError
+    class FIRELINK_CORE_API MultipleBinderEntriesFoundError : public BinderError
     {
     public:
         using BinderError::BinderError;
@@ -54,7 +53,7 @@ namespace Firelink
     // --- BinderFlags ---
     // Bit flags from the binder header. Stored in "big-endian bit order" internally.
 
-    struct BinderFlags
+    struct FIRELINK_CORE_API BinderFlags
     {
         std::uint8_t value = 0b00101110; // most common default
 
@@ -86,7 +85,7 @@ namespace Firelink
 
     // --- BinderVersion4Info ---
 
-    struct BinderVersion4Info
+    struct FIRELINK_CORE_API BinderVersion4Info
     {
         bool unknown1 = false;
         bool unknown2 = false;
@@ -101,8 +100,10 @@ namespace Firelink
 
     // --- BinderEntry ---
 
-    struct BinderEntry
+    struct FIRELINK_CORE_API BinderEntry
     {
+        using Ptr = std::shared_ptr<BinderEntry>;
+
         std::int32_t entry_id = -1;
         std::string path;                   // full internal path (raw bytes, shift-jis or UTF-16 LE round-trip)
         std::vector<std::byte> data;        // entry payload (may be zlib-compressed per entry flags)
@@ -121,6 +122,9 @@ namespace Firelink
             const auto pos = _name.find_first_of('.');
             return pos == std::string::npos ? path : _name.substr(0, pos);
         }
+
+        /// @brief Return the entry payload, decompressing it with zlib if the compression flag is set.
+        [[nodiscard]] std::vector<std::byte> GetUncompressedData() const;
     };
 
     // --- Binder ---
@@ -155,46 +159,39 @@ namespace Firelink
         /// @brief Get entry count.
         [[nodiscard]] std::size_t EntryCount() const { return m_entries.size(); }
 
-        /// @brief Find entry by ID. Returns nullptr if not found.
-        [[nodiscard]] const BinderEntry* FindEntryByID(std::int32_t id) const;
-        [[nodiscard]] BinderEntry* FindEntryByID(std::int32_t id);
+        /// @brief Find entry by ID. Throws `BinderEntryNotFoundError` if not found.
+        [[nodiscard]] std::shared_ptr<BinderEntry> FindEntryByID(std::int32_t id) const;
 
-        /// @brief Find entry by name (basename). Returns nullptr if not found.
-        [[nodiscard]] const BinderEntry* FindEntryByName(const std::string& name) const;
-        [[nodiscard]] BinderEntry* FindEntryByName(const std::string& name);
+        /// @brief Find entry by name (basename). Throws `BinderEntryNotFoundError` if not found.
+        [[nodiscard]] std::shared_ptr<BinderEntry> FindEntryByName(const std::string& name) const;
 
-        /// @brief Find entry by regex match to name (basename). Returns nullptr if not found.
-        /// @note Exactly one entry must match, or a `MultipleBinderEntriesFoundError` will be thrown.
-        [[nodiscard]] const BinderEntry* FindEntryByNameRegex(const std::regex& pattern, bool fullMatch = false) const;
-        [[nodiscard]] BinderEntry* FindEntryByNameRegex(const std::regex& pattern, bool fullMatch = false);
+        /// @brief Find entry by regex match to name (basename).
+        /// @note Throws `BinderEntryNotFoundError` if none match, `MultipleBinderEntriesFoundError` if more than one matches.
+        [[nodiscard]] std::shared_ptr<BinderEntry> FindEntryByNameRegex(const std::string& pattern, bool fullMatch = false) const;
 
-        /// @brief Find all entries whose names match the given regex.
-        [[nodiscard]] std::vector<const BinderEntry*> FindEntriesByNameRegex(
-            const std::regex& pattern, bool fullMatch = false) const;
-        [[nodiscard]] std::vector<BinderEntry*> FindEntriesByNameRegex(
-            const std::regex& pattern, bool fullMatch = false);
+        /// @brief Find all entries whose names match the given regex pattern string.
+        [[nodiscard]] std::vector<std::shared_ptr<BinderEntry>> FindEntriesByNameRegex(
+            const std::string& pattern, bool fullMatch = false) const;
 
         /// @brief Alias for entry filter function.
         using EntryFilter = std::function<bool(const BinderEntry&)>;
 
-        /// @brief Find entry by any entry-filtering function. Returns nullptr if not found.
-        /// @note Exactly one entry must match, or a `MultipleBinderEntriesFoundError` will be thrown.
-        [[nodiscard]] const BinderEntry* FindEntryByFilter(const EntryFilter& filter) const;
-        [[nodiscard]] BinderEntry* FindEntryByFilter(const EntryFilter& filter);
+        /// @brief Find entry matching a filter function.
+        /// @note Throws `BinderEntryNotFoundError` if none match, `MultipleBinderEntriesFoundError` if more than one matches.
+        [[nodiscard]] std::shared_ptr<BinderEntry> FindEntryByFilter(const EntryFilter& filter) const;
 
         /// @brief Find all entries that match an entry-filtering function.
-        [[nodiscard]] std::vector<const BinderEntry*> FindEntriesByFilter(const EntryFilter& filter) const noexcept;
-        [[nodiscard]] std::vector<BinderEntry*> FindEntriesByFilter(const EntryFilter& filter) noexcept;
+        [[nodiscard]] std::vector<std::shared_ptr<BinderEntry>> FindEntriesByFilter(const EntryFilter& filter) const;
 
         // --- PROPERTIES ---
 
         GAME_FILE_PROPERTY(BinderVersion, m_version, Version, BinderVersion::V4);
         GAME_FILE_PROPERTY(std::string, m_signature, Signature, "07D7R6");
-        GAME_FILE_PROPERTY(BinderFlags, m_flags, Flags, );
+        GAME_FILE_PROPERTY(BinderFlags, m_flags, Flags, /*default {}*/);
         GAME_FILE_PROPERTY(bool, m_isBigEndian, BigEndian, false);
         GAME_FILE_PROPERTY(bool, m_isBitBigEndian, BitBigEndian, false);
         GAME_FILE_PROPERTY(std::optional<BinderVersion4Info>, m_v4Info, V4Info, BinderVersion4Info{});
-        GAME_FILE_PROPERTY_REF(std::vector<BinderEntry>, m_entries, Entries, );
+        GAME_FILE_PROPERTY_REF(std::vector<std::shared_ptr<BinderEntry>>, m_entries, Entries, /*default {}*/);
 
     private:
 

@@ -12,6 +12,7 @@ target_sources(FirelinkCore
     src/DevTools.cpp
     src/DCX.cpp
     src/DDS.cpp
+    src/Encodings.cpp
     src/Logging.cpp
     src/Oodle.cpp
     src/Paths.cpp
@@ -39,6 +40,7 @@ target_sources(FirelinkCore
         include/FirelinkCore/DevTools.h
         include/FirelinkCore/DCX.h
         include/FirelinkCore/DDS.h
+        include/FirelinkCore/Encodings.h
         include/FirelinkCore/GameFile.h
         include/FirelinkCore/GameType.h
         include/FirelinkCore/Logging.h

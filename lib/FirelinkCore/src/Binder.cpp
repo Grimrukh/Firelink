@@ -2,12 +2,16 @@
 
 #include <FirelinkCore/Binder.h>
 
+#include <FirelinkCore/Encodings.h>
 #include <FirelinkCore/Logging.h>
 
 #include <algorithm>
 #include <cstring>
 #include <format>
 #include <numeric>
+#include <regex>
+#include <zlib.h>
+
 
 namespace Firelink
 {
@@ -43,6 +47,48 @@ namespace Firelink
         if (!bit_big_endian && !(is_big_endian() && !has_flag_7()))
             return ReverseBits(value);
         return value;
+    }
+
+    // ========================================================================
+    // BinderEntry
+    // ========================================================================
+
+    std::vector<std::byte> BinderEntry::GetUncompressedData() const
+    {
+        // Bit 0 of entry flags = per-entry zlib compression.
+        if (!(flags & 0x01))
+            return data;
+
+        std::vector<std::byte> out;
+        out.resize(data.size() * 4);
+
+        z_stream strm{};
+        strm.next_in  = reinterpret_cast<Bytef*>(const_cast<std::byte*>(data.data()));
+        strm.avail_in = static_cast<uInt>(data.size());
+
+        if (inflateInit(&strm) != Z_OK)
+            throw BinderError("zlib inflateInit failed for binder entry data");
+
+        int ret;
+        while (true)
+        {
+            strm.next_out  = reinterpret_cast<Bytef*>(out.data() + strm.total_out);
+            strm.avail_out = static_cast<uInt>(out.size() - strm.total_out);
+
+            ret = inflate(&strm, Z_NO_FLUSH);
+            if (ret == Z_STREAM_END) break;
+            if (ret != Z_OK)
+            {
+                inflateEnd(&strm);
+                throw BinderError("zlib inflate failed for binder entry data");
+            }
+            if (strm.avail_out == 0)
+                out.resize(out.size() * 2);
+        }
+
+        inflateEnd(&strm);
+        out.resize(strm.total_out);
+        return out;
     }
 
     // ========================================================================
@@ -116,7 +162,7 @@ namespace Firelink
             return h;
         }
 
-        std::vector<std::byte> BuildHashTable(const std::vector<BinderEntry>& entries)
+        std::vector<std::byte> BuildHashTable(const std::vector<std::shared_ptr<BinderEntry>>& entries)
         {
             int group_count = static_cast<int>(entries.size()) / 7;
             while (!IsPrime(group_count)) ++group_count;
@@ -125,7 +171,7 @@ namespace Firelink
             std::vector<std::vector<std::pair<std::uint32_t, std::uint32_t>>> hash_lists(group_count);
             for (std::uint32_t i = 0; i < entries.size(); ++i)
             {
-                std::uint32_t h = PathHash(entries[i].path);
+                std::uint32_t h = PathHash(entries[i]->path);
                 hash_lists[h % group_count].emplace_back(h, i);
             }
             for (auto& hl : hash_lists)
@@ -203,6 +249,7 @@ namespace Firelink
             if (bf.has_names())
             {
                 const auto path_offset = r.Read<std::uint32_t>();
+                // Not decoded yet. Always 8-bit characters in V3 (Shift-JIS).
                 eh.path = ReadCString(r, path_offset);
             }
             eh.has_compression = bf.has_compression();
@@ -227,6 +274,7 @@ namespace Firelink
             if (bf.has_names())
             {
                 const auto path_offset = r.Read<std::uint32_t>();
+                // Not decoded yet, but size of characters needs to be known.
                 eh.path = unicode ? ReadUTF16LEString(r, path_offset) : ReadCString(r, path_offset);
             }
             return eh;
@@ -378,12 +426,12 @@ namespace Firelink
         this->m_entries.reserve(entry_count);
         for (const auto& eh : headers)
         {
-            BinderEntry entry;
-            entry.entry_id = eh.entry_id;
-            entry.path = eh.path;
-            entry.flags = eh.flags;
-            entry.data.resize(static_cast<std::size_t>(eh.compressed_size));
-            entryReader.ReadRawAt(eh.data_offset, entry.data.data(), entry.data.size());
+            auto entry = std::make_shared<BinderEntry>();
+            entry->entry_id = eh.entry_id;
+            entry->path = DecodeString(eh.path, false); // V3 always Shift-JIS
+            entry->flags = eh.flags;
+            entry->data.resize(static_cast<std::size_t>(eh.compressed_size));
+            entryReader.ReadRawAt(eh.data_offset, entry->data.data(), entry->data.size());
             this->m_entries.push_back(std::move(entry));
         }
     }
@@ -460,18 +508,18 @@ namespace Firelink
         this->m_entries.reserve(entry_count);
         for (const auto& eh : headers)
         {
-            BinderEntry entry;
-            entry.entry_id = eh.entry_id;
-            entry.path = eh.path;
-            entry.flags = eh.flags;
-            entry.data.resize(static_cast<std::size_t>(eh.compressed_size));
-            entryReader.ReadRawAt(eh.data_offset, entry.data.data(), entry.data.size());
+            auto entry = std::make_shared<BinderEntry>();
+            entry->entry_id = eh.entry_id;
+            entry->path = DecodeString(eh.path, v4.unicode);
+            entry->flags = eh.flags;
+            entry->data.resize(static_cast<std::size_t>(eh.compressed_size));
+            entryReader.ReadRawAt(eh.data_offset, entry->data.data(), entry->data.size());
             this->m_entries.push_back(std::move(entry));
         }
 
         v4.most_recent_entry_count = static_cast<std::uint32_t>(this->m_entries.size());
         for (auto& e : this->m_entries)
-            v4.most_recent_paths.push_back(e.path);
+            v4.most_recent_paths.push_back(e->path);
         this->m_v4Info = std::move(v4);
     }
 
@@ -491,7 +539,7 @@ namespace Firelink
         std::vector<std::size_t> order(m_entries.size());
         std::iota(order.begin(), order.end(), 0);
         std::ranges::sort(order, [&](auto a, auto b) {
-            return m_entries[a].entry_id < m_entries[b].entry_id;
+            return m_entries[a]->entry_id < m_entries[b]->entry_id;
         });
 
         // Header (32 bytes).
@@ -511,18 +559,18 @@ namespace Firelink
         // Entry headers.
         for (const auto idx : order)
         {
-            const auto& e = m_entries[idx];
+            const auto& e = *m_entries[idx];
             w.Write<std::uint8_t>(EntryFlagsToByte(e.flags, m_isBitBigEndian));
             w.WritePad(3);
             w.Write<std::int32_t>(static_cast<std::int32_t>(e.data.size()));
             if (m_flags.has_long_offsets())
-                w.Reserve<std::int64_t>("data_offset", &m_entries[idx]);
+                w.Reserve<std::int64_t>("data_offset", m_entries[idx].get());
             else
-                w.Reserve<std::uint32_t>("data_offset", &m_entries[idx]);
+                w.Reserve<std::uint32_t>("data_offset", m_entries[idx].get());
             if (m_flags.has_ids())
                 w.Write<std::int32_t>(e.entry_id);
             if (m_flags.has_names())
-                w.Reserve<std::uint32_t>("path_offset", &m_entries[idx]);
+                w.Reserve<std::uint32_t>("path_offset", m_entries[idx].get());
             if (m_flags.has_compression())
                 w.Write<std::int32_t>(static_cast<std::int32_t>(e.data.size()));
         }
@@ -532,21 +580,22 @@ namespace Firelink
         {
             for (const auto idx : order)
             {
-                const auto& e = m_entries[idx];
-                w.Fill<std::uint32_t>("path_offset", static_cast<std::uint32_t>(w.Position()), &m_entries[idx]);
-                WriteString(w, e.path, false); // V3 always shift-jis
+                const auto& e = *m_entries[idx];
+                const std::string encodedString = EncodeString(e.path, false); // V3 always Shift-JIS
+                w.Fill<std::uint32_t>("path_offset", static_cast<std::uint32_t>(w.Position()), m_entries[idx].get());
+                WriteString(w, encodedString, false);
             }
         }
 
         // Entry data.
         for (const auto idx : order)
         {
-            const auto& e = m_entries[idx];
+            const auto& e = *m_entries[idx];
             w.PadAlign(16);
             if (m_flags.has_long_offsets())
-                w.Fill<std::int64_t>("data_offset", static_cast<std::int64_t>(w.Position()), &m_entries[idx]);
+                w.Fill<std::int64_t>("data_offset", static_cast<std::int64_t>(w.Position()), m_entries[idx].get());
             else
-                w.Fill<std::uint32_t>("data_offset", static_cast<std::uint32_t>(w.Position()), &m_entries[idx]);
+                w.Fill<std::uint32_t>("data_offset", static_cast<std::uint32_t>(w.Position()), m_entries[idx].get());
             w.WriteRaw(e.data.data(), e.data.size());
         }
 
@@ -566,7 +615,7 @@ namespace Firelink
         std::vector<std::size_t> order(m_entries.size());
         std::iota(order.begin(), order.end(), 0);
         std::ranges::sort(order, [&](auto a, auto b) {
-            return m_entries[a].entry_id < m_entries[b].entry_id;
+            return m_entries[a]->entry_id < m_entries[b]->entry_id;
         });
 
         // Check if hash table needs rebuilding.
@@ -576,7 +625,7 @@ namespace Firelink
         {
             for (std::size_t i = 0; i < m_entries.size(); ++i)
             {
-                if (m_entries[i].path != v4.most_recent_paths[i])
+                if (m_entries[i]->path != v4.most_recent_paths[i])
                 {
                     rebuild_hash = true;
                     break;
@@ -608,7 +657,7 @@ namespace Firelink
         // Entry headers.
         for (const auto idx : order)
         {
-            const auto& e = m_entries[idx];
+            const auto& e = *m_entries[idx];
             w.Write<std::uint8_t>(EntryFlagsToByte(e.flags, m_isBitBigEndian));
             w.WritePad(3);
             w.Write<std::int32_t>(-1);
@@ -616,13 +665,13 @@ namespace Firelink
             if (m_flags.has_compression())
                 w.Write<std::int64_t>(static_cast<std::int64_t>(e.data.size()));
             if (m_flags.has_long_offsets())
-                w.Reserve<std::int64_t>("data_offset", &m_entries[idx]);
+                w.Reserve<std::int64_t>("data_offset", m_entries[idx].get());
             else
-                w.Reserve<std::uint32_t>("data_offset", &m_entries[idx]);
+                w.Reserve<std::uint32_t>("data_offset", m_entries[idx].get());
             if (m_flags.has_ids())
                 w.Write<std::int32_t>(e.entry_id);
             if (m_flags.has_names())
-                w.Reserve<std::uint32_t>("path_offset", &m_entries[idx]);
+                w.Reserve<std::uint32_t>("path_offset", m_entries[idx].get());
         }
 
         // Paths.
@@ -630,9 +679,10 @@ namespace Firelink
         {
             for (const auto idx : order)
             {
-                const auto& e = m_entries[idx];
-                w.Fill<std::uint32_t>("path_offset", static_cast<std::uint32_t>(w.Position()), &m_entries[idx]);
-                WriteString(w, e.path, v4.unicode);
+                const auto& e = *m_entries[idx];
+                const std::string encodedString = EncodeString(e.path, v4.unicode);
+                w.Fill<std::uint32_t>("path_offset", static_cast<std::uint32_t>(w.Position()), m_entries[idx].get());
+                WriteString(w, encodedString, v4.unicode);
             }
         }
 
@@ -661,11 +711,11 @@ namespace Firelink
         // Entry data (with 10 trailing null bytes per entry, matching Python).
         for (const auto idx : order)
         {
-            const auto& e = m_entries[idx];
+            const auto& e = *m_entries[idx];
             if (m_flags.has_long_offsets())
-                w.Fill<std::int64_t>("data_offset", static_cast<std::int64_t>(w.Position()), &m_entries[idx]);
+                w.Fill<std::int64_t>("data_offset", static_cast<std::int64_t>(w.Position()), m_entries[idx].get());
             else
-                w.Fill<std::uint32_t>("data_offset", static_cast<std::uint32_t>(w.Position()), &m_entries[idx]);
+                w.Fill<std::uint32_t>("data_offset", static_cast<std::uint32_t>(w.Position()), m_entries[idx].get());
             w.WriteRaw(e.data.data(), e.data.size());
             w.WritePad(10); // trailing null bytes for byte-perfect writes
         }
@@ -675,108 +725,76 @@ namespace Firelink
     // Find helpers
     // ========================================================================
 
-    const BinderEntry* Binder::FindEntryByID(const std::int32_t id) const
+    std::shared_ptr<BinderEntry> Binder::FindEntryByID(const std::int32_t id) const
     {
-        for (auto& e : m_entries)
-            if (e.entry_id == id) return &e;
-        return nullptr;
+        for (const auto& e : m_entries)
+            if (e->entry_id == id) return e;
+        throw BinderEntryNotFoundError(std::format("No entry with ID {} found.", id));
     }
 
-    BinderEntry* Binder::FindEntryByID(const std::int32_t id)
+    std::shared_ptr<BinderEntry> Binder::FindEntryByName(const std::string& name) const
     {
-        return const_cast<BinderEntry*>(std::as_const(*this).FindEntryByID(id));
-
+        for (const auto& e : m_entries)
+            if (e->name() == name) return e;
+        throw BinderEntryNotFoundError(std::format("No entry with name '{}' found.", name));
     }
 
-    const BinderEntry* Binder::FindEntryByName(const std::string& name) const
+    std::shared_ptr<BinderEntry> Binder::FindEntryByNameRegex(const std::string& pattern, const bool fullMatch) const
     {
-        for (auto& e : m_entries)
-            if (e.name() == name) return &e;
-        return nullptr;
-    }
-
-    BinderEntry* Binder::FindEntryByName(const std::string& name)
-    {
-        return const_cast<BinderEntry*>(std::as_const(*this).FindEntryByName(name));
-    }
-
-    const BinderEntry* Binder::FindEntryByNameRegex(const std::regex& pattern, const bool fullMatch) const
-    {
-        BinderEntry const* candidate = nullptr;
-        for (auto& entry : m_entries)
+        const std::regex re(pattern);
+        std::shared_ptr<BinderEntry> candidate;
+        for (const auto& e : m_entries)
         {
-            const auto& n = entry.name();
-            const bool matched = fullMatch ? std::regex_match(n, pattern) : std::regex_search(n, pattern);
-            if (matched)
+            const auto& n = e->name();
+            if (fullMatch ? std::regex_match(n, re) : std::regex_search(n, re))
             {
-                if (candidate != nullptr)
+                if (candidate)
                     throw MultipleBinderEntriesFoundError(std::format(
                         "Multiple entries match regex: '{}' and '{}'.",
-                        candidate->path, entry.path));
-                candidate = &entry;
+                        candidate->path, e->path));
+                candidate = e;
             }
         }
-        return candidate;
+        if (candidate) return candidate;
+        throw BinderEntryNotFoundError(std::format("No entry name matches regex '{}'.", pattern));
     }
 
-    BinderEntry* Binder::FindEntryByNameRegex(const std::regex& pattern, const bool fullMatch)
+    std::vector<std::shared_ptr<BinderEntry>> Binder::FindEntriesByNameRegex(const std::string& pattern, const bool fullMatch) const
     {
-        return const_cast<BinderEntry*>(std::as_const(*this).FindEntryByNameRegex(pattern, fullMatch));
-    }
-
-    std::vector<const BinderEntry*> Binder::FindEntriesByNameRegex(const std::regex& pattern, const bool fullMatch) const
-    {
-        std::vector<const BinderEntry*> entries;
-        for (auto& e : m_entries)
+        const std::regex re(pattern);
+        std::vector<std::shared_ptr<BinderEntry>> result;
+        for (const auto& e : m_entries)
         {
-            const auto& n = e.name();
-            if (fullMatch ? std::regex_match(n, pattern) : std::regex_search(n, pattern))
-                entries.push_back(&e);
+            const auto& n = e->name();
+            if (fullMatch ? std::regex_match(n, re) : std::regex_search(n, re))
+                result.push_back(e);
         }
-        return entries;
+        return result;
     }
 
-    std::vector<BinderEntry*> Binder::FindEntriesByNameRegex(const std::regex& pattern, const bool fullMatch)
+    std::shared_ptr<BinderEntry> Binder::FindEntryByFilter(const EntryFilter& filter) const
     {
-        std::vector<BinderEntry*> entries;
-        for (auto& e : m_entries)
+        std::shared_ptr<BinderEntry> candidate;
+        for (const auto& e : m_entries)
         {
-            const auto& n = e.name();
-            if (fullMatch ? std::regex_match(n, pattern) : std::regex_search(n, pattern))
-                entries.push_back(&e);
+            if (filter(*e))
+            {
+                if (candidate)
+                    throw MultipleBinderEntriesFoundError(std::format(
+                        "Multiple entries match filter: '{}' and '{}'.",
+                        candidate->path, e->path));
+                candidate = e;
+            }
         }
-        return entries;
+        if (candidate) return candidate;
+        throw BinderEntryNotFoundError("No entry matches filter.");
     }
 
-    const BinderEntry* Binder::FindEntryByFilter(const EntryFilter& filter) const
+    std::vector<std::shared_ptr<BinderEntry>> Binder::FindEntriesByFilter(const EntryFilter& filter) const
     {
-        for (auto& e : m_entries)
-            if (filter(e)) return &e;
-        return nullptr;
-    }
-
-    BinderEntry* Binder::FindEntryByFilter(const EntryFilter& filter)
-    {
-        return const_cast<BinderEntry*>(std::as_const(*this).FindEntryByFilter(filter));
-    }
-
-    std::vector<const BinderEntry*> Binder::FindEntriesByFilter(const EntryFilter& filter) const noexcept
-    {
-        std::vector<const BinderEntry*> entries;
-        for (auto& e : m_entries)
-        {
-            if (filter(e)) entries.push_back(&e);
-        }
-        return entries;
-    }
-
-    std::vector<BinderEntry*> Binder::FindEntriesByFilter(const EntryFilter& filter) noexcept
-    {
-        std::vector<BinderEntry*> entries;
-        for (auto& e : m_entries)
-        {
-            if (filter(e)) entries.push_back(&e);
-        }
-        return entries;
+        std::vector<std::shared_ptr<BinderEntry>> result;
+        for (const auto& e : m_entries)
+            if (filter(*e)) result.push_back(e);
+        return result;
     }
 } // namespace Firelink

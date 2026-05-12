@@ -37,22 +37,19 @@ TEST_CASE("TextureFinder: construct with invalid root doesn't throw")
 
 TEST_CASE("TextureFinder: DSR character texture loading")
 {
-    if (!IsOodleAvailable())
-    {
-        MESSAGE("Skipping — Oodle DLL not available");
-        return;
-    }
+    // Character with CHRTPFBHD:
+    static const std::string CHR_NAME = "c2060";
 
     // The test resources directory acts as a fake game data root.
     // c2300.chrbnd and c2300.chrtpfbdt are in the resources directory.
     auto res = GetResourcePath("darksouls1r");
 
     // Load the CHRBND so we can pass it as the flver_binder.
-    auto chrbnd_path = GetResourcePath("darksouls1r/c2300.chrbnd");
+    auto chrbnd_path = GetResourcePath(std::format("darksouls1r/{}.chrbnd.dcx", CHR_NAME));
     auto raw = LoadFile(chrbnd_path);
     if (raw.empty())
     {
-        MESSAGE("Skipping — c2300.chrbnd not found");
+        MESSAGE(std::format("Skipping — {}.chrbnd.dcx not found", CHR_NAME));
         return;
     }
 
@@ -61,9 +58,14 @@ TEST_CASE("TextureFinder: DSR character texture loading")
     TextureFinder mgr(GameType::DarkSoulsDSR, res.string());
     mgr.RegisterFLVERSources(chrbnd_path, chrbnd.get());
 
-    // The CHRBND itself may contain TPF entries. Also, the CHRTPFBDT should be discovered.
-    // Try to get any texture. We don't know exact names, but we can check the cache grew.
-    MESSAGE("Cached textures after registering c2300: " << mgr.CachedTextureCount());
+    auto pendingTpfNames = mgr.PendingTPFStems();
+    CHECK(pendingTpfNames.size() > 0);
+
+    const auto lowerCaseTexture = mgr.GetTexture("c2060_weapon_n");
+    CHECK(lowerCaseTexture != nullptr);
+
+    const auto mixedCaseTexture = mgr.GetTexture("c2060_Wp_a_0702_longspear_n");
+    CHECK(mixedCaseTexture != nullptr);
 }
 
 // ---------------------------------------------------------------------------

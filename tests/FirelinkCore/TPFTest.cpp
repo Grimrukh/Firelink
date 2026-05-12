@@ -132,8 +132,8 @@ TEST_CASE("TPF: read TPF from c2300 split binder")
     // Find and parse first TPF entry.
     for (auto& entry : binder->Entries())
     {
-        const std::byte* tpf_ptr = entry.data.data();
-        std::size_t tpf_sz = entry.data.size();
+        const std::byte* tpf_ptr = entry->data.data();
+        std::size_t tpf_sz = entry->data.size();
         std::vector<std::byte> inner_buf;
 
         if (tpf_sz >= 4 && IsDCX(tpf_ptr, tpf_sz))

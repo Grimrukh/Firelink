@@ -50,7 +50,6 @@ namespace Firelink
         UTF16BE = 2,
     };
 
-
     class FIRELINK_FLVER_API FLVER : public GameFile<FLVER>
     {
     public:
@@ -99,6 +98,18 @@ namespace Firelink
         /// @brief Clear the cached Merged Mesh for re-computation.
         void ClearCachedMergedMesh();
 
+        /// @brief Update the cached MergedMeshes of multiple FLVERs in parallel, with
+        /// individual arguments for each one.
+        /// @details This is useful because the material/UV arguments for a MergedMesh will generally depend on
+        /// the FLVER materials, which must be deserialized and read first. The expensive mesh-merging operation can
+        /// then be performed in parallel after examining multiple FLVERs.
+        static std::vector<bool> UpdateCachedMergedMeshesParallel(
+            const std::vector<FLVER*>& flvers,
+            const std::vector<std::vector<std::uint32_t>>& meshMaterialIndices = {},
+            const std::vector<std::vector<std::vector<std::string>>>& materialUVLayerNames = {},
+            const std::vector<bool>& mergeVertices = {},
+            int maxThreads = 0);
+
         // --- PROPERTIES ---
 
         // Header-level metadata.
@@ -123,9 +134,9 @@ namespace Firelink
         GAME_FILE_PROPERTY(std::uint8_t, m_f0Unk5c, F0Unk5c, 0)
 
         // Collections. Everything else is denormalized per-mesh and unified by equality on serialization.
-        GAME_FILE_PROPERTY_REF(std::vector<Bone>, m_bones, Bones, );
-        GAME_FILE_PROPERTY_REF(std::vector<Dummy>, m_dummies, Dummies, );
-        GAME_FILE_PROPERTY_REF(std::vector<Mesh>, m_meshes, Meshes, );
+        GAME_FILE_PROPERTY_REF(std::vector<Bone>, m_bones, Bones, /*default {}*/);
+        GAME_FILE_PROPERTY_REF(std::vector<Dummy>, m_dummies, Dummies, /*default {}*/);
+        GAME_FILE_PROPERTY_REF(std::vector<Mesh>, m_meshes, Meshes, /*default {}*/);
 
     private:
 

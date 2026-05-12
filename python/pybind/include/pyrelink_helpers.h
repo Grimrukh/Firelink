@@ -1,6 +1,8 @@
 #pragma once
 
 #include <pybind11/pybind11.h>
+#include <pybind11/stl.h>
+#include <pybind11/stl/filesystem.h>
 
 #include <filesystem>
 #include <string>
@@ -25,14 +27,6 @@ inline py::bytes vector_to_bytes(const std::vector<std::byte>& v)
     return {reinterpret_cast<const char*>(v.data()), v.size()};
 }
 
-/// @brief Convert a Python path-like (str, Path, os.PathLike) to std::filesystem::path.
-/// Must be called with the GIL held.
-inline std::filesystem::path to_fs_path(const py::object& obj)
-{
-    // py::str handles both str and os.PathLike (including pathlib.Path) via __fspath__
-    return {py::str(obj).cast<std::string>()};
-}
-
 /// @brief Template function for binding C++ classes `T` that inherit from `GameFile<T>`.
 template <typename T>
 void bind_game_file(py::class_<T>& cls)
@@ -41,28 +35,17 @@ void bind_game_file(py::class_<T>& cls)
         .def(py::init<>())  // default constructible
         .def_static(
             "from_path",
-            [](const py::object& path)
+            [](const std::filesystem::path& path)
             {
-                auto fs_path = to_fs_path(path);
                 py::gil_scoped_release release;
-                return T::FromPath(fs_path);
+                return T::FromPath(path);
             })
         .def_static(
             "from_paths_parallel",
-            [](const py::object& paths, int max_threads = 0)
+            [](const std::vector<std::filesystem::path>& paths, int max_threads = 0)
             {
-                // With GIL held: convert `paths` (sequence of path-likes) to a vector of paths.
-                const py::sequence seq(paths);
-                if (seq.empty()) return std::vector<std::unique_ptr<T>>{};
-                std::vector<std::filesystem::path> fs_paths;
-                fs_paths.reserve(seq.size());
-                for (const auto& item : seq)
-                {
-                    fs_paths.push_back(to_fs_path(item));
-                }
-                // GIL released: parse in parallel.
                 py::gil_scoped_release release;
-                return T::FromPathsParallel(fs_paths, max_threads);
+                return T::FromPathsParallel(paths, max_threads);
             },
             py::arg("paths"),
             py::arg("max_threads") = 0)
