@@ -94,7 +94,7 @@ TEST_CASE("TextureFinder: standalone TPF via loose file registration")
     // Now try to find a texture from c1200.tpf. We need to know at least
     // one texture stem from it.
     auto raw = LoadFile(tpf_path);
-    auto tpf = TPF::FromBytes(raw.data(), raw.size());
+    auto tpf = TPF::FromBytes(raw);
     REQUIRE(tpf->Textures().size() > 0);
 
     auto first_stem = tpf->GetTexture(0).stem;
@@ -128,7 +128,7 @@ TEST_CASE("TextureFinder: case-insensitive texture lookup")
     mgr.RegisterFLVERSources(GetResourcePath("darksouls1r/c1200.flver"));
 
     auto raw = LoadFile(tpf_path);
-    auto tpf = TPF::FromBytes(raw.data(), raw.size());
+    auto tpf = TPF::FromBytes(raw);
     REQUIRE(tpf->Textures().size() > 0);
 
     // Search with upper-case stem.

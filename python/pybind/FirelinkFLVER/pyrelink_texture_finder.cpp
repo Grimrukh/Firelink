@@ -2,6 +2,7 @@
 
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
+#include <pybind11/stl/filesystem.h>
 
 #include <FirelinkFLVER/TextureFinder.h>
 #include <pyrelink_helpers.h>
@@ -19,12 +20,12 @@ void bind_firelink_flver_texture_finder(py::module& m)
 
     py::class_<TextureFinder>(m, "TextureFinder",
         "Lazy texture discovery and caching for FromSoftware game files.")
-        .def(py::init<GameType, std::string>(),
+        .def(py::init<GameType, std::filesystem::path>(),
             py::arg("game"), py::arg("data_root"),
             "Create a manager for the given game and data root directory.")
         .def("register_flver_sources",
-            [](TextureFinder& mgr, const std::string& path,
-               const Binder* binder, bool prefer_hi_res) {
+            [](TextureFinder& mgr, const std::filesystem::path& path,
+               const Binder* binder, const bool prefer_hi_res) {
                 py::gil_scoped_release release;
                 mgr.RegisterFLVERSources(path, binder, prefer_hi_res);
             },
@@ -43,7 +44,7 @@ void bind_firelink_flver_texture_finder(py::module& m)
             "Look up a texture by stem. Returns None if not found.")
         .def("get_texture_as",
             [](TextureFinder& mgr, const std::string& stem,
-               ImageFormat format, const std::string& model_name) {
+               const ImageFormat format, const std::string& model_name) {
                 std::vector<std::byte> result;
                 {
                     py::gil_scoped_release release;

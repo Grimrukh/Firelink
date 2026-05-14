@@ -343,13 +343,13 @@ class ImageFormat(IntEnum):
 class TextureFinder:
     """Lazy texture discovery and caching for FromSoftware game files."""
 
-    def __init__(self, game: GameType, data_root: str) -> None:
+    def __init__(self, game: GameType, data_root: Path | str) -> None:
         """Create a TextureFinder for the given game and data root directory."""
         ...
 
     def register_flver_sources(
         self,
-        flver_source_path: str,
+        flver_source_path: Path | str,
         flver_binder: Binder | None = None,
         prefer_hi_res: bool = True,
     ) -> None:

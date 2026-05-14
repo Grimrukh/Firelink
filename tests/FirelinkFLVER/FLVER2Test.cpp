@@ -229,14 +229,14 @@ TEST_CASE("FLVER2 round-trip: write and re-read")
             }
 
             // 1. Read original.
-            FLVER::Ptr orig = FLVER::FromBytes(buf.data(), buf.size());
+            FLVER::Ptr orig = FLVER::FromBytes(buf);
 
             // 2. Write to bytes.
             std::vector<std::byte> written = orig->ToBytes();
             REQUIRE(written.size() > 128); // at least a header
 
             // 3. Re-read from written bytes.
-            FLVER::Ptr reread = FLVER::FromBytes(written.data(), written.size());
+            FLVER::Ptr reread = FLVER::FromBytes(written);
 
             // 4. Compare.
             CheckFLVEREqual(*orig, *reread);
@@ -255,14 +255,14 @@ TEST_CASE("FLVER2 round-trip: Dark Souls Remastered simple Map Piece FLVER")
     }
 
     // Read.
-    const FLVER::CPtr orig = FLVER::FromBytes(raw.data(), raw.size());
+    const FLVER::CPtr orig = FLVER::FromBytes(raw);
 
     // Write (produces FLVER bytes).
     const std::vector<std::byte> written = orig->ToBytes();
     REQUIRE(written.size() > 128);
 
     // Re-read the FLVER.
-    const FLVER::CPtr reread = FLVER::FromBytes(written.data(), written.size());
+    const FLVER::CPtr reread = FLVER::FromBytes(written);
 
     CheckFLVEREqual(*orig, *reread);
 }
@@ -283,15 +283,15 @@ TEST_CASE("FLVER2 round-trip: double write produces identical bytes")
                 return;
             }
 
-            FLVER::Ptr orig = FLVER::FromBytes(buf.data(), buf.size());
+            FLVER::Ptr orig = FLVER::FromBytes(buf);
             std::vector<std::byte> written1 = orig->ToBytes();
 
             // First write may normalize (e.g. strip Ignore layout types from repair).
             // Determinism is proven by write2 == write3.
-            FLVER::Ptr reread1 = FLVER::FromBytes(written1.data(), written1.size());
+            FLVER::Ptr reread1 = FLVER::FromBytes(written1);
             std::vector<std::byte> written2 = reread1->ToBytes();
 
-            FLVER::Ptr reread2 = FLVER::FromBytes(written2.data(), written2.size());
+            FLVER::Ptr reread2 = FLVER::FromBytes(written2);
             std::vector<std::byte> written3 = reread2->ToBytes();
 
             // The second and third written buffers should be byte-identical.
@@ -321,7 +321,7 @@ TEST_CASE("FLVER2 reader: header and basic structure")
 
             REQUIRE(buf.size() > 0);
 
-            FLVER::CPtr flver = FLVER::FromBytes(buf.data(), buf.size());
+            FLVER::CPtr flver = FLVER::FromBytes(buf);
 
             // Generic checks that every FLVER fixture must satisfy.
             CHECK(flver->GetIsBigEndian() == false);
@@ -361,7 +361,7 @@ TEST_CASE("FLVER2 reader: bone names are populated")
             auto buf = LoadFile(path);
             if (buf.empty()) return;
 
-            const FLVER::CPtr flver = FLVER::FromBytes(buf.data(), buf.size());
+            const FLVER::CPtr flver = FLVER::FromBytes(buf);
 
             // At least the first bone should have a non-empty name (UTF-16 LE raw bytes).
             REQUIRE(!flver->Bones().empty());
@@ -380,7 +380,7 @@ TEST_CASE("FLVER2 reader: materials have textures")
             auto buf = LoadFile(path);
             if (buf.empty()) return;
 
-            const FLVER::CPtr flver = FLVER::FromBytes(buf.data(), buf.size());
+            const FLVER::CPtr flver = FLVER::FromBytes(buf);
 
             // Every mesh should have a material with at least one texture.
             for (const auto& mesh : flver->Meshes())
@@ -407,7 +407,7 @@ TEST_CASE("MergedMesh: builds successfully for all fixtures")
 
             REQUIRE(buf.size() > 0);
 
-            FLVER::CPtr flver = FLVER::FromBytes(buf.data(), buf.size());
+            FLVER::CPtr flver = FLVER::FromBytes(buf);
             MergedMesh mm(*flver);
 
             // Basic non-empty/non-degenerate checks.

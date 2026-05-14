@@ -20,19 +20,60 @@ namespace Firelink
     using BinaryReadWrite::Endian;
 
     // ========================================================================
-    // BinderFlags
+    // Helpers
     // ========================================================================
 
-    static std::uint8_t ReverseBits(std::uint8_t b)
+    namespace
     {
-        std::uint8_t r = 0;
-        for (int i = 0; i < 8; ++i)
+        std::string ReadCString(const BufferReader& r, const std::size_t offset)
         {
-            r = (r << 1) | (b & 1);
-            b >>= 1;
+            const auto bytes = r.ReadCStringAt(offset);
+            return {reinterpret_cast<const char*>(bytes.data()), bytes.size()};
         }
-        return r;
-    }
+
+        std::string ReadUTF16LEString(const BufferReader& r, const std::size_t offset)
+        {
+            const auto bytes = r.ReadUTF16LEStringAt(offset);
+            return {reinterpret_cast<const char*>(bytes.data()), bytes.size()};
+        }
+
+        void WriteString(BufferWriter& w, const std::string& s, const bool unicode)
+        {
+            w.WriteRaw(s.data(), s.size());
+            w.WritePad(unicode ? 2 : 1);
+        }
+
+        std::uint8_t ReverseBits(std::uint8_t b)
+        {
+            std::uint8_t r = 0;
+            for (int i = 0; i < 8; ++i)
+            {
+                r = (r << 1) | (b & 1);
+                b >>= 1;
+            }
+            return r;
+        }
+
+        // Entry flags bit reversal (same as binder flags).
+        std::uint8_t EntryFlagsFromByte(const std::uint8_t raw, const bool bit_big_endian)
+        {
+            return bit_big_endian ? raw : ReverseBits(raw);
+        }
+
+        std::uint8_t EntryFlagsToByte(const std::uint8_t flags, const bool bit_big_endian)
+        {
+            return bit_big_endian ? flags : ReverseBits(flags);
+        }
+
+        bool IsEntryCompressed(const std::uint8_t flags)
+        {
+            return flags & 0b00000001;
+        }
+    } // anonymous namespace
+
+    // ========================================================================
+    // BinderFlags
+    // ========================================================================
 
     BinderFlags BinderFlags::FromByte(const std::uint8_t raw, const bool bit_big_endian)
     {
@@ -53,12 +94,82 @@ namespace Firelink
     // BinderEntry
     // ========================================================================
 
-    std::vector<std::byte> BinderEntry::GetUncompressedData() const
+    BinderEntry::BinderEntry(
+        const std::int32_t id, std::string path, std::vector<std::byte> rawData, const std::uint8_t flags)
+    : m_entryID(id), m_path(std::move(path)), m_flags(flags)
     {
-        // Bit 0 of entry flags = per-entry zlib compression.
-        if (!(flags & 0x01))
-            return data;
+        if (IsEntryCompressed(m_flags))
+        {
+            // Compressed data from disk is the source of truth; decompressed form is generated lazily.
+            m_decompressedIsSourceOfTruth = false;
+            m_compressedData = std::move(rawData);
+        }
+        else
+        {
+            // Uncompressed data from disk is the source of truth.
+            m_decompressedIsSourceOfTruth = true;
+            m_decompressedData = std::move(rawData);
+        }
+    }
 
+    std::string BinderEntry::GetPathName() const
+    {
+        const auto pos = m_path.find_last_of("\\/");
+        return pos == std::string::npos ? m_path : m_path.substr(pos + 1);
+    }
+
+    std::string BinderEntry::GetPathStem() const
+    {
+        const std::string name = GetPathName();
+        // Get substring before first '.' in name.
+        const auto pos = name.find_first_of('.');
+        return pos == std::string::npos ? m_path : name.substr(0, pos);
+    }
+
+    const std::vector<std::byte>& BinderEntry::GetData() const
+    {
+        if (!m_decompressedData)
+        {
+            // First access of compressed data.
+            // Logically guaranteed that compressed data exists.
+            m_decompressedData = DecompressEntryData(*m_compressedData);
+        }
+
+        // Data is not compressed.
+        return *m_decompressedData;
+    }
+
+    const std::vector<std::byte>& BinderEntry::GetDataForSerialization() const
+    {
+        if (IsEntryCompressed(m_flags))
+        {
+            if (!m_compressedData)
+            {
+                // First access of compressed data. Compress on demand.
+                // Logically guaranteed that decompressed data exists.
+                m_compressedData = CompressEntryData(*m_decompressedData);
+            }
+            return *m_compressedData;
+        }
+
+        // Data is not compressed.
+        if (!m_decompressedData)
+        {
+            // First access of decompressed data.
+            m_decompressedData = DecompressEntryData(*m_compressedData);
+        }
+        return *m_decompressedData;
+    }
+
+    void BinderEntry::SetData(std::vector<std::byte> decompressedData)
+    {
+        m_decompressedIsSourceOfTruth = true;  // caller-supplied data is now ground truth
+        m_decompressedData = std::move(decompressedData);
+        m_compressedData = std::nullopt;  // stale cache — regenerated lazily on next serialization
+    }
+
+    std::vector<std::byte> BinderEntry::DecompressEntryData(const std::vector<std::byte>& data)
+    {
         std::vector<std::byte> out;
         out.resize(data.size() * 4);
 
@@ -67,7 +178,7 @@ namespace Firelink
         strm.avail_in = static_cast<uInt>(data.size());
 
         if (inflateInit(&strm) != Z_OK)
-            throw BinderError("zlib inflateInit failed for binder entry data");
+            throw BinderError("zlib inflateInit failed for BinderEntry data");
 
         int ret;
         while (true)
@@ -91,46 +202,29 @@ namespace Firelink
         return out;
     }
 
-    // ========================================================================
-    // String reading helpers
-    // ========================================================================
-
-    namespace
+    std::vector<std::byte> BinderEntry::CompressEntryData(const std::vector<std::byte>& data)
     {
-        std::string ReadCString(const BufferReader& r, const std::size_t offset)
-        {
-            const auto bytes = r.ReadCStringAt(offset);
-            return {reinterpret_cast<const char*>(bytes.data()), bytes.size()};
-        }
+        // Worst-case bound: compressBound gives the maximum deflate output size.
+        std::vector<std::byte> out(compressBound(static_cast<uLong>(data.size())));
 
-        std::string ReadUTF16LEString(const BufferReader& r, const std::size_t offset)
-        {
-            const auto bytes = r.ReadUTF16LEStringAt(offset);
-            return {reinterpret_cast<const char*>(bytes.data()), bytes.size()};
-        }
+        z_stream strm{};
+        strm.next_in   = reinterpret_cast<Bytef*>(const_cast<std::byte*>(data.data()));
+        strm.avail_in  = static_cast<uInt>(data.size());
+        strm.next_out  = reinterpret_cast<Bytef*>(out.data());
+        strm.avail_out = static_cast<uInt>(out.size());
 
-        void WriteString(BufferWriter& w, const std::string& s, const bool unicode)
-        {
-            w.WriteRaw(s.data(), s.size());
-            w.WritePad(unicode ? 2 : 1);
-        }
+        if (deflateInit(&strm, 7) != Z_OK)
+            throw BinderError("zlib deflateInit failed for BinderEntry data");
 
-        // Entry flags bit reversal (same as binder flags).
-        std::uint8_t EntryFlagsFromByte(const std::uint8_t raw, const bool bit_big_endian)
-        {
-            return bit_big_endian ? raw : ReverseBits(raw);
-        }
+        const int ret = deflate(&strm, Z_FINISH);
+        deflateEnd(&strm);
 
-        std::uint8_t EntryFlagsToByte(const std::uint8_t flags, const bool bit_big_endian)
-        {
-            return bit_big_endian ? flags : ReverseBits(flags);
-        }
+        if (ret != Z_STREAM_END)
+            throw BinderError("zlib deflate failed for BinderEntry data");
 
-        bool IsEntryCompressed(const std::uint8_t flags)
-        {
-            return flags & 0x01;
-        }
-    } // anonymous namespace
+        out.resize(strm.total_out);
+        return out;
+    }
 
     // ========================================================================
     // Hash table
@@ -171,7 +265,7 @@ namespace Firelink
             std::vector<std::vector<std::pair<std::uint32_t, std::uint32_t>>> hash_lists(group_count);
             for (std::uint32_t i = 0; i < entries.size(); ++i)
             {
-                std::uint32_t h = PathHash(entries[i]->path);
+                std::uint32_t h = PathHash(entries[i]->GetPath());
                 hash_lists[h % group_count].emplace_back(h, i);
             }
             for (auto& hl : hash_lists)
@@ -426,12 +520,15 @@ namespace Firelink
         this->m_entries.reserve(entry_count);
         for (const auto& eh : headers)
         {
-            auto entry = std::make_shared<BinderEntry>();
-            entry->entry_id = eh.entry_id;
-            entry->path = DecodeString(eh.path, false); // V3 always Shift-JIS
-            entry->flags = eh.flags;
-            entry->data.resize(static_cast<std::size_t>(eh.compressed_size));
-            entryReader.ReadRawAt(eh.data_offset, entry->data.data(), entry->data.size());
+            std::vector<std::byte> rawData;
+            rawData.resize(static_cast<std::size_t>(eh.compressed_size));
+            entryReader.ReadRawAt(eh.data_offset, rawData.data(), rawData.size());
+            auto entry = std::make_shared<BinderEntry>(
+                eh.entry_id,
+                DecodeString(eh.path, false), // V3 always Shift-JIS
+                std::move(rawData),
+                eh.flags);
+
             this->m_entries.push_back(std::move(entry));
         }
     }
@@ -508,18 +605,20 @@ namespace Firelink
         this->m_entries.reserve(entry_count);
         for (const auto& eh : headers)
         {
-            auto entry = std::make_shared<BinderEntry>();
-            entry->entry_id = eh.entry_id;
-            entry->path = DecodeString(eh.path, v4.unicode);
-            entry->flags = eh.flags;
-            entry->data.resize(static_cast<std::size_t>(eh.compressed_size));
-            entryReader.ReadRawAt(eh.data_offset, entry->data.data(), entry->data.size());
+            std::vector<std::byte> rawData;
+            rawData.resize(static_cast<std::size_t>(eh.compressed_size));
+            entryReader.ReadRawAt(eh.data_offset, rawData.data(), rawData.size());
+            auto entry = std::make_shared<BinderEntry>(
+                eh.entry_id,
+                DecodeString(eh.path, v4.unicode),
+                std::move(rawData),
+                eh.flags);
             this->m_entries.push_back(std::move(entry));
         }
 
         v4.most_recent_entry_count = static_cast<std::uint32_t>(this->m_entries.size());
         for (auto& e : this->m_entries)
-            v4.most_recent_paths.push_back(e->path);
+            v4.most_recent_paths.push_back(e->GetPath());
         this->m_v4Info = std::move(v4);
     }
 
@@ -539,7 +638,7 @@ namespace Firelink
         std::vector<std::size_t> order(m_entries.size());
         std::iota(order.begin(), order.end(), 0);
         std::ranges::sort(order, [&](auto a, auto b) {
-            return m_entries[a]->entry_id < m_entries[b]->entry_id;
+            return m_entries[a]->GetEntryID() < m_entries[b]->GetEntryID();
         });
 
         // Header (32 bytes).
@@ -560,19 +659,20 @@ namespace Firelink
         for (const auto idx : order)
         {
             const auto& e = *m_entries[idx];
-            w.Write<std::uint8_t>(EntryFlagsToByte(e.flags, m_isBitBigEndian));
+            w.Write<std::uint8_t>(EntryFlagsToByte(e.GetFlags(), m_isBitBigEndian));
             w.WritePad(3);
-            w.Write<std::int32_t>(static_cast<std::int32_t>(e.data.size()));
+            const auto& data = e.GetDataForSerialization();
+            w.Write<std::int32_t>(static_cast<std::int32_t>(data.size()));
             if (m_flags.has_long_offsets())
                 w.Reserve<std::int64_t>("data_offset", m_entries[idx].get());
             else
                 w.Reserve<std::uint32_t>("data_offset", m_entries[idx].get());
             if (m_flags.has_ids())
-                w.Write<std::int32_t>(e.entry_id);
+                w.Write<std::int32_t>(e.GetEntryID());
             if (m_flags.has_names())
                 w.Reserve<std::uint32_t>("path_offset", m_entries[idx].get());
             if (m_flags.has_compression())
-                w.Write<std::int32_t>(static_cast<std::int32_t>(e.data.size()));
+                w.Write<std::int32_t>(static_cast<std::int32_t>(data.size()));
         }
 
         // Paths.
@@ -581,7 +681,7 @@ namespace Firelink
             for (const auto idx : order)
             {
                 const auto& e = *m_entries[idx];
-                const std::string encodedString = EncodeString(e.path, false); // V3 always Shift-JIS
+                const std::string encodedString = EncodeString(e.GetPath(), false); // V3 always Shift-JIS
                 w.Fill<std::uint32_t>("path_offset", static_cast<std::uint32_t>(w.Position()), m_entries[idx].get());
                 WriteString(w, encodedString, false);
             }
@@ -596,7 +696,8 @@ namespace Firelink
                 w.Fill<std::int64_t>("data_offset", static_cast<std::int64_t>(w.Position()), m_entries[idx].get());
             else
                 w.Fill<std::uint32_t>("data_offset", static_cast<std::uint32_t>(w.Position()), m_entries[idx].get());
-            w.WriteRaw(e.data.data(), e.data.size());
+            const auto& data = e.GetDataForSerialization();
+            w.WriteRaw(data.data(), data.size());
         }
 
         w.Fill<std::uint32_t>("file_size", static_cast<std::uint32_t>(w.Position()));
@@ -615,7 +716,7 @@ namespace Firelink
         std::vector<std::size_t> order(m_entries.size());
         std::iota(order.begin(), order.end(), 0);
         std::ranges::sort(order, [&](auto a, auto b) {
-            return m_entries[a]->entry_id < m_entries[b]->entry_id;
+            return m_entries[a]->GetEntryID() < m_entries[b]->GetEntryID();
         });
 
         // Check if hash table needs rebuilding.
@@ -625,7 +726,7 @@ namespace Firelink
         {
             for (std::size_t i = 0; i < m_entries.size(); ++i)
             {
-                if (m_entries[i]->path != v4.most_recent_paths[i])
+                if (m_entries[i]->GetPath() != v4.most_recent_paths[i])
                 {
                     rebuild_hash = true;
                     break;
@@ -658,18 +759,19 @@ namespace Firelink
         for (const auto idx : order)
         {
             const auto& e = *m_entries[idx];
-            w.Write<std::uint8_t>(EntryFlagsToByte(e.flags, m_isBitBigEndian));
+            w.Write<std::uint8_t>(EntryFlagsToByte(e.GetFlags(), m_isBitBigEndian));
             w.WritePad(3);
             w.Write<std::int32_t>(-1);
-            w.Write<std::int64_t>(static_cast<std::int64_t>(e.data.size()));
+            const auto& data = e.GetDataForSerialization();
+            w.Write<std::int64_t>(static_cast<std::int64_t>(data.size()));
             if (m_flags.has_compression())
-                w.Write<std::int64_t>(static_cast<std::int64_t>(e.data.size()));
+                w.Write<std::int64_t>(static_cast<std::int64_t>(data.size()));
             if (m_flags.has_long_offsets())
                 w.Reserve<std::int64_t>("data_offset", m_entries[idx].get());
             else
                 w.Reserve<std::uint32_t>("data_offset", m_entries[idx].get());
             if (m_flags.has_ids())
-                w.Write<std::int32_t>(e.entry_id);
+                w.Write<std::int32_t>(e.GetEntryID());
             if (m_flags.has_names())
                 w.Reserve<std::uint32_t>("path_offset", m_entries[idx].get());
         }
@@ -680,7 +782,7 @@ namespace Firelink
             for (const auto idx : order)
             {
                 const auto& e = *m_entries[idx];
-                const std::string encodedString = EncodeString(e.path, v4.unicode);
+                const std::string encodedString = EncodeString(e.GetPath(), v4.unicode);
                 w.Fill<std::uint32_t>("path_offset", static_cast<std::uint32_t>(w.Position()), m_entries[idx].get());
                 WriteString(w, encodedString, v4.unicode);
             }
@@ -716,7 +818,8 @@ namespace Firelink
                 w.Fill<std::int64_t>("data_offset", static_cast<std::int64_t>(w.Position()), m_entries[idx].get());
             else
                 w.Fill<std::uint32_t>("data_offset", static_cast<std::uint32_t>(w.Position()), m_entries[idx].get());
-            w.WriteRaw(e.data.data(), e.data.size());
+            const auto& data = e.GetDataForSerialization();
+            w.WriteRaw(data.data(), data.size());
             w.WritePad(10); // trailing null bytes for byte-perfect writes
         }
     }
@@ -728,14 +831,14 @@ namespace Firelink
     std::shared_ptr<BinderEntry> Binder::FindEntryByID(const std::int32_t id) const
     {
         for (const auto& e : m_entries)
-            if (e->entry_id == id) return e;
+            if (e->GetEntryID() == id) return e;
         throw BinderEntryNotFoundError(std::format("No entry with ID {} found.", id));
     }
 
     std::shared_ptr<BinderEntry> Binder::FindEntryByName(const std::string& name) const
     {
         for (const auto& e : m_entries)
-            if (e->name() == name) return e;
+            if (e->GetPathName() == name) return e;
         throw BinderEntryNotFoundError(std::format("No entry with name '{}' found.", name));
     }
 
@@ -745,13 +848,13 @@ namespace Firelink
         std::shared_ptr<BinderEntry> candidate;
         for (const auto& e : m_entries)
         {
-            const auto& n = e->name();
+            const auto& n = e->GetPathName();
             if (fullMatch ? std::regex_match(n, re) : std::regex_search(n, re))
             {
                 if (candidate)
                     throw MultipleBinderEntriesFoundError(std::format(
                         "Multiple entries match regex: '{}' and '{}'.",
-                        candidate->path, e->path));
+                        candidate->GetPath(), e->GetPath()));
                 candidate = e;
             }
         }
@@ -765,7 +868,7 @@ namespace Firelink
         std::vector<std::shared_ptr<BinderEntry>> result;
         for (const auto& e : m_entries)
         {
-            const auto& n = e->name();
+            const auto& n = e->GetPathName();
             if (fullMatch ? std::regex_match(n, re) : std::regex_search(n, re))
                 result.push_back(e);
         }
@@ -782,7 +885,7 @@ namespace Firelink
                 if (candidate)
                     throw MultipleBinderEntriesFoundError(std::format(
                         "Multiple entries match filter: '{}' and '{}'.",
-                        candidate->path, e->path));
+                        candidate->GetPath(), e->GetPath()));
                 candidate = e;
             }
         }

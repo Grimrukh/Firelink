@@ -7,18 +7,19 @@
 /// @brief Load a split binder whose BHD is an entry in `bnd_name` BND, with a separate BDT file.
 inline Firelink::Binder::CPtr LoadSplitChrtpfbxf(const char* bnd_name, const char* bdt_name)
 {
-    auto bnd_path = GetResourcePath(bnd_name);
-    auto bdt_path = GetResourcePath(bdt_name);
-    auto bnd_raw = LoadFile(bnd_path);
-    auto bdt_raw = LoadFile(bdt_path);
+    const auto bnd_path = GetResourcePath(bnd_name);
+    const auto bdt_path = GetResourcePath(bdt_name);
+    const auto bnd_raw = LoadFile(bnd_path);
+    const auto bdt_raw = LoadFile(bdt_path);
 
     // Find "bhd' entry in BND.
-    auto stem = Firelink::StemOf(bnd_path);
-    auto bhd_entry_name = std::format("{}.chrtpfbhd", stem);
-    auto bnd = Firelink::Binder::FromPath(bnd_path);
-    auto chrtpfbhd_entry = bnd->FindEntryByName(bhd_entry_name);
+    const auto stem = Firelink::StemOf(bnd_path);
+    const auto bhd_entry_name = std::format("{}.chrtpfbhd", stem);
+    const auto bnd = Firelink::Binder::FromPath(bnd_path);
+    const auto chrtpfbhd_entry = bnd->FindEntryByName(bhd_entry_name);
 
+    const auto& chrtpfbhdData = chrtpfbhd_entry->GetData();
     return Firelink::Binder::FromSplitBytes(
-        chrtpfbhd_entry->data.data(), chrtpfbhd_entry->data.size(),
+        chrtpfbhdData.data(), chrtpfbhdData.size(),
         bdt_raw.data(), bdt_raw.size());
 }

@@ -37,9 +37,9 @@ TEST_CASE("Binder: read c2300.chrbnd")
     // All entries should have IDs and paths.
     for (const auto& e : binder->Entries())
     {
-        CHECK(e->entry_id >= 0);
-        CHECK(!e->path.empty());
-        CHECK(!e->data.empty());
+        CHECK(e->GetEntryID() >= 0);
+        CHECK(!e->GetPath().empty());
+        CHECK(!e->GetData().empty());
     }
 }
 
@@ -56,19 +56,19 @@ TEST_CASE("Binder: round-trip c2300.chrbnd")
     auto written = binder->ToBytes();
     REQUIRE(!written.empty());
 
-    const Binder::CPtr reread = Binder::FromBytes(written.data(), written.size());
+    const Binder::CPtr reread = Binder::FromBytes(written);
     REQUIRE(reread->Entries().size() == binder->Entries().size());
 
     for (std::size_t i = 0; i < binder->Entries().size(); ++i)
     {
         const auto& a = *binder->Entries()[i];
         const auto& b = *reread->Entries()[i];
-        CHECK(a.entry_id == b.entry_id);
-        CHECK(a.path == b.path);
-        CHECK(a.flags == b.flags);
-        CHECK(a.data.size() == b.data.size());
-        if (a.data.size() == b.data.size())
-            CHECK(std::memcmp(a.data.data(), b.data.data(), a.data.size()) == 0);
+        CHECK(a.GetEntryID() == b.GetEntryID());
+        CHECK(a.GetPath() == b.GetPath());
+        CHECK(a.GetFlags() == b.GetFlags());
+        CHECK(a.GetData().size() == b.GetData().size());
+        if (a.GetData().size() == b.GetData().size())
+            CHECK(std::memcmp(a.GetData().data(), b.GetData().data(), a.GetData().size()) == 0);
     }
 }
 
@@ -103,16 +103,16 @@ TEST_CASE("Binder: round-trip c2010.anibnd")
     auto written = binder->ToBytes();
     REQUIRE(!written.empty());
 
-    Binder::CPtr reread = Binder::FromBytes(written.data(), written.size());
+    Binder::CPtr reread = Binder::FromBytes(written);
     REQUIRE(reread->Entries().size() == binder->Entries().size());
 
     for (std::size_t i = 0; i < binder->Entries().size(); ++i)
     {
         const auto& a = *binder->Entries()[i];
         const auto& b = *reread->Entries()[i];
-        CHECK(a.entry_id == b.entry_id);
-        CHECK(a.path == b.path);
-        CHECK(a.data.size() == b.data.size());
+        CHECK(a.GetEntryID() == b.GetEntryID());
+        CHECK(a.GetPath() == b.GetPath());
+        CHECK(a.GetData().size() == b.GetData().size());
     }
 }
 
@@ -130,7 +130,7 @@ TEST_CASE("Binder: double-write produces identical bytes")
     }
 
     auto written1 = binder->ToBytes();
-    Binder::CPtr reread = Binder::FromBytes(written1.data(), written1.size());
+    Binder::CPtr reread = Binder::FromBytes(written1);
     auto written2 = reread->ToBytes();
 
     CHECK(written1.size() == written2.size());
@@ -163,8 +163,8 @@ TEST_CASE("Binder: read split c2300.chrtpfbhd + chrtpfbdt")
     // Entries should have paths and non-empty data.
     for (const auto& e : binder->Entries())
     {
-        CHECK(!e->path.empty());
-        CHECK(!e->data.empty());
+        CHECK(!e->GetPath().empty());
+        CHECK(!e->GetData().empty());
     }
 }
 
@@ -181,20 +181,20 @@ TEST_CASE("Binder: split c2300.chrtpfbhd contains TPF entries")
     int tpf_count = 0;
     for (auto& entry : binder->Entries())
     {
-        auto name = entry->name();
+        auto name = entry->GetPathName();
         bool is_tpf = false;
 
         // Check for .tpf or DCX-compressed .tpf
-        if (entry->data.size() >= 4)
+        if (entry->GetData().size() >= 4)
         {
-            if (std::memcmp(entry->data.data(), "TPF\0", 4) == 0)
+            if (std::memcmp(entry->GetData().data(), "TPF\0", 4) == 0)
                 is_tpf = true;
-            else if (IsDCX(entry->data.data(), entry->data.size()))
+            else if (IsDCX(entry->GetData().data(), entry->GetData().size()))
             {
                 // Try to decompress and check for TPF magic.
                 try
                 {
-                    auto inner = DecompressDCX(entry->data.data(), entry->data.size());
+                    auto inner = DecompressDCX(entry->GetData().data(), entry->GetData().size());
                     if (inner.data.size() >= 4 && std::memcmp(inner.data.data(), "TPF\0", 4) == 0)
                         is_tpf = true;
                 }
@@ -208,8 +208,8 @@ TEST_CASE("Binder: split c2300.chrtpfbhd contains TPF entries")
             // Parse the first TPF to verify it works.
             if (tpf_count == 1)
             {
-                const std::byte* tpf_data = entry->data.data();
-                std::size_t tpf_size = entry->data.size();
+                const std::byte* tpf_data = entry->GetData().data();
+                std::size_t tpf_size = entry->GetData().size();
                 std::vector<std::byte> decompressed;
 
                 if (IsDCX(tpf_data, tpf_size))
@@ -242,9 +242,9 @@ TEST_CASE("Binder: FindEntryByID returns correct entry")
 
     // Grab the ID of the first entry and look it up.
     const auto& first = binder->Entries().front();
-    auto found = binder->FindEntryByID(first->entry_id);
-    CHECK(found->entry_id == first->entry_id);
-    CHECK(found->path == first->path);
+    auto found = binder->FindEntryByID(first->GetEntryID());
+    CHECK(found->GetEntryID() == first->GetEntryID());
+    CHECK(found->GetPath() == first->GetPath());
 
     // Non-existent ID throws.
     CHECK_THROWS_AS((void)binder->FindEntryByID(-999), BinderEntryNotFoundError);
@@ -256,11 +256,11 @@ TEST_CASE("Binder: FindEntryByName finds known entries")
     if (!binder) { MESSAGE("Skipping"); return; }
 
     auto flver = binder->FindEntryByName("c2300.flver");
-    CHECK(flver->name() == "c2300.flver");
-    CHECK(!flver->data.empty());
+    CHECK(flver->GetPathName() == "c2300.flver");
+    CHECK(!flver->GetData().empty());
 
     auto hkx = binder->FindEntryByName("c2300.hkx");
-    CHECK(hkx->name() == "c2300.hkx");
+    CHECK(hkx->GetPathName() == "c2300.hkx");
 
     // Unknown name throws.
     CHECK_THROWS_AS((void)binder->FindEntryByName("does_not_exist.xyz"), BinderEntryNotFoundError);
@@ -272,11 +272,11 @@ TEST_CASE("Binder: FindEntryByNameRegex finds a unique entry")
     if (!binder) { MESSAGE("Skipping"); return; }
 
     auto flver = binder->FindEntryByNameRegex(R"(.*\.flver)");
-    CHECK(flver->name() == "c2300.flver");
+    CHECK(flver->GetPathName() == "c2300.flver");
 
     // Full-match variant.
     auto hkx = binder->FindEntryByNameRegex(R"(c2300\.hkx)", true);
-    CHECK(hkx->name() == "c2300.hkx");
+    CHECK(hkx->GetPathName() == "c2300.hkx");
 }
 
 TEST_CASE("Binder: FindEntryByNameRegex throws on ambiguous pattern")
@@ -300,7 +300,7 @@ TEST_CASE("Binder: FindEntriesByNameRegex returns all matching entries")
     for (const auto& e : matches)
     {
         REQUIRE(e != nullptr);
-        CHECK(e->stem() == "c2300");
+        CHECK(e->GetPathStem() == "c2300");
     }
 
     auto none = binder->FindEntriesByNameRegex(R"(zzz_no_match)");
@@ -313,8 +313,8 @@ TEST_CASE("Binder: FindEntryByFilter finds a unique entry")
     if (!binder) { MESSAGE("Skipping"); return; }
 
     auto chrtpfbhd = binder->FindEntryByFilter(
-        [](const BinderEntry& e) { return e.name() == "c2300.chrtpfbhd"; });
-    CHECK(chrtpfbhd->name() == "c2300.chrtpfbhd");
+        [](const BinderEntry& e) { return e.GetPathName() == "c2300.chrtpfbhd"; });
+    CHECK(chrtpfbhd->GetPathName() == "c2300.chrtpfbhd");
 
     // Filter that matches nothing throws.
     CHECK_THROWS_AS(
@@ -337,11 +337,11 @@ TEST_CASE("Binder: FindEntriesByFilter returns all matching entries")
     auto binder = Binder::FromPath(GetResourcePath("darksouls1r/c2300.chrbnd"));
     if (!binder) { MESSAGE("Skipping"); return; }
 
-    auto all = binder->FindEntriesByFilter([](const BinderEntry& e) { return !e.data.empty(); });
+    auto all = binder->FindEntriesByFilter([](const BinderEntry& e) { return !e.GetData().empty(); });
     CHECK(all.size() == binder->Entries().size());
 
     auto c2300 = binder->FindEntriesByFilter(
-        [](const BinderEntry& e) { return e.stem() == "c2300"; });
+        [](const BinderEntry& e) { return e.GetPathStem() == "c2300"; });
     CHECK(c2300.size() >= 3);
 
     auto none = binder->FindEntriesByFilter([](const BinderEntry&) { return false; });

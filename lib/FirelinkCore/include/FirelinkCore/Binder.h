@@ -100,31 +100,58 @@ namespace Firelink
 
     // --- BinderEntry ---
 
-    struct FIRELINK_CORE_API BinderEntry
+    /// @class BinderEntry
+    /// @brief Single entry inside a Binder.
+    /// @details Entry data may or may not be decompressed (ZLIB level 7). Data is only decompressed on access,
+    ///  as Binders may frequently be loaded with only specific Entries in mind for use.
+    class FIRELINK_CORE_API BinderEntry
     {
+    public:
         using Ptr = std::shared_ptr<BinderEntry>;
 
-        std::int32_t entry_id = -1;
-        std::string path;                   // full internal path (raw bytes, shift-jis or UTF-16 LE round-trip)
-        std::vector<std::byte> data;        // entry payload (may be zlib-compressed per entry flags)
-        std::uint8_t flags = 0x02;          // entry flags (bit 0 = compressed)
+        BinderEntry() = default;
+        BinderEntry(std::int32_t id, std::string path, std::vector<std::byte> rawData, std::uint8_t flags);
 
-        [[nodiscard]] std::string name() const
-        {
-            const auto pos = path.find_last_of("\\/");
-            return pos == std::string::npos ? path : path.substr(pos + 1);
-        }
+        // Binder entry ID.
+        GAME_FILE_PROPERTY(std::int32_t, m_entryID, EntryID, -1);
+        // Full internal path (string).
+        GAME_FILE_PROPERTY(std::string, m_path, Path, /*default = {}*/);
+        // Entry bit flags. Only one bit flag's purpose is currently known (compression == 0b1).
+        GAME_FILE_PROPERTY(std::uint8_t, m_flags, Flags, 0b00000010);
 
-        [[nodiscard]] std::string stem() const
-        {
-            const std::string _name = name();
-            // Get substring before first '.' in name.
-            const auto pos = _name.find_first_of('.');
-            return pos == std::string::npos ? path : _name.substr(0, pos);
-        }
+        /// @brief Get basename component of entry path.
+        [[nodiscard]] std::string GetPathName() const;
 
-        /// @brief Return the entry payload, decompressing it with zlib if the compression flag is set.
-        [[nodiscard]] std::vector<std::byte> GetUncompressedData() const;
+        [[nodiscard]] std::string GetPathStem() const;
+
+        /// @brief Get data, decompressing it first (on first access) if required.
+        /// @note We only check if data has been decompressed - it doesn't matter what current flags are.
+        ///       It only matters what the flags were when the entry was created.
+        [[nodiscard]] const std::vector<std::byte>& GetData() const;
+
+        /// @brief Get data for serialization, compressing it first if required.
+        /// @note Checks current entry flags for compression requirement.
+        [[nodiscard]] const std::vector<std::byte>& GetDataForSerialization() const;
+
+        /// @brief Set uncompressed data of entry.
+        /// @note Compressed data cache will be cleared and regenerated later for serialization as needed.
+        void SetData(std::vector<std::byte> decompressedData);
+
+    private:
+
+        // Tracks which field is currently the source of truth.
+        bool m_decompressedIsSourceOfTruth = false;
+
+        // Compressed form. Ground truth when m_decompressedIsSourceOfTruth == false; lazy cache otherwise.
+        mutable std::optional<std::vector<std::byte>> m_compressedData;
+        // Decompressed form. Ground truth when m_decompressedIsSourceOfTruth == true; lazy cache otherwise.
+        mutable std::optional<std::vector<std::byte>> m_decompressedData;
+
+        /// @brief Decompress `data` using `zlib`. Only called on data confirmed to be compressed.
+        [[nodiscard]] static std::vector<std::byte> DecompressEntryData(const std::vector<std::byte>& data);
+
+        /// @brief Compress `data` using `zlib`. Only called on data confirmed to be decompressed.
+        [[nodiscard]] static std::vector<std::byte> CompressEntryData(const std::vector<std::byte>& data);
     };
 
     // --- Binder ---

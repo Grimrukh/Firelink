@@ -7,7 +7,6 @@
 
 #include <FirelinkTestHelpers.h>
 #include <FirelinkCore/Binder.h>
-#include <FirelinkCore/DCX.h>
 #include <FirelinkCore/Paths.h>
 #include <FirelinkCore/TPF.h>
 #include "FirelinkCoreTestHelpers.h"
@@ -65,7 +64,7 @@ TEST_CASE("TPF: round-trip c1200.tpf")
     REQUIRE(written.size() >= 4);
     CHECK(std::memcmp(written.data(), "TPF\0", 4) == 0);
 
-    TPF::CPtr reread = TPF::FromBytes(written.data(), written.size());
+    TPF::CPtr reread = TPF::FromBytes(written);
     REQUIRE(reread->Textures().size() == tpf->Textures().size());
     CHECK(reread->GetPlatform() == tpf->GetPlatform());
     CHECK(reread->GetFlags() == tpf->GetFlags());
@@ -101,7 +100,7 @@ TEST_CASE("TPF: double-write c1200.tpf produces identical bytes")
             any_compressed = true;
 
     auto written1 = tpf->ToBytes();
-    TPF::CPtr reread = TPF::FromBytes(written1.data(), written1.size());
+    TPF::CPtr reread = TPF::FromBytes(written1);
     auto written2 = reread->ToBytes();
 
     if (!any_compressed)
@@ -112,7 +111,7 @@ TEST_CASE("TPF: double-write c1200.tpf produces identical bytes")
     }
     else
     {
-        TPF::CPtr reread2 = TPF::FromBytes(written2.data(), written2.size());
+        TPF::CPtr reread2 = TPF::FromBytes(written2);
         CHECK(reread2->Textures().size() == tpf->Textures().size());
     }
 }
@@ -132,39 +131,22 @@ TEST_CASE("TPF: read TPF from c2300 split binder")
     // Find and parse first TPF entry.
     for (auto& entry : binder->Entries())
     {
-        const std::byte* tpf_ptr = entry->data.data();
-        std::size_t tpf_sz = entry->data.size();
-        std::vector<std::byte> inner_buf;
-
-        if (tpf_sz >= 4 && IsDCX(tpf_ptr, tpf_sz))
+        TPF::CPtr tpf = TPF::FromBytes(entry->GetData());
+        CHECK(tpf->GetPlatform() == TPFPlatform::PC);
+        CHECK(tpf->Textures().size() > 0);
+        if (!tpf->Textures().empty())
         {
-            try {
-                auto inner = DecompressDCX(tpf_ptr, tpf_sz);
-                inner_buf = std::move(inner.data);
-                tpf_ptr = inner_buf.data();
-                tpf_sz = inner_buf.size();
-            } catch (...) { continue; }
+            CHECK(!tpf->GetTexture(0).stem.empty());
+            CHECK(!tpf->GetTexture(0).data.empty());
+            MESSAGE("First TPF from split binder: " << tpf->GetTexture(0).stem
+                << " (" << tpf->GetTexture(0).data.size() << " bytes)");
         }
 
-        if (tpf_sz >= 4 && std::memcmp(tpf_ptr, "TPF\0", 4) == 0)
-        {
-            TPF::CPtr tpf = TPF::FromBytes(tpf_ptr, tpf_sz);
-            CHECK(tpf->GetPlatform() == TPFPlatform::PC);
-            CHECK(tpf->Textures().size() > 0);
-            if (!tpf->Textures().empty())
-            {
-                CHECK(!tpf->GetTexture(0).stem.empty());
-                CHECK(!tpf->GetTexture(0).data.empty());
-                MESSAGE("First TPF from split binder: " << tpf->GetTexture(0).stem
-                    << " (" << tpf->GetTexture(0).data.size() << " bytes)");
-            }
-
-            // Round-trip this tpf->
-            auto written = tpf->ToBytes();
-            TPF::CPtr reread = TPF::FromBytes(written.data(), written.size());
-            CHECK(reread->Textures().size() == tpf->Textures().size());
-            return; // tested one TPF, done
-        }
+        // Round-trip this tpf.
+        auto written = tpf->ToBytes();
+        TPF::CPtr reread = TPF::FromBytes(written);
+        CHECK(reread->Textures().size() == tpf->Textures().size());
+        return; // tested one TPF, done
     }
 
     MESSAGE("WARNING: No TPF entries found in c2300 split binder");

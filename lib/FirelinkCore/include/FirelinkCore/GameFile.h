@@ -94,14 +94,11 @@ namespace Firelink
             return std::move(instancePtr);
         }
 
-        /// @brief Construct a new `GameFile` from managed storage (ownership passed to internal reader).
-        static Ptr FromBytes(std::vector<std::byte>&& storage)
+        /// @brief Construct a new `GameFile` from managed storage.
+        static Ptr FromBytes(const std::vector<std::byte>& storage)
         {
-            Ptr instancePtr = std::make_unique<T>();
-            auto [r, dcxType] = GetBufferReaderForDCX(std::move(storage), BinaryReadWrite::Endian::Little);
-            instancePtr->m_dcxType = dcxType;
-            instancePtr->Deserialize(r);
-            return std::move(instancePtr);
+            // Even if `storage` is an r-value, we only need it to persist for this call.
+            return FromBytes(storage.data(), storage.size());
         }
 
         /// @brief Construct a new `GameFile` from a path.
@@ -144,7 +141,7 @@ namespace Firelink
                     if (idx >= count) break;
                     try
                     {
-                        instances[idx] = T::FromBytes(std::move(storages[idx]));
+                        instances[idx] = T::FromBytes(storages[idx]);
                     }
                     catch (...)
                     {

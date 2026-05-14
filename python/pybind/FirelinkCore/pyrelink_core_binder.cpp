@@ -56,33 +56,36 @@ void bind_firelink_core_binder(py::module& m)
     py::class_<BinderEntry, std::shared_ptr<BinderEntry>>(m, "BinderEntry",
         "A single entry in a Binder archive.")
         .def(py::init<>())
-        .def_readwrite("entry_id", &BinderEntry::entry_id)
-        .def_readwrite("path", &BinderEntry::path)
-        .def_readwrite("flags", &BinderEntry::flags)
+        .def_property("entry_id", &BinderEntry::GetEntryID, &BinderEntry::SetEntryID)
+        .def_property("path", &BinderEntry::GetPath, &BinderEntry::SetPath)
+        .def_property("flags", &BinderEntry::GetFlags, &BinderEntry::SetFlags)
         .def_property("data",
             [](const BinderEntry& e) {
-                return py::bytes(reinterpret_cast<const char*>(e.data.data()), e.data.size());
+                const auto& data = e.GetData();
+                return py::bytes(reinterpret_cast<const char*>(data.data()), data.size());
             },
             [](BinderEntry& e, const py::buffer& buf) {
                 auto info = buf.request();
                 auto ptr = static_cast<const std::byte*>(info.ptr);
                 auto sz = static_cast<std::size_t>(info.size * info.itemsize);
-                e.data.assign(ptr, ptr + sz);
+                std::vector<std::byte> bytes;
+                bytes.assign(ptr, ptr + sz);
+                e.SetData(std::move(bytes));
             },
             "Entry payload as bytes.")
-        .def_property_readonly("name", &BinderEntry::name,
+        .def_property_readonly("name", &BinderEntry::GetPathName,
             "Basename of the entry path.")
-        .def_property_readonly("stem", &BinderEntry::stem,
+        .def_property_readonly("stem", &BinderEntry::GetPathStem,
             "Minimal stem (before first '.') of the entry path basename.")
         .def("get_uncompressed_data",
             [](const BinderEntry& e) {
-                const auto bytes = e.GetUncompressedData();
+                const auto& bytes = e.GetData();
                 return py::bytes(reinterpret_cast<const char*>(bytes.data()), bytes.size());
             },
             "Return the entry payload as bytes, decompressing with zlib if the compression flag is set.")
         .def("__repr__", [](const BinderEntry& e) {
-            return "<BinderEntry id=" + std::to_string(e.entry_id) +
-                   " path='" + e.path + "' " + std::to_string(e.data.size()) + " bytes>";
+            return "<BinderEntry id=" + std::to_string(e.GetEntryID()) +
+                   " path='" + e.GetPath() + "' " + std::to_string(e.GetData().size()) + " bytes>";
         });
 
     py::register_exception<BinderError>(m, "BinderError", PyExc_RuntimeError);

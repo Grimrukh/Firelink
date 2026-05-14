@@ -90,14 +90,15 @@ namespace Firelink
         std::unordered_map<std::string, std::filesystem::path> m_pendingBinderPaths;
 
         // Pending TPF sources (lowercase stem -> file path or BinderEntry shared pointer).
-        std::unordered_map<std::string, std::variant<std::filesystem::path, std::shared_ptr<BinderEntry>>> m_pendingTPFs;
+        std::unordered_map<std::string, std::variant<std::filesystem::path, std::shared_ptr<BinderEntry>>> m_pendingTpfs;
 
         // Loaded texture cache (lowercase stem -> TPFTexture).
         std::unordered_map<std::string, TPFTexture> m_textureCache;
 
-        // Already-scanned lowercase Binder paths (full path) and TPF stems and to avoid re-scanning.
-        std::unordered_set<std::string> m_scannedBinderPaths;
-        std::unordered_set<std::string> m_scannedTPFStems;
+        // Already-scanned TPF lowercase stems and lowercase full Binder paths to avoid re-scanning.
+        // These are TPFs/Binders that have been popping from the pending map and fully searched.
+        std::unordered_set<std::string> m_loadedTpfStems;
+        std::unordered_set<std::string> m_loadedBinderPaths;
 
         // Textures that could not be found and need not be searched for again (global process).
         std::unordered_set<std::string> m_missingStems;
@@ -115,6 +116,21 @@ namespace Firelink
         void RegisterPartsCommonTPFs(const std::filesystem::path& partsDir);
         void ScanBinderForTPFs(const Binder& binder);
 
+        // --- Registration helpers for specific texture stems that can be found from the data root ---
+
+        //! @brief Find an 'aetXXX_*' texture in the '{data}/asset/aet' directory.
+        //! @returns True if texture source is found and registered, false otherwise.
+        bool RegisterSpecificAssetTexture(const std::string& textureStem);
+
+        //! @brief Find an 'oXXXX*' texture in {data}/obj/oXXXX.objbnd[.dcx].
+        //! @returns True if texture source is found and registered, false otherwise.
+        bool RegisterSpecificObjectTexture(const std::string& textureStem);
+
+        //! @brief Find a 'mXX_*' texture in {data}/map/mXX.
+        //! @details Also searches in 'map/tx' for loose TPFs in PTDE.
+        //! @returns True if texture source is found and registered, false otherwise.
+        bool RegisterSpecificMapTexture(const std::string& textureStem);
+
         // --- First-time stem registration for Binders/TPFs ---
 
         void RegisterBinder(const std::filesystem::path& binderPath);
@@ -124,7 +140,7 @@ namespace Firelink
         // --- Lazy loading helpers (no locking — caller must hold unique lock) ---
 
         void LoadPendingBinder(const std::string& binderStem);
-        void LoadTPF(const std::string& tpf_stem);
+        void LoadTPF(const std::string& lowerTpfStem);
     };
 
 } // namespace Firelink

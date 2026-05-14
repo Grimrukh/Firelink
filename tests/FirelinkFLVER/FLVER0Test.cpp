@@ -301,7 +301,7 @@ TEST_CASE("FLVER0 round-trip: synthetic minimal FLVER")
     REQUIRE(written.size() > 128);
 
     // Re-read.
-    FLVER reread = FLVER::FromBytes(written.data(), written.size());
+    FLVER reread = FLVER::FromBytes(written);
 
     // Verify.
     CHECK(static_cast<std::uint32_t>(reread.version) == static_cast<std::uint32_t>(FLVERVersion::DemonsSouls));
