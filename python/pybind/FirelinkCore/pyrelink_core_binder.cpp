@@ -121,6 +121,23 @@ void bind_firelink_core_binder(py::module& m)
     binder
         .def("find_entry_by_id", &Binder::FindEntryByID, py::arg("entry_id"),
             "Find entry by ID. Raises BinderEntryNotFoundError if not found.")
+
+        .def("find_entry_by_path", &Binder::FindEntryByPath, py::arg("path_string"),
+            "Find entry by exact full path. Raises BinderEntryNotFoundError if not found.")
+        .def("find_entry_by_path_regex",
+            [](const Binder& b, const py::object& pat, bool full_match) {
+                return b.FindEntryByPathRegex(py_to_regex(pat), full_match);
+            },
+            py::arg("pattern"), py::arg("full_match") = false,
+            "Find the single entry whose path matches *pattern* (str or re.Pattern).\n"
+            "Raises BinderEntryNotFoundError if none match, MultipleBinderEntriesFoundError if several do.")
+        .def("find_entries_by_path_regex",
+            [](const Binder& b, const py::object& pat, bool full_match) {
+                return b.FindEntriesByPathRegex(py_to_regex(pat), full_match);
+            },
+            py::arg("pattern"), py::arg("full_match") = false,
+            "Return all entries whose paths match *pattern* (str or re.Pattern).")
+
         .def("find_entry_by_name", &Binder::FindEntryByName, py::arg("name"),
             "Find entry by basename. Raises BinderEntryNotFoundError if not found.")
         .def("find_entry_by_name_regex",
@@ -136,6 +153,7 @@ void bind_firelink_core_binder(py::module& m)
             },
             py::arg("pattern"), py::arg("full_match") = false,
             "Return all entries whose names match *pattern* (str or re.Pattern).")
+
         .def("find_entry_by_filter",
             [](const Binder& b, const py::function& fn) {
                 return b.FindEntryByFilter([&fn](const BinderEntry& e) -> bool {

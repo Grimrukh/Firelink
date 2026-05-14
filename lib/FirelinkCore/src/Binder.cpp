@@ -391,6 +391,17 @@ namespace Firelink
             return;
         }
 
+        // Useful error handling:
+        if (reader.IsRawAt("BHF3"))
+            throw BinderError("Cannot use Binder::FromBytes to read a split BHF3 header. Use FromSplitBytes.");
+        if (reader.IsRawAt("BHF4"))
+            throw BinderError("Cannot use Binder::FromBytes to read a split BHF4 header. Use FromSplitBytes.");
+        if (reader.IsRawAt("BDT3"))
+            throw BinderError("Cannot use Binder::FromBytes to read a split BDT3 payload. Use FromSplitBytes.");
+        if (reader.IsRawAt("BDT4"))
+            throw BinderError("Cannot use Binder::FromBytes to read a split BDT4 payload. Use FromSplitBytes.");
+
+        // Generic error handling:
         const int magic0 = reader.Read<std::uint8_t>();
         const int magic1 = reader.Read<std::uint8_t>();
         const int magic2 = reader.Read<std::uint8_t>();
@@ -400,13 +411,15 @@ namespace Firelink
             magic0, magic1, magic2, magic3));
     }
 
-    Binder::Ptr Binder::FromSplitBytes(std::vector<std::byte>&& bhdData, std::vector<std::byte>&& bdtData)
+    Binder::Ptr Binder::FromSplitBytes(
+        const std::vector<std::byte>& bhdData,
+        const std::vector<std::byte>& bdtData)
     {
         if (bhdData.size() < 4)
             throw BinderError("BHD data too small.");
 
-        auto [bhdReader, bhdDcxType] = GetBufferReaderForDCX(std::move(bhdData));
-        auto [bdtReader, bdtDcxType] = GetBufferReaderForDCX(std::move(bdtData));
+        auto [bhdReader, bhdDcxType] = GetBufferReaderForDCX(bhdData.data(), bhdData.size());
+        auto [bdtReader, bdtDcxType] = GetBufferReaderForDCX(bdtData.data(), bdtData.size());
 
         auto ptr = std::make_unique<Binder>();
         // We use BHD for DCX type.
@@ -425,6 +438,13 @@ namespace Firelink
             return ptr;
         }
 
+        // Useful error handling:
+        if (bhdReader.IsRawAt("BND3"))
+            throw BinderError("Cannot use Binder::FromSplitBytes to read a BND3. Use FromBytes.");
+        if (bhdReader.IsRawAt("BND4"))
+            throw BinderError("Cannot use Binder::FromSplitBytes to read a BND4. Use FromBytes.");
+
+        // Generic error handling:
         const int magic0 = bhdReader.Read<std::uint8_t>();
         const int magic1 = bhdReader.Read<std::uint8_t>();
         const int magic2 = bhdReader.Read<std::uint8_t>();
@@ -460,6 +480,13 @@ namespace Firelink
             return ptr;
         }
 
+        // Useful error handling:
+        if (bhdReader.IsRawAt("BND3"))
+            throw BinderError("Cannot use Binder::FromSplitBytes to read a BND3. Use FromBytes.");
+        if (bhdReader.IsRawAt("BND4"))
+            throw BinderError("Cannot use Binder::FromSplitBytes to read a BND4. Use FromBytes.");
+
+        // Generic error handling:
         const int magic0 = bhdReader.Read<std::uint8_t>();
         const int magic1 = bhdReader.Read<std::uint8_t>();
         const int magic2 = bhdReader.Read<std::uint8_t>();
@@ -835,6 +862,47 @@ namespace Firelink
         throw BinderEntryNotFoundError(std::format("No entry with ID {} found.", id));
     }
 
+    std::shared_ptr<BinderEntry> Binder::FindEntryByPath(const std::string& pathString) const
+    {
+        for (const auto& e : m_entries)
+            if (e->GetPath() == pathString) return e;
+        throw BinderEntryNotFoundError(std::format("No entry with path '{}' found.", pathString));
+    }
+
+    std::shared_ptr<BinderEntry> Binder::FindEntryByPathRegex(const std::string& pattern, const bool fullMatch) const
+    {
+        const std::regex re(pattern);
+        std::shared_ptr<BinderEntry> candidate;
+        for (const auto& e : m_entries)
+        {
+            const auto& n = e->GetPath();
+            if (fullMatch ? std::regex_match(n, re) : std::regex_search(n, re))
+            {
+                if (candidate)
+                    throw MultipleBinderEntriesFoundError(std::format(
+                        "Multiple entries match path regex: '{}' and '{}'.",
+                        candidate->GetPath(), e->GetPath()));
+                candidate = e;
+            }
+        }
+        if (candidate) return candidate;
+        throw BinderEntryNotFoundError(std::format("No entry path matches regex '{}'.", pattern));
+    }
+
+    std::vector<std::shared_ptr<BinderEntry>> Binder::FindEntriesByPathRegex(
+        const std::string& pattern, const bool fullMatch) const
+    {
+        const std::regex re(pattern);
+        std::vector<std::shared_ptr<BinderEntry>> result;
+        for (const auto& e : m_entries)
+        {
+            const auto& n = e->GetPath();
+            if (fullMatch ? std::regex_match(n, re) : std::regex_search(n, re))
+                result.push_back(e);
+        }
+        return result;
+    }
+
     std::shared_ptr<BinderEntry> Binder::FindEntryByName(const std::string& name) const
     {
         for (const auto& e : m_entries)
@@ -853,7 +921,7 @@ namespace Firelink
             {
                 if (candidate)
                     throw MultipleBinderEntriesFoundError(std::format(
-                        "Multiple entries match regex: '{}' and '{}'.",
+                        "Multiple entries match name regex: '{}' and '{}'.",
                         candidate->GetPath(), e->GetPath()));
                 candidate = e;
             }

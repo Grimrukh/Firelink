@@ -340,15 +340,27 @@ class Binder(GameFile):
     def entry_count(self) -> int: ...
 
     def find_entry_by_id(self, entry_id: int) -> BinderEntry:
-        """Find entry by ID. Raises a KeyError if not found."""
+        """Find entry by ID. Raises a KeyError if not found and a LookupError if multiple found."""
+        ...
+
+    def find_entry_by_path(self, path_string: str) -> BinderEntry:
+        """Find entry by full path. Raises a KeyError if not found and a LookupError if multiple found."""
+        ...
+
+    def find_entry_by_path_regex(self, pattern: str | re.Pattern, full_match: bool = False) -> BinderEntry:
+        """Find entry by regex on path. Raises a KeyError if not found and a LookupError if multiple found."""
+        ...
+
+    def find_entries_by_path_regex(self, pattern: str | re.Pattern, full_match: bool = False) -> list[BinderEntry]:
+        """Find all entries that match regex on path."""
         ...
 
     def find_entry_by_name(self, name: str) -> BinderEntry:
-        """Find entry by basename. Raises a KeyError if not found."""
+        """Find entry by basename. Raises a KeyError if not found and a LookupError if multiple found."""
         ...
 
     def find_entry_by_name_regex(self, pattern: str | re.Pattern, full_match: bool = False) -> BinderEntry:
-        """Find entry by regex on basename. Raises a KeyError if not found."""
+        """Find entry by regex on basename. Raises a KeyError if not found and a LookupError if multiple found."""
         ...
 
     def find_entries_by_name_regex(self, pattern: str | re.Pattern, full_match: bool = False) -> list[BinderEntry]:

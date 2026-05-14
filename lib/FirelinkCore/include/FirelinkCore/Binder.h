@@ -163,7 +163,9 @@ namespace Firelink
         // --- ADDITIONAL FACTORIES ---
 
         /// @brief Parse a split BHF3/BHF4 header + BDT data pair (managed storage).
-        static Ptr FromSplitBytes(std::vector<std::byte>&& bhdData, std::vector<std::byte>&& bdtData);
+        static Ptr FromSplitBytes(
+            const std::vector<std::byte>& bhdData,
+            const std::vector<std::byte>& bdtData);
 
         /// @brief Parse a split BHF3/BHF4 header + BDT data pair (raw data).
         static Ptr FromSplitBytes(
@@ -188,6 +190,17 @@ namespace Firelink
 
         /// @brief Find entry by ID. Throws `BinderEntryNotFoundError` if not found.
         [[nodiscard]] std::shared_ptr<BinderEntry> FindEntryByID(std::int32_t id) const;
+
+        /// @brief Find entry by exact path. Throws `BinderEntryNotFoundError` if not found.
+        [[nodiscard]] std::shared_ptr<BinderEntry> FindEntryByPath(const std::string& pathString) const;
+
+        /// @brief Find entry by regex match to path.
+        /// @note Throws `BinderEntryNotFoundError` if none match, `MultipleBinderEntriesFoundError` if more than one matches.
+        [[nodiscard]] std::shared_ptr<BinderEntry> FindEntryByPathRegex(const std::string& pattern, bool fullMatch = false) const;
+
+        /// @brief Find all entries whose paths match the given regex pattern string.
+        [[nodiscard]] std::vector<std::shared_ptr<BinderEntry>> FindEntriesByPathRegex(
+            const std::string& pattern, bool fullMatch = false) const;
 
         /// @brief Find entry by name (basename). Throws `BinderEntryNotFoundError` if not found.
         [[nodiscard]] std::shared_ptr<BinderEntry> FindEntryByName(const std::string& name) const;
