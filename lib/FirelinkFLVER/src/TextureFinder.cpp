@@ -33,6 +33,26 @@ namespace Firelink
             return ToLower(StemOf(path));
         }
 
+        Binder::Ptr LoadTPFBXF(const fs::path& bhdPath)
+        {
+            // Find adjacent BDT.
+            auto bdtPath = bhdPath;
+            bdtPath.replace_extension(""); // remove .tpfbhd
+            const auto bdt_stem = bdtPath.filename().string();
+            bdtPath = bhdPath.parent_path() / (bdt_stem + ".tpfbdt");
+            if (!fs::is_regular_file(bdtPath))
+                return nullptr;
+
+            const auto bhd_data = BinaryReadWrite::ReadFileBytes(bhdPath);
+            const auto bdt_data = BinaryReadWrite::ReadFileBytes(bdtPath);
+            Binder::Ptr binder = Binder::FromSplitBytes(
+                bhd_data.data(), bhd_data.size(),
+                bdt_data.data(), bdt_data.size());
+
+            return std::move(binder);
+        }
+
+
     }
 
     // ========================================================================
@@ -335,33 +355,38 @@ namespace Firelink
         for (auto& dirEntry : fs::directory_iterator(mapAreaDir))
         {
             if (!dirEntry.is_regular_file()) continue;
-            const auto name = ToLower(dirEntry.path().filename().string());
+            const auto lowerPath = ToLower(dirEntry.path().string());
+            const auto lowerName = ToLower(dirEntry.path().filename().string());
 
-            if (name.ends_with(".tpfbhd"))
+            if (lowerName.ends_with(".tpfbhd"))
             {
-                // Load all TPFs (as pending TPFs) from Binder.
-                const auto binder = Binder::FromPath(dirEntry);
+                if (m_loadedBinderPaths.contains(lowerPath))
+                    continue;
+
+                // Load all TPFs (as pending TPFs) from split Binder.
+                m_loadedBinderPaths.insert(lowerPath);
+                const auto binder = LoadTPFBXF(dirEntry.path());
                 for (auto& entry : binder->FindEntriesByNameRegex(TPF_RE_STR, /*fullMatch*/ true))
                 {
                     RegisterTPF(entry);
                 }
             }
-            else if (IsTPFFileName(name))
+            else if (IsTPFFileName(lowerName))
             {
                 auto stem = ToLowerStem(dirEntry);
-                if (!m_loadedTpfStems.contains(stem))
+                if (m_loadedTpfStems.contains(stem))
+                    continue;
+
+                // Multi-texture map TPF — load immediately (steal TPFTextures).
+                m_loadedTpfStems.insert(stem);
+                try
                 {
-                    // Multi-texture map TPF — load immediately (steal TPFTextures).
-                    m_loadedTpfStems.insert(stem);
-                    try
-                    {
-                        for (auto& tex : TPF::FromPath(dirEntry)->Textures())
-                            m_textureCache.try_emplace(ToLower(tex.stem), std::move(tex));
-                    }
-                    catch (const std::exception& e)
-                    {
-                        Warning("[TextureFinder] Failed to load TPF: " + dirEntry.path().string() + " — " + e.what());
-                    }
+                    for (auto& tex : TPF::FromPath(dirEntry)->Textures())
+                        m_textureCache.try_emplace(ToLower(tex.stem), std::move(tex));
+                }
+                catch (const std::exception& e)
+                {
+                    Warning("[TextureFinder] Failed to load TPF: " + dirEntry.path().string() + " — " + e.what());
                 }
             }
         }
@@ -621,26 +646,15 @@ namespace Firelink
         m_pendingBinderPaths.erase(it);
         m_loadedBinderPaths.insert(ToLower(path.string()));
 
+        Info("[TextureFinder] Loading binder: {}", path.string());
+
         try
         {
             // Check if it's a TPFBHD (split binder).
             const auto name = ToLower(path.filename().string());
             if (name.ends_with(".tpfbhd"))
             {
-                // Find adjacent BDT.
-                auto bdt_path = path;
-                bdt_path.replace_extension(""); // remove .tpfbhd
-                const auto bdt_stem = bdt_path.filename().string();
-                bdt_path = path.parent_path() / (bdt_stem + ".tpfbdt");
-                if (!fs::is_regular_file(bdt_path))
-                    return;
-
-                const auto bhd_data = BinaryReadWrite::ReadFileBytes(path);
-                const auto bdt_data = BinaryReadWrite::ReadFileBytes(bdt_path);
-                const auto binder = Binder::FromSplitBytes(
-                    bhd_data.data(), bhd_data.size(),
-                    bdt_data.data(), bdt_data.size());
-
+                const Binder::CPtr binder = LoadTPFBXF(path);
                 // Get new TPF entries from transient Binder.
                 for (auto& entry : binder->FindEntriesByNameRegex(TPF_RE_STR, /*fullMatch*/ true))
                 {
