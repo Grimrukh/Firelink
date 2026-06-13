@@ -37,10 +37,10 @@ namespace Firelink
         bool operator==(const Texture&) const = default;
 
         /// @brief Read a FLVER0 texture.
-        static Texture ReadFLVER0(BinaryReadWrite::BufferReader& r, bool unicode_encoding);
+        static Texture ReadFLVER0(BinaryReadWrite::BufferReader& r, bool isUTF16Encoding);
 
         /// @brief Read a FLVER2 texture.
-        static Texture ReadFLVER2(BinaryReadWrite::BufferReader& r, bool unicode_encoding);
+        static Texture ReadFLVER2(BinaryReadWrite::BufferReader& r, bool isUTF16Encoding);
     };
 
     struct GXItem
@@ -88,11 +88,11 @@ namespace Firelink
 
         static Material ReadFLVER2(
             BinaryReadWrite::BufferReader& r,
-            bool unicode_encoding,
+            bool isUTF16Encoding,
             FLVERVersion version,
-            std::unordered_map<std::uint32_t, std::vector<GXItem>>& gx_item_lists_cache,
-            std::uint32_t& out_texture_count,
-            std::uint32_t& out_first_texture_index);
+            std::unordered_map<std::uint32_t, std::vector<GXItem>>& gxItemListsCache,
+            std::uint32_t& outTextureCount,
+            std::uint32_t& outFirstTextureIndex);
     };
 
     /// @brief Temporary struct used while handing FLVER0 materials to meshes.
@@ -102,7 +102,7 @@ namespace Firelink
         std::vector<VertexArrayLayout> layouts;
 
         /// @brief Read a FLVER0 material header and its data (textures, layouts).
-        static FLVER0MaterialRead Read(BinaryReadWrite::BufferReader& r, bool unicode_encoding);
+        static FLVER0MaterialRead Read(BinaryReadWrite::BufferReader& r, bool isUTF16Encoding);
     };
 
 } // namespace Firelink

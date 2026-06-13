@@ -19,6 +19,11 @@
 #include <type_traits>
 #include <vector>
 
+namespace Firelink
+{
+    enum class FSEncoding : std::uint32_t;
+}
+
 namespace Firelink::BinaryReadWrite
 {
     // Exception for binary read operations.
@@ -480,7 +485,7 @@ namespace Firelink::BinaryReadWrite
         explicit BufferReader(std::vector<std::byte>&& storage, Endian endian = Endian::Little);
 
         /// @brief Get a BufferReader from a file path with its own managed storage.
-        explicit BufferReader(const std::filesystem::path& part, Endian endian = Endian::Little);
+        explicit BufferReader(const std::filesystem::path& path, Endian endian = Endian::Little);
 
         // Non-copyable (m_data may alias m_storage).
         BufferReader(const BufferReader&) = delete;
@@ -713,15 +718,30 @@ namespace Firelink::BinaryReadWrite
 
         // -- String reading (const — does not affect current position) ---
 
-        /// @brief Read a null-terminated byte string at `offset` (does not move the cursor).
-        [[nodiscard]] std::vector<std::byte> ReadCStringAt(std::size_t offset) const;
+        /// @brief Read a null-terminated byte string at `offset` without moving the cursor.
+        [[nodiscard]] std::vector<std::byte> ReadNullTerminatedBytesAt(std::size_t offset) const;
 
-        /// @brief Read a null-terminated UTF-16 LE string at `offset` as raw bytes (does not move the cursor).
-        [[nodiscard]] std::vector<std::byte> ReadUTF16LEStringAt(std::size_t offset) const;
+        /// @brief Read a null-terminated two-byte (UTF-16) byte string at `offset` without moving the cursor.
+        /// @details If the buffer is big-endian, each byte pair is swapped in the output.
+        [[nodiscard]] std::vector<std::byte> ReadNullTerminatedBytePairsAt(std::size_t offset) const;
 
-        /// @brief Dispatch to either one-byte or two-byte string reader.
-        [[nodiscard]] std::string ReadStringAt(std::size_t offset, bool isWideEncoding) const;
+        /// @brief Dispatch to either one-byte or two-byte reader and cast ``vector<byte>`` to ``string``.
+        /// @details If the buffer is big-endian, each byte pair is swapped in the output.
+        [[nodiscard]] std::string ReadNullTerminatedStringAt(std::size_t offset, bool isWideEncoding) const;
 
+        /// @brief Dispatch to either one-byte or two-byte reader and cast ``vector<byte>`` to ``string``.
+        /// @details If the buffer is big-endian, each byte pair is swapped in the output.
+        /// @param offset  Offset of string in buffer.
+        /// @param encoding  Encoding, used to determine if characters are two-byte.
+        [[nodiscard]] std::string ReadNullTerminatedStringAt(std::size_t offset, FSEncoding encoding) const;
+
+        /// @brief Read encoded string, determining bytes per character from `encoding`, then decode immediately.
+        /// @details If the buffer is big-endian, each byte pair is swapped in the output.
+        /// @param offset  Offset of string in buffer.
+        /// @param encoding  Encoding to use for decoding.
+        [[nodiscard]] std::string ReadDecodedStringAt(std::size_t offset, FSEncoding encoding) const;
+
+        //! @brief Get the size of the buffer.
         [[nodiscard]] size_t size() const noexcept { return m_size; }
 
     private:
@@ -779,10 +799,14 @@ namespace Firelink::BinaryReadWrite
             m_position += size;
         }
 
-        /// @brief Write a string, with null terminator size depending on encoding.
-        void WriteString(const std::string& s, bool utf16le_encoding);
+        /// @brief Write an encoded string, with null terminator size depending on encoding.
+        /// @pre The string should already be encoded; byte content is written as-is.
+        void WriteEncodedString(const std::string& s, bool isWideEncoding);
 
-        /// @brief Write `count` zero bytes.
+        /// @brief Encode a decoded string, then write it, with null terminator size depending on encoding.
+        void WriteDecodedString(const std::string& s, FSEncoding encoding);
+
+        /// @brief Write `count` null (zero) bytes.
         void WritePad(const std::size_t count)
         {
             EnsureSize(m_position + count);

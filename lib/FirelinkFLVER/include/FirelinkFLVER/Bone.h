@@ -43,6 +43,6 @@ namespace Firelink
 
         void Write(BinaryReadWrite::BufferWriter& w, const void* scope) const;
 
-        static Bone Read(BinaryReadWrite::BufferReader& r, bool unicode_encoding);
+        static Bone Read(BinaryReadWrite::BufferReader& r, bool isUTF16Encoding);
     };
 } // namespace Firelink

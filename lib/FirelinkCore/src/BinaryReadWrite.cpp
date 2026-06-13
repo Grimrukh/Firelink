@@ -6,6 +6,8 @@
 #include <ranges>
 #include <vector>
 
+#include "FirelinkCore/Encodings.h"
+
 using namespace Firelink;
 using namespace Firelink::BinaryReadWrite;
 
@@ -373,21 +375,32 @@ BufferReader::BufferReader(const std::filesystem::path& path, const Endian endia
 }
 
 // Read a null-terminated string at `offset` without moving the reader cursor.
-std::string BufferReader::ReadStringAt(const std::size_t offset, const bool isWideEncoding) const
+std::string BufferReader::ReadNullTerminatedStringAt(const std::size_t offset, const bool isWideEncoding) const
 {
     if (isWideEncoding)
     {
         // Read Unicode.
-        const auto bytes = ReadUTF16LEStringAt(offset);
+        const auto bytes = ReadNullTerminatedBytePairsAt(offset);
         return {reinterpret_cast<const char*>(bytes.data()), bytes.size()};
     }
 
     // Read raw.
-    const auto bytes = ReadCStringAt(offset);
+    const auto bytes = ReadNullTerminatedBytesAt(offset);
     return {reinterpret_cast<const char*>(bytes.data()), bytes.size()};
 }
 
-std::vector<std::byte> BufferReader::ReadCStringAt(std::size_t offset) const
+std::string BufferReader::ReadNullTerminatedStringAt(const std::size_t offset, const FSEncoding encoding) const
+{
+    return ReadNullTerminatedStringAt(offset, encoding == FSEncoding::UTF_16);
+}
+
+std::string BufferReader::ReadDecodedStringAt(const std::size_t offset, const FSEncoding encoding) const
+{
+    const std::string encoded = ReadNullTerminatedStringAt(offset, encoding == FSEncoding::UTF_16);
+    return DecodeString(encoded, encoding);
+}
+
+std::vector<std::byte> BufferReader::ReadNullTerminatedBytesAt(std::size_t offset) const
 {
     std::vector<std::byte> result;
     while (offset < m_size && m_data[offset] != NULL_BYTE)
@@ -398,7 +411,7 @@ std::vector<std::byte> BufferReader::ReadCStringAt(std::size_t offset) const
     return result;
 }
 
-std::vector<std::byte> BufferReader::ReadUTF16LEStringAt(std::size_t offset) const
+std::vector<std::byte> BufferReader::ReadNullTerminatedBytePairsAt(std::size_t offset) const
 {
     std::vector<std::byte> result;
     while (offset + 1 < m_size)
@@ -407,6 +420,8 @@ std::vector<std::byte> BufferReader::ReadUTF16LEStringAt(std::size_t offset) con
         auto hi = m_data[offset + 1];
         if (lo == NULL_BYTE && hi == NULL_BYTE)
             break;  // two-byte null terminator found
+        if (m_endian == Endian::Big)
+            std::swap(lo, hi);  // convert to little-endian order in output
         result.push_back(lo);
         result.push_back(hi);
         offset += 2;
@@ -414,18 +429,37 @@ std::vector<std::byte> BufferReader::ReadUTF16LEStringAt(std::size_t offset) con
     return result;
 }
 
-void BufferWriter::WriteString(const std::string& s, const bool utf16le_encoding)
+void BufferWriter::WriteEncodedString(const std::string& s, const bool isWideEncoding)
 {
-    if (utf16le_encoding)
+    if (isWideEncoding)
     {
-        // String is stored as raw UTF-16 LE bytes already (round-trip).
-        WriteRaw(s.data(), s.size());
-        // Null terminator: two zero bytes.
-        WritePad(2);
+        if (s.size() % 2 != 0)
+            throw BinaryWriteError("BufferWriter::WriteString: UTF-16 string has odd byte count");
+
+        if (m_endian == Endian::Big)
+        {
+            // Encoded string is always UTF-16 LE; swap every byte pair before writing.
+            for (std::size_t i = 0; i + 1 < s.size(); i += 2)
+            {
+                WriteRaw(&s[i + 1], 1);
+                WriteRaw(&s[i], 1);
+            }
+        }
+        else
+        {
+            // String is stored as raw UTF-16 LE bytes already (round-trip).
+            WriteRaw(s.data(), s.size());
+        }
+        WritePad(2); // two-byte null terminator
     }
     else
     {
         WriteRaw(s.data(), s.size());
         WritePad(1); // single null byte terminator
     }
+}
+
+void BufferWriter::WriteDecodedString(const std::string& s, const FSEncoding encoding)
+{
+    WriteEncodedString(EncodeString(s, encoding), encoding == FSEncoding::UTF_16);
 }

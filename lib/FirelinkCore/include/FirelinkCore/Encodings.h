@@ -4,10 +4,22 @@
 
 namespace Firelink
 {
-    /// @brief Decode a FromSoft string to UTF-8 using Shift-JIS or UTF-16.
-    std::string DecodeString(const char* raw, size_t byteLen, bool isUTF16);
-    std::string DecodeString(const std::string& raw, bool isUTF16);
+    /// @brief Support string encodings used across all FromSoft games and files.
+    enum class FSEncoding : std::uint32_t
+    {
+        UTF_16 = 0,
+        SHIFT_JIS = 932,
+    };
 
-    /// @brief Encode a FromSoft string as Shift-JIS or UTF-16.
-    std::string EncodeString(const std::string& utf8, bool isUTF16);
-}
+    /// @brief String conversion for FromSoftEncoding.
+    std::string ToString(FSEncoding encoding);
+
+    /// @brief Decode raw FromSoft bytes to UTF-8 using given supported FromSoftEncoding.
+    std::string DecodeString(const char* encoded, size_t byteLen, FSEncoding encoding);
+
+    /// @brief Decode a FromSoft string to UTF-8 using given supported FromSoftEncoding.
+    std::string DecodeString(const std::string& encoded, FSEncoding encoding);
+
+    /// @brief Encode a FromSoft UTF-8 string using given supported FromSoftEncoding.
+    std::string EncodeString(const std::string& decoded, FSEncoding encoding);
+} // namespace Firelink

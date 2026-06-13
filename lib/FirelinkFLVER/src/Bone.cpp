@@ -7,7 +7,7 @@ namespace Firelink
 {
     using namespace BinaryReadWrite;
 
-    Bone Bone::Read(BufferReader& r, const bool unicode_encoding)
+    Bone Bone::Read(BufferReader& r, const bool isUTF16Encoding)
     {
         Bone b;
         b.translate.x = r.Read<float>();
@@ -33,7 +33,7 @@ namespace Firelink
         b.bounding_box.max.z = r.Read<float>();
         r.AssertPad(52);
 
-        b.name = DecodeString(r.ReadStringAt(name_offset, unicode_encoding), unicode_encoding);
+        b.name = r.ReadDecodedStringAt(name_offset, isUTF16Encoding ? FSEncoding::UTF_16 : FSEncoding::SHIFT_JIS);
         return b;
     }
 

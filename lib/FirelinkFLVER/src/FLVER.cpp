@@ -513,7 +513,7 @@ namespace Firelink
 
     void FLVER::SerializeFLVER0(BufferWriter& w) const
     {
-        bool ue = m_isUnicode;
+        const FSEncoding encoding = m_isUnicode ? FSEncoding::UTF_16 : FSEncoding::SHIFT_JIS;
         float uv_factor = m_isBigEndian ? 1024.f : 2048.f;
 
         // Compute face counts.
@@ -677,11 +677,11 @@ namespace Firelink
 
             // Name.
             w.FillWithPosition<std::uint32_t>("mat_name_offset", scope);
-            w.WriteString(EncodeString(mat->name, m_isUnicode), ue);
+            w.WriteDecodedString(mat->name, encoding);
 
             // Mat def path.
             w.FillWithPosition<std::uint32_t>("mat_def_offset", scope);
-            w.WriteString(EncodeString(mat->mat_def_path, m_isUnicode), ue);
+            w.WriteDecodedString(mat->mat_def_path, encoding);
 
             // Textures.
             w.FillWithPosition<std::uint32_t>("mat_tex_offset", scope);
@@ -703,11 +703,11 @@ namespace Firelink
             {
                 const void* tex_scope = &tex;
                 w.FillWithPosition<std::uint32_t>("tex_path_offset", tex_scope);
-                w.WriteString(EncodeString(tex.path, m_isUnicode), ue);
+                w.WriteDecodedString(tex.path, encoding);
                 if (tex.texture_type.has_value())
                 {
                     w.FillWithPosition<std::uint32_t>("tex_type_offset", tex_scope);
-                    w.WriteString(EncodeString(tex.texture_type.value(), m_isUnicode), ue);
+                    w.WriteDecodedString(tex.texture_type.value(), encoding);
                 }
                 else
                 {
@@ -766,7 +766,7 @@ namespace Firelink
         for (const auto& bone : m_bones)
         {
             w.FillWithPosition<std::uint32_t>("bone_name_offset", &bone);
-            w.WriteString(EncodeString(bone.name, m_isUnicode), ue);
+            w.WriteDecodedString(bone.name, encoding);
         }
 
         // --- Mesh vertex array headers ---
@@ -830,8 +830,8 @@ namespace Firelink
 
     void FLVER::SerializeFLVER2(BufferWriter& w) const
     {
-        bool ue = m_isUnicode;
-        float uv_factor = m_version >= FLVERVersion::DarkSouls2_NT ? 2048.f : 1024.f;
+        const FSEncoding encoding = m_isUnicode ? FSEncoding::UTF_16 : FSEncoding::SHIFT_JIS;
+        float uvFactor = m_version >= FLVERVersion::DarkSouls2_NT ? 2048.f : 1024.f;
 
         // --- Pre-compute face counts and header index size ---
         std::int32_t true_fc = 0, total_fc = 0;
@@ -1266,17 +1266,17 @@ namespace Firelink
         {
             const void* scope = mat;
             w.FillWithPosition<std::uint32_t>("mat2_name_offset", scope);
-            w.WriteString(EncodeString(mat->name, m_isUnicode), ue);
+            w.WriteDecodedString(mat->name, encoding);
             w.FillWithPosition<std::uint32_t>("mat2_def_offset", scope);
-            w.WriteString(EncodeString(mat->mat_def_path, m_isUnicode), ue);
+            w.WriteDecodedString(mat->mat_def_path, encoding);
 
             for (const auto& tex : mat->textures)
             {
                 const void* tex_scope = &tex;
                 w.FillWithPosition<std::uint32_t>("tex2_path_offset", tex_scope);
-                w.WriteString(EncodeString(tex.path, m_isUnicode), ue);
+                w.WriteDecodedString(tex.path, encoding);
                 w.FillWithPosition<std::uint32_t>("tex2_type_offset", tex_scope);
-                w.WriteString(EncodeString(tex.texture_type.value_or(""), m_isUnicode), ue);
+                w.WriteDecodedString(tex.texture_type.value_or(""), encoding);
             }
         }
 
@@ -1285,8 +1285,7 @@ namespace Firelink
         for (const auto& bone : m_bones)
         {
             w.FillWithPosition<std::uint32_t>("bone_name_offset", &bone);
-            std::string encodedBoneName = EncodeString(bone.name, m_isUnicode);
-            w.WriteString(encodedBoneName, ue);
+            w.WriteDecodedString(bone.name, encoding);
         }
 
         // --- Version-specific alignment and vertex data ---
@@ -1330,7 +1329,7 @@ namespace Firelink
                 auto arr_offset = w.Position() - vertex_data_start;
                 w.Fill<std::uint32_t>("va2_offset", static_cast<std::uint32_t>(arr_offset), va_scope);
 
-                auto compressed = va.Compress(uv_factor);
+                auto compressed = va.Compress(uvFactor);
                 w.WriteRaw(compressed.data(), compressed.size());
             }
         }

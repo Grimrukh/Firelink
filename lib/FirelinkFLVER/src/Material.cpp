@@ -10,24 +10,25 @@ namespace Firelink
 {
     using namespace BinaryReadWrite;
 
-    Texture Texture::ReadFLVER0(BufferReader& r, const bool unicode_encoding)
+    Texture Texture::ReadFLVER0(BufferReader& r, const bool isUTF16Encoding)
     {
         Texture tex;
         const auto path_offset = r.Read<std::uint32_t>();
         const auto type_offset = r.Read<std::uint32_t>();
         r.AssertPad(8);
 
-        tex.path = DecodeString(r.ReadStringAt(path_offset, unicode_encoding), unicode_encoding);
+        const FSEncoding encoding = isUTF16Encoding ? FSEncoding::UTF_16 : FSEncoding::SHIFT_JIS;
+        tex.path = r.ReadDecodedStringAt(path_offset, encoding);
         if (type_offset > 0)
         {
-            tex.texture_type = DecodeString(r.ReadStringAt(type_offset, unicode_encoding), unicode_encoding);
+            tex.texture_type = r.ReadDecodedStringAt(type_offset, encoding);
         }
         else
             tex.texture_type = std::nullopt;
         return tex;
     }
 
-    Texture Texture::ReadFLVER2(BufferReader& r, const bool unicode_encoding)
+    Texture Texture::ReadFLVER2(BufferReader& r, const bool isUTF16Encoding)
     {
         Texture tex;
         const auto path_offset = r.Read<std::uint32_t>();
@@ -41,8 +42,9 @@ namespace Firelink
         tex.f2_unk_x18 = r.Read<float>();
         tex.f2_unk_x1c = r.Read<float>();
 
-        tex.path = DecodeString(r.ReadStringAt(path_offset, unicode_encoding), unicode_encoding);
-        tex.texture_type = DecodeString(r.ReadStringAt(type_offset, unicode_encoding), unicode_encoding);
+        const FSEncoding encoding = isUTF16Encoding ? FSEncoding::UTF_16 : FSEncoding::SHIFT_JIS;
+        tex.path = r.ReadDecodedStringAt(path_offset, encoding);
+        tex.texture_type = r.ReadDecodedStringAt(type_offset, encoding);
         return tex;
     }
 
@@ -79,29 +81,30 @@ namespace Firelink
 
     Material Material::ReadFLVER2(
         BufferReader& r,
-        const bool unicode_encoding,
+        const bool isUTF16Encoding,
         const FLVERVersion version,
-        std::unordered_map<std::uint32_t, std::vector<GXItem>>& gx_item_lists_cache,
-        std::uint32_t& out_texture_count,
-        std::uint32_t& out_first_texture_index)
+        std::unordered_map<std::uint32_t, std::vector<GXItem>>& gxItemListsCache,
+        std::uint32_t& outTextureCount,
+        std::uint32_t& outFirstTextureIndex)
     {
         Material mat;
         const auto name_offset = r.Read<std::uint32_t>();
         const auto mat_def_offset = r.Read<std::uint32_t>();
-        out_texture_count = r.Read<std::uint32_t>();
-        out_first_texture_index = r.Read<std::uint32_t>();
+        outTextureCount = r.Read<std::uint32_t>();
+        outFirstTextureIndex = r.Read<std::uint32_t>();
         mat.flags = r.Read<std::int32_t>();
         const auto gx_offset = r.Read<std::uint32_t>();
         mat.f2_unk_x18 = r.Read<std::int32_t>();
         r.AssertPad(4);
 
-        mat.name = DecodeString(r.ReadStringAt(name_offset, unicode_encoding), unicode_encoding);
-        mat.mat_def_path = DecodeString(r.ReadStringAt(mat_def_offset, unicode_encoding), unicode_encoding);
+        const FSEncoding encoding = isUTF16Encoding ? FSEncoding::UTF_16 : FSEncoding::SHIFT_JIS;
+        mat.name = r.ReadDecodedStringAt(name_offset, encoding);
+        mat.mat_def_path = r.ReadDecodedStringAt(mat_def_offset, encoding);
 
         // GX items.
         if (gx_offset > 0)
         {
-            if (const auto it = gx_item_lists_cache.find(gx_offset); it != gx_item_lists_cache.end())
+            if (const auto it = gxItemListsCache.find(gx_offset); it != gxItemListsCache.end())
             {
                 mat.gx_items = it->second; // deep copy
             }
@@ -158,14 +161,14 @@ namespace Firelink
                         if (is_term) break;
                     }
                 }
-                gx_item_lists_cache[gx_offset] = mat.gx_items; // cache for sharing
+                gxItemListsCache[gx_offset] = mat.gx_items; // cache for sharing
             }
         }
 
         return mat;
     }
 
-    FLVER0MaterialRead FLVER0MaterialRead::Read(BufferReader& r, const bool unicode_encoding)
+    FLVER0MaterialRead FLVER0MaterialRead::Read(BufferReader& r, const bool isUTF16Encoding)
     {
         FLVER0MaterialRead result;
 
@@ -177,8 +180,9 @@ namespace Firelink
         const auto layout_header_offset = r.Read<std::uint32_t>();
         r.AssertPad(8);
 
-        result.mat.name = DecodeString(r.ReadStringAt(name_offset, unicode_encoding), unicode_encoding);
-        result.mat.mat_def_path = DecodeString(r.ReadStringAt(mat_def_path_offset, unicode_encoding), unicode_encoding);
+        const FSEncoding encoding = isUTF16Encoding ? FSEncoding::UTF_16 : FSEncoding::SHIFT_JIS;
+        result.mat.name = r.ReadDecodedStringAt(name_offset, encoding);
+        result.mat.mat_def_path = r.ReadDecodedStringAt(mat_def_path_offset, encoding);
 
         // Read textures.
         {
@@ -187,7 +191,7 @@ namespace Firelink
             r.AssertPad(3);
             r.AssertPad(12);
             for (std::uint8_t i = 0; i < texture_count; ++i)
-                result.mat.textures.push_back(Texture::ReadFLVER0(r, unicode_encoding));
+                result.mat.textures.push_back(Texture::ReadFLVER0(r, isUTF16Encoding));
         }
 
         // Read layouts.

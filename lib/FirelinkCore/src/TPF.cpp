@@ -144,7 +144,7 @@ namespace Firelink
             tex.float_struct = std::move(th.float_struct);
 
             // Read stem.
-            tex.stem = r.ReadStringAt(th.stem_offset, unicode_encoding);
+            tex.stem = r.ReadNullTerminatedStringAt(th.stem_offset, unicode_encoding);
 
             // Read data.
             const std::byte* tex_data = r.RawAt(th.data_offset);

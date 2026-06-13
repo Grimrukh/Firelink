@@ -25,24 +25,8 @@ namespace Firelink
 
     namespace
     {
-        std::string ReadCString(const BufferReader& r, const std::size_t offset)
-        {
-            const auto bytes = r.ReadCStringAt(offset);
-            return {reinterpret_cast<const char*>(bytes.data()), bytes.size()};
-        }
 
-        std::string ReadUTF16LEString(const BufferReader& r, const std::size_t offset)
-        {
-            const auto bytes = r.ReadUTF16LEStringAt(offset);
-            return {reinterpret_cast<const char*>(bytes.data()), bytes.size()};
-        }
-
-        void WriteString(BufferWriter& w, const std::string& s, const bool unicode)
-        {
-            w.WriteRaw(s.data(), s.size());
-            w.WritePad(unicode ? 2 : 1);
-        }
-
+        /// @brief Helper to handle bit-endianness (only needed for Binder).
         std::uint8_t ReverseBits(std::uint8_t b)
         {
             std::uint8_t r = 0;
@@ -54,7 +38,7 @@ namespace Firelink
             return r;
         }
 
-        // Entry flags bit reversal (same as binder flags).
+        /// @brief Entry flags bit reversal (same as binder flags).
         std::uint8_t EntryFlagsFromByte(const std::uint8_t raw, const bool bit_big_endian)
         {
             return bit_big_endian ? raw : ReverseBits(raw);
@@ -180,13 +164,12 @@ namespace Firelink
         if (inflateInit(&strm) != Z_OK)
             throw BinderError("zlib inflateInit failed for BinderEntry data");
 
-        int ret;
         while (true)
         {
             strm.next_out  = reinterpret_cast<Bytef*>(out.data() + strm.total_out);
             strm.avail_out = static_cast<uInt>(out.size() - strm.total_out);
 
-            ret = inflate(&strm, Z_NO_FLUSH);
+            const int ret = inflate(&strm, Z_NO_FLUSH);
             if (ret == Z_STREAM_END) break;
             if (ret != Z_OK)
             {
@@ -343,8 +326,8 @@ namespace Firelink
             if (bf.has_names())
             {
                 const auto path_offset = r.Read<std::uint32_t>();
-                // Not decoded yet. Always 8-bit characters in V3 (Shift-JIS).
-                eh.path = ReadCString(r, path_offset);
+                // In V3, paths are always Shift-JIS.
+                eh.path = r.ReadDecodedStringAt(path_offset, FSEncoding::SHIFT_JIS);
             }
             eh.has_compression = bf.has_compression();
             eh.uncompressed_size = bf.has_compression() ? r.Read<std::int32_t>() : eh.compressed_size;
@@ -352,7 +335,7 @@ namespace Firelink
         }
 
         EntryHeader ReadEntryHeaderV4(
-            BufferReader& r, const BinderFlags& bf, const bool bit_big_endian, const bool unicode)
+            BufferReader& r, const BinderFlags& bf, const bool bit_big_endian, const bool isUTF16Encoding)
         {
             EntryHeader eh{};
             eh.flags = EntryFlagsFromByte(r.Read<std::uint8_t>(), bit_big_endian);
@@ -368,8 +351,8 @@ namespace Firelink
             if (bf.has_names())
             {
                 const auto path_offset = r.Read<std::uint32_t>();
-                // Not decoded yet, but size of characters needs to be known.
-                eh.path = unicode ? ReadUTF16LEString(r, path_offset) : ReadCString(r, path_offset);
+                // In V4, strings may or may not be UTF-16 (rather than Shift-JIS).
+                eh.path = r.ReadDecodedStringAt(path_offset, isUTF16Encoding ? FSEncoding::UTF_16 : FSEncoding::SHIFT_JIS);
             }
             return eh;
         }
@@ -552,7 +535,7 @@ namespace Firelink
             entryReader.ReadRawAt(eh.data_offset, rawData.data(), rawData.size());
             auto entry = std::make_shared<BinderEntry>(
                 eh.entry_id,
-                DecodeString(eh.path, false), // V3 always Shift-JIS
+                eh.path,  // already decoded
                 std::move(rawData),
                 eh.flags);
 
@@ -637,7 +620,7 @@ namespace Firelink
             entryReader.ReadRawAt(eh.data_offset, rawData.data(), rawData.size());
             auto entry = std::make_shared<BinderEntry>(
                 eh.entry_id,
-                DecodeString(eh.path, v4.unicode),
+                eh.path,  // already decoded
                 std::move(rawData),
                 eh.flags);
             this->m_entries.push_back(std::move(entry));
@@ -708,9 +691,8 @@ namespace Firelink
             for (const auto idx : order)
             {
                 const auto& e = *m_entries[idx];
-                const std::string encodedString = EncodeString(e.GetPath(), false); // V3 always Shift-JIS
                 w.Fill<std::uint32_t>("path_offset", static_cast<std::uint32_t>(w.Position()), m_entries[idx].get());
-                WriteString(w, encodedString, false);
+                w.WriteDecodedString(e.GetPath(), FSEncoding::SHIFT_JIS);
             }
         }
 
@@ -809,9 +791,8 @@ namespace Firelink
             for (const auto idx : order)
             {
                 const auto& e = *m_entries[idx];
-                const std::string encodedString = EncodeString(e.GetPath(), v4.unicode);
                 w.Fill<std::uint32_t>("path_offset", static_cast<std::uint32_t>(w.Position()), m_entries[idx].get());
-                WriteString(w, encodedString, v4.unicode);
+                w.WriteDecodedString(e.GetPath(), v4.unicode ? FSEncoding::UTF_16 : FSEncoding::SHIFT_JIS);
             }
         }
 

@@ -5,6 +5,7 @@
 #include <doctest/doctest.h>
 
 #include <FirelinkCore/BinaryReadWrite.h>
+#include <FirelinkCore/Encodings.h>
 
 #include <cstdint>
 
@@ -119,7 +120,7 @@ TEST_CASE("BufferReader TempOffset restores cursor even on exception")
     CHECK(r.Position() == 4); // restored despite exception
 }
 
-TEST_CASE("BufferReader ReadCStringAt does not disturb cursor")
+TEST_CASE("BufferReader ReadNullTerminatedBytesAt does not disturb cursor")
 {
     BufferWriter w(Endian::Little);
     // Write "hello\0" at offset 0.
@@ -132,7 +133,7 @@ TEST_CASE("BufferReader ReadCStringAt does not disturb cursor")
     (void)r.Read<std::uint32_t>(); // advance
     auto saved_pos = r.Position();
 
-    auto bytes = r.ReadCStringAt(0);
+    auto bytes = r.ReadNullTerminatedBytesAt(0);
     REQUIRE(bytes.size() == 5);
     CHECK(std::to_integer<char>(bytes[0]) == 'h');
     CHECK(std::to_integer<char>(bytes[4]) == 'o');
@@ -370,7 +371,7 @@ TEST_CASE("BufferReader AssertValue succeeds when matching")
     CHECK_NOTHROW(r.AssertValue<std::uint32_t>(42, "answer"));
 }
 
-TEST_CASE("BufferReader ReadUTF16LEStringAt reads correctly")
+TEST_CASE("BufferReader ReadNullTerminatedBytePairsAt reads correctly")
 {
     // Write UTF-16 LE: 'A' = 0x0041, 'B' = 0x0042, then null terminator 0x0000.
     BufferWriter w(Endian::Little);
@@ -383,7 +384,7 @@ TEST_CASE("BufferReader ReadUTF16LEStringAt reads correctly")
     auto buf = w.Finalize();
 
     BufferReader r(buf.data(), buf.size());
-    auto bytes = r.ReadUTF16LEStringAt(0);
+    auto bytes = r.ReadNullTerminatedBytePairsAt(0);
     REQUIRE(bytes.size() == 4); // 2 chars * 2 bytes each
     CHECK(std::to_integer<std::uint8_t>(bytes[0]) == 0x41);
     CHECK(std::to_integer<std::uint8_t>(bytes[1]) == 0x00);
@@ -393,7 +394,7 @@ TEST_CASE("BufferReader ReadUTF16LEStringAt reads correctly")
     CHECK(r.Position() == 0);
 }
 
-TEST_CASE("BufferReader ReadUTF16LEStringAt empty string")
+TEST_CASE("BufferReader ReadNullTerminatedBytePairsAt empty string")
 {
     BufferWriter w(Endian::Little);
     w.Write<std::uint8_t>(0x00);
@@ -401,11 +402,11 @@ TEST_CASE("BufferReader ReadUTF16LEStringAt empty string")
     const auto buf = w.Finalize();
 
     const BufferReader r(buf.data(), buf.size());
-    const auto bytes = r.ReadUTF16LEStringAt(0);
+    const auto bytes = r.ReadNullTerminatedBytePairsAt(0);
     CHECK(bytes.empty());
 }
 
-TEST_CASE("BufferReader ReadCStringAt at end of buffer returns empty")
+TEST_CASE("BufferReader ReadNullTerminatedBytesAt at end of buffer returns empty")
 {
     BufferWriter w(Endian::Little);
     w.Write<std::uint32_t>(0xDEADBEEF);
@@ -413,7 +414,7 @@ TEST_CASE("BufferReader ReadCStringAt at end of buffer returns empty")
 
     const BufferReader r(buf.data(), buf.size());
     // Reading past the data: offset == size, should return empty.
-    const auto bytes = r.ReadCStringAt(buf.size());
+    const auto bytes = r.ReadNullTerminatedBytesAt(buf.size());
     CHECK(bytes.empty());
 }
 
@@ -745,6 +746,105 @@ TEST_CASE("ByteSwap double round-trip")
     const double restored = detail::ByteSwap(swapped);
     CHECK(restored == doctest::Approx(original));
 }
+
+// =========================================================================
+// BufferWriter WriteEncodedString / BufferReader ReadNullTerminatedBytePairsAt
+// =========================================================================
+
+TEST_CASE("WriteEncodedString narrow writes bytes and single null terminator")
+{
+    BufferWriter w;
+    w.WriteEncodedString("abc", false);
+    const auto buf = w.Finalize();
+
+    REQUIRE(buf.size() == 4); // 3 chars + 1 null
+    CHECK(std::to_integer<char>(buf[0]) == 'a');
+    CHECK(std::to_integer<char>(buf[1]) == 'b');
+    CHECK(std::to_integer<char>(buf[2]) == 'c');
+    CHECK(std::to_integer<std::uint8_t>(buf[3]) == 0x00);
+}
+
+TEST_CASE("WriteEncodedString wide LE writes UTF-16 LE bytes and two-byte null terminator")
+{
+    // 'A'=0x0041, 'B'=0x0042 as UTF-16 LE raw bytes.
+    constexpr std::string encoded{'\x41', '\x00', '\x42', '\x00'};
+    BufferWriter w(Endian::Little);
+    w.WriteEncodedString(encoded, true);
+    const auto buf = w.Finalize();
+
+    REQUIRE(buf.size() == 6); // 4 data bytes + 2-byte null
+    CHECK(std::to_integer<std::uint8_t>(buf[0]) == 0x41);
+    CHECK(std::to_integer<std::uint8_t>(buf[1]) == 0x00);
+    CHECK(std::to_integer<std::uint8_t>(buf[2]) == 0x42);
+    CHECK(std::to_integer<std::uint8_t>(buf[3]) == 0x00);
+    CHECK(std::to_integer<std::uint8_t>(buf[4]) == 0x00); // null
+    CHECK(std::to_integer<std::uint8_t>(buf[5]) == 0x00);
+}
+
+TEST_CASE("WriteEncodedString wide BE byte-swaps UTF-16 LE input")
+{
+    // Input: UTF-16 LE 'A'=41 00, 'B'=42 00.
+    // Expected on disk (big-endian): 00 41, 00 42.
+    constexpr std::string encoded{'\x41', '\x00', '\x42', '\x00'};
+    BufferWriter w(Endian::Big);
+    w.WriteEncodedString(encoded, true);
+    const auto buf = w.Finalize();
+
+    REQUIRE(buf.size() == 6);
+    CHECK(std::to_integer<std::uint8_t>(buf[0]) == 0x00);
+    CHECK(std::to_integer<std::uint8_t>(buf[1]) == 0x41);
+    CHECK(std::to_integer<std::uint8_t>(buf[2]) == 0x00);
+    CHECK(std::to_integer<std::uint8_t>(buf[3]) == 0x42);
+    CHECK(std::to_integer<std::uint8_t>(buf[4]) == 0x00); // null
+    CHECK(std::to_integer<std::uint8_t>(buf[5]) == 0x00);
+}
+
+TEST_CASE("WriteEncodedString wide BE round-trips with ReadNullTerminatedBytePairsAt")
+{
+    // Write big-endian UTF-16; reader should normalize each pair back to LE.
+    constexpr std::string encoded{'\x41', '\x00', '\x42', '\x00'}; // 'A','B' as UTF-16 LE
+    BufferWriter w(Endian::Big);
+    w.WriteEncodedString(encoded, true);
+    const auto buf = w.Finalize();
+
+    BufferReader r(buf.data(), buf.size(), Endian::Big);
+    const auto bytes = r.ReadNullTerminatedBytePairsAt(0);
+    REQUIRE(bytes.size() == 4);
+    // Normalised to LE: lo byte first.
+    CHECK(std::to_integer<std::uint8_t>(bytes[0]) == 0x41);
+    CHECK(std::to_integer<std::uint8_t>(bytes[1]) == 0x00);
+    CHECK(std::to_integer<std::uint8_t>(bytes[2]) == 0x42);
+    CHECK(std::to_integer<std::uint8_t>(bytes[3]) == 0x00);
+}
+
+TEST_CASE("WriteEncodedString wide odd byte count throws")
+{
+    BufferWriter w;
+    CHECK_THROWS_AS(w.WriteEncodedString("abc", true), BinaryWriteError); // 3 bytes — not even
+}
+
+TEST_CASE("WriteDecodedString + ReadDecodedStringAt UTF-16 LE round-trip")
+{
+    constexpr std::string original = "Hello";
+    BufferWriter w(Endian::Little);
+    w.WriteDecodedString(original, Firelink::FSEncoding::UTF_16);
+    const auto buf = w.Finalize();
+
+    const BufferReader r(buf.data(), buf.size(), Endian::Little);
+    CHECK(r.ReadDecodedStringAt(0, Firelink::FSEncoding::UTF_16) == original);
+}
+
+TEST_CASE("WriteDecodedString + ReadDecodedStringAt UTF-16 BE round-trip")
+{
+    constexpr std::string original = "Hi";
+    BufferWriter w(Endian::Big);
+    w.WriteDecodedString(original, Firelink::FSEncoding::UTF_16);
+    const auto buf = w.Finalize();
+
+    const BufferReader r(buf.data(), buf.size(), Endian::Big);
+    CHECK(r.ReadDecodedStringAt(0, Firelink::FSEncoding::UTF_16) == original);
+}
+
 
 // =========================================================================
 // BufferReader + BufferWriter — float/double big-endian round-trip

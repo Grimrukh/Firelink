@@ -5,6 +5,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## Unreleased
 
+### Changed
+- More convenient BufferReader/Writer methods for using decoded strings.
+
+### Fixed
+- Big-endian files (e.g. Demon's Souls) have strings decoded correctly.
+
 ---
 
 ## [0.1.0] - 2026-05-14
