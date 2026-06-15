@@ -6,6 +6,7 @@
 #pragma once
 
 #include <FirelinkCore/BinaryReadWrite.h>
+#include <FirelinkCore/DDS.h>
 #include <FirelinkCore/Export.h>
 #include <FirelinkCore/GameFile.h>
 
@@ -72,6 +73,12 @@ namespace Firelink
             std::vector<float> floats;
         };
         std::optional<FloatStruct> float_struct;
+
+        /// @brief Construct a DDS from copied texture data.
+        [[nodiscard]] DDS ToDDS() const
+        {
+            return DDS(data.data(), data.size());
+        }
     };
 
     /// @brief Simple texture container file. May contain one or more DDS textures.

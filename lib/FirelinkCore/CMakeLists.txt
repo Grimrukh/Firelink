@@ -18,6 +18,7 @@ target_sources(FirelinkCore
     src/Paths.cpp
     src/Pointer.cpp
     src/Process.cpp
+    src/Swizzle.cpp
     src/TPF.cpp
     src/MemoryUtils.cpp
 
@@ -49,6 +50,7 @@ target_sources(FirelinkCore
         include/FirelinkCore/Paths.h
         include/FirelinkCore/Pointer.h
         include/FirelinkCore/Process.h
+        include/FirelinkCore/Swizzle.h
         include/FirelinkCore/TPF.h
         include/FirelinkCore/MemoryUtils.h
 

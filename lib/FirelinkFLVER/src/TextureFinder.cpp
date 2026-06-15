@@ -295,9 +295,9 @@ namespace Firelink
             case ImageFormat::DDS:
                 return tex->data; // copy
             case ImageFormat::PNG:
-                return ConvertDDSToPNG(tex->data.data(), tex->data.size());
+                return tex->ToDDS().ToPNG();
             case ImageFormat::TGA:
-                return ConvertDDSToTGA(tex->data.data(), tex->data.size());
+                return tex->ToDDS().ToTGA();
         }
         return {};
     }

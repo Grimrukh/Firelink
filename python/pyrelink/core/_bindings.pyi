@@ -37,10 +37,7 @@ __all__ = [
     "oodle_dll_path",
     # DDS
     "DXGIFormat",
-    "convert_dds_to_tga",
-    "convert_dds_to_png",
-    "convert_tga_to_dds",
-    "convert_png_to_dds",
+    "DDS",
     # TPF
     "TPFPlatform",
     "TextureType",
@@ -455,10 +452,80 @@ class DXGIFormat(IntEnum):
     R32_FLOAT = 41
     R32G32B32A32_FLOAT = 2
 
-def convert_dds_to_tga(data: Union[bytes, bytearray, memoryview]) -> bytes: ...
-def convert_dds_to_png(data: Union[bytes, bytearray, memoryview]) -> bytes: ...
-def convert_tga_to_dds(data: Union[bytes, bytearray, memoryview], format: DXGIFormat) -> bytes: ...
-def convert_png_to_dds(data: Union[bytes, bytearray, memoryview], format: DXGIFormat) -> bytes: ...
+class DDS:
+    """DDS texture container.
+
+    Wraps raw DDS bytes with conversion and PS4 de/swizzling methods.
+    It is the caller's responsibility to track whether the pixel data is
+    PS4-swizzled; converting or displaying swizzled data will look garbled.
+    """
+
+    def __init__(self, data: Union[bytes, bytearray, memoryview]) -> None:
+        """Construct from raw DDS bytes."""
+        ...
+
+    @staticmethod
+    def from_tga(data: Union[bytes, bytearray, memoryview], format: DXGIFormat) -> DDS:
+        """Convert TGA image bytes to DDS with the given DXGI format.
+
+        BC6H/BC7 compression uses GPU acceleration when available.
+        """
+        ...
+
+    @staticmethod
+    def from_png(data: Union[bytes, bytearray, memoryview], format: DXGIFormat) -> DDS:
+        """Convert PNG image bytes to DDS with the given DXGI format.
+
+        BC6H/BC7 compression uses GPU acceleration when available.
+        """
+        ...
+
+    @property
+    def data(self) -> bytes:
+        """Raw DDS bytes."""
+        ...
+
+    @property
+    def size(self) -> int:
+        """Size of the DDS data in bytes."""
+        ...
+
+    @property
+    def is_empty(self) -> bool:
+        """True if no DDS data is stored."""
+        ...
+
+    def to_tga(self) -> bytes:
+        """Convert DDS to TGA bytes.
+
+        PS4-swizzled data must be deswizzled first or the output will be garbled.
+        """
+        ...
+
+    def to_png(self) -> bytes:
+        """Convert DDS to PNG bytes.
+
+        PS4-swizzled data must be deswizzled first or the output will be garbled.
+        """
+        ...
+
+    def deswizzle_ps4(self) -> DDS:
+        """Return a new DDS with PS4 tiled pixel data converted to linear row-major layout.
+
+        Call this before to_tga() / to_png() on textures sourced from a PS4 game dump.
+        """
+        ...
+
+    def swizzle_ps4(self) -> DDS:
+        """Return a new DDS with linear pixel data converted to PS4 tiled layout.
+
+        Call this before storing a DDS back into a PS4 TPF.
+        """
+        ...
+
+    def __len__(self) -> int: ...
+    def __bool__(self) -> bool: ...
+    def __repr__(self) -> str: ...
 
 # ---------------------------------------------------------------------------
 # TPF

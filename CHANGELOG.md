@@ -5,11 +5,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## Unreleased
 
+### Added
+- Bloodborne (PS4) DDS texture de/swizzling support.
+- `TPFTexture::ToDDS` method added to get new `DDS` instance.
+
 ### Changed
 - More convenient BufferReader/Writer methods for using decoded strings.
+- `DDS` class used instead of static namespace functions.
 
 ### Fixed
 - Big-endian files (e.g. Demon's Souls) have strings decoded correctly.
+- Some `constexpr std::string` expressions fixed (can't compile in MSVC Debug).
 
 ---
 

@@ -767,7 +767,7 @@ TEST_CASE("WriteEncodedString narrow writes bytes and single null terminator")
 TEST_CASE("WriteEncodedString wide LE writes UTF-16 LE bytes and two-byte null terminator")
 {
     // 'A'=0x0041, 'B'=0x0042 as UTF-16 LE raw bytes.
-    constexpr std::string encoded{'\x41', '\x00', '\x42', '\x00'};
+    static const std::string encoded{'\x41', '\x00', '\x42', '\x00'};
     BufferWriter w(Endian::Little);
     w.WriteEncodedString(encoded, true);
     const auto buf = w.Finalize();
@@ -785,7 +785,7 @@ TEST_CASE("WriteEncodedString wide BE byte-swaps UTF-16 LE input")
 {
     // Input: UTF-16 LE 'A'=41 00, 'B'=42 00.
     // Expected on disk (big-endian): 00 41, 00 42.
-    constexpr std::string encoded{'\x41', '\x00', '\x42', '\x00'};
+    static const std::string encoded{'\x41', '\x00', '\x42', '\x00'};
     BufferWriter w(Endian::Big);
     w.WriteEncodedString(encoded, true);
     const auto buf = w.Finalize();
@@ -802,7 +802,7 @@ TEST_CASE("WriteEncodedString wide BE byte-swaps UTF-16 LE input")
 TEST_CASE("WriteEncodedString wide BE round-trips with ReadNullTerminatedBytePairsAt")
 {
     // Write big-endian UTF-16; reader should normalize each pair back to LE.
-    constexpr std::string encoded{'\x41', '\x00', '\x42', '\x00'}; // 'A','B' as UTF-16 LE
+    static const std::string encoded{'\x41', '\x00', '\x42', '\x00'}; // 'A','B' as UTF-16 LE
     BufferWriter w(Endian::Big);
     w.WriteEncodedString(encoded, true);
     const auto buf = w.Finalize();
@@ -825,7 +825,7 @@ TEST_CASE("WriteEncodedString wide odd byte count throws")
 
 TEST_CASE("WriteDecodedString + ReadDecodedStringAt UTF-16 LE round-trip")
 {
-    constexpr std::string original = "Hello";
+    static const std::string original = "Hello";
     BufferWriter w(Endian::Little);
     w.WriteDecodedString(original, Firelink::FSEncoding::UTF_16);
     const auto buf = w.Finalize();
@@ -836,7 +836,7 @@ TEST_CASE("WriteDecodedString + ReadDecodedStringAt UTF-16 LE round-trip")
 
 TEST_CASE("WriteDecodedString + ReadDecodedStringAt UTF-16 BE round-trip")
 {
-    constexpr std::string original = "Hi";
+    static const std::string original = "Hi";
     BufferWriter w(Endian::Big);
     w.WriteDecodedString(original, Firelink::FSEncoding::UTF_16);
     const auto buf = w.Finalize();

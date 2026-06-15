@@ -9,6 +9,7 @@
 #include <FirelinkTestHelpers.h>
 #include <FirelinkCore/DDS.h>
 #include <FirelinkCore/Logging.h>
+#include <FirelinkCore/TPF.h>
 
 #include <filesystem>
 #include <fstream>
@@ -19,8 +20,8 @@ using namespace Firelink;
 
 namespace
 {
-    /// Collect every .dds file in the test resources directory.
-    std::vector<std::filesystem::path> collect_dds_files()
+    /// Collect every *non-swizzled* .dds file in the 'test_resources' directory.
+    std::vector<std::filesystem::path> CollectNonSwizzledDDSFiles()
     {
         std::vector<std::filesystem::path> files;
         for (const std::string& relative_dir : { "darksouls1r/dds", "eldenring/dds" })
@@ -78,7 +79,7 @@ namespace
 
 TEST_CASE("DDS: ConvertDDSToTGA converts every fixture")
 {
-    auto files = collect_dds_files();
+    auto files = CollectNonSwizzledDDSFiles();
     if (files.empty())
     {
         MESSAGE("Skipping — no .dds fixtures found.");
@@ -90,11 +91,12 @@ TEST_CASE("DDS: ConvertDDSToTGA converts every fixture")
         CAPTURE(path.filename().string());
 
         Info("Loading DDS: " + path.string());
-        auto dds = LoadFile(path);
-        REQUIRE(!dds.empty());
+        auto ddsData = LoadFile(path);
+        REQUIRE(!ddsData.empty());
+        DDS dds(std::move(ddsData));
 
         Info("Converting DDS to TGA: " + path.string());
-        auto tga = ConvertDDSToTGA(dds.data(), dds.size());
+        auto tga = dds.ToTGA();
         CHECK(!tga.empty());
         CHECK(LooksLikeTGA(tga));
     }
@@ -106,7 +108,7 @@ TEST_CASE("DDS: ConvertDDSToTGA converts every fixture")
 
 TEST_CASE("DDS: ConvertDDSToPNG converts every fixture")
 {
-    auto files = collect_dds_files();
+    auto files = CollectNonSwizzledDDSFiles();
     if (files.empty())
     {
         MESSAGE("Skipping — no .dds fixtures found.");
@@ -117,10 +119,11 @@ TEST_CASE("DDS: ConvertDDSToPNG converts every fixture")
     {
         CAPTURE(path.filename().string());
 
-        auto dds = LoadFile(path);
-        REQUIRE(!dds.empty());
+        auto ddsData = LoadFile(path);
+        REQUIRE(!ddsData.empty());
+        DDS dds(std::move(ddsData));
 
-        auto png = ConvertDDSToPNG(dds.data(), dds.size());
+        auto png = dds.ToPNG();
         CHECK(!png.empty());
         CHECK(LooksLikePNG(png));
     }
@@ -132,7 +135,7 @@ TEST_CASE("DDS: ConvertDDSToPNG converts every fixture")
 
 TEST_CASE("DDS: round-trip DDS -> TGA -> DDS produces valid DDS")
 {
-    auto files = collect_dds_files();
+    auto files = CollectNonSwizzledDDSFiles();
     if (files.empty())
     {
         MESSAGE("Skipping — no .dds fixtures found.");
@@ -143,16 +146,16 @@ TEST_CASE("DDS: round-trip DDS -> TGA -> DDS produces valid DDS")
     {
         CAPTURE(path.filename().string());
 
-        auto dds = LoadFile(path);
-        REQUIRE(!dds.empty());
+        auto ddsData = LoadFile(path);
+        REQUIRE(!ddsData.empty());
+        DDS dds(std::move(ddsData));
 
-        auto tga = ConvertDDSToTGA(dds.data(), dds.size());
+        auto tga = dds.ToTGA();
         REQUIRE(!tga.empty());
 
-        auto roundtrip = ConvertTGAToDDS(tga.data(), tga.size(),
-                                         DXGI_FORMAT_BC7_UNORM);
-        CHECK(!roundtrip.empty());
-        CHECK(LooksLikeDDS(roundtrip));
+        auto roundtrip = DDS::FromTGA(tga.data(), tga.size(), DXGI_FORMAT_BC7_UNORM);
+        CHECK(!roundtrip.IsEmpty());
+        CHECK(LooksLikeDDS(roundtrip.GetBytes()));
     }
 }
 
@@ -162,7 +165,7 @@ TEST_CASE("DDS: round-trip DDS -> TGA -> DDS produces valid DDS")
 
 TEST_CASE("DDS: round-trip DDS -> PNG -> DDS produces valid DDS")
 {
-    auto files = collect_dds_files();
+    auto files = CollectNonSwizzledDDSFiles();
     if (files.empty())
     {
         MESSAGE("Skipping — no .dds fixtures found.");
@@ -173,16 +176,58 @@ TEST_CASE("DDS: round-trip DDS -> PNG -> DDS produces valid DDS")
     {
         CAPTURE(path.filename().string());
 
-        auto dds = LoadFile(path);
-        REQUIRE(!dds.empty());
+        auto ddsData = LoadFile(path);
+        REQUIRE(!ddsData.empty());
+        DDS dds(std::move(ddsData));
 
-        auto png = ConvertDDSToPNG(dds.data(), dds.size());
+        auto png = dds.ToPNG();
         REQUIRE(!png.empty());
-
-        auto roundtrip = ConvertPNGToDDS(png.data(), png.size(),
-                                         DXGI_FORMAT_BC7_UNORM);
-        CHECK(!roundtrip.empty());
-        CHECK(LooksLikeDDS(roundtrip));
+        auto roundtrip = DDS::FromPNG(png.data(), png.size(), DXGI_FORMAT_BC7_UNORM);
+        CHECK(!roundtrip.IsEmpty());
+        CHECK(LooksLikeDDS(roundtrip.GetBytes()));
     }
 }
 
+// ---------------------------------------------------------------------------
+// PS4 swizzled DDS: deswizzle -> convert -> reswizzle round-trip
+//
+// Bloodborne DDS files extracted directly from a PS4 game dump have their
+// pixel data in the AMD GNF macro-tile (swizzled) layout.  They must be
+// deswizzled before DirectXTex can interpret the pixels correctly.
+// ---------------------------------------------------------------------------
+
+TEST_CASE("DDS: PS4 Bloodborne deswizzle -> TGA/PNG -> reswizzle round-trip")
+{
+    // TODO: Read ALL DDS paths here.
+    const auto path = GetResourcePath("bloodborne/dds/m21_00_ground_051_a_l.dds");
+    auto rawDdsData = LoadFile(path);
+    if (rawDdsData.empty())
+    {
+        MESSAGE("Skipping — bloodborne/dds/m21_00_ground_051_a_l.dds not available");
+        return;
+    }
+    DDS rawDds(std::move(rawDdsData));
+
+    // Step 1: deswizzle — converts PS4 tiled pixel data to linear row-major.
+    DDS linearDds;
+    CHECK_NOTHROW(linearDds = rawDds.DeswizzlePS4());
+    REQUIRE(!linearDds.IsEmpty());
+    REQUIRE(LooksLikeDDS(linearDds.GetBytes()));
+
+    // Step 2: now that pixels are linear, standard DDS conversion should work.
+    auto tga = linearDds.ToTGA();
+    CHECK(!tga.empty());
+    CHECK(LooksLikeTGA(tga));
+
+    auto png = linearDds.ToPNG();
+    CHECK(!png.empty());
+    CHECK(LooksLikePNG(png));
+
+    // Step 3: re-swizzle the linear DDS.
+    // Note: reswizzledDds may be smaller than rawDds if the PS4 file had trailing
+    // GNF alignment padding after the last mip tile;
+    // We can't compare exact bytes because we may have lost alignment bytes.
+    DDS reswizzledDds;
+    CHECK_NOTHROW(reswizzledDds = linearDds.SwizzlePS4());
+    REQUIRE(reswizzledDds.GetSize() <= rawDds.GetSize());
+}

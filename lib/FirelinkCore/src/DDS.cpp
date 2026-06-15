@@ -1,5 +1,6 @@
 #include <FirelinkCore/DDS.h>
 #include <FirelinkCore/Logging.h>
+#include <FirelinkCore/Swizzle.h>
 
 #include <mutex>
 #include <sstream>
@@ -26,9 +27,11 @@ namespace Firelink
             static std::once_flag flag;
             std::call_once(flag, []
             {
-                const HRESULT hr = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
-                if (FAILED(hr) && hr != RPC_E_CHANGED_MODE)
+                if (const HRESULT hr = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+                    FAILED(hr) && hr != RPC_E_CHANGED_MODE)
+                {
                     throw std::runtime_error("ConvertDDS: CoInitializeEx failed");
+                }
             });
         }
 
@@ -59,7 +62,7 @@ namespace Firelink
 #endif
 
         /// Format an HRESULT as a hex string for error messages.
-        std::string HResultToString(HRESULT hr)
+        std::string HResultToString(const HRESULT hr)
         {
             std::ostringstream ss;
             ss << "0x" << std::hex << static_cast<unsigned int>(hr);
@@ -68,7 +71,7 @@ namespace Firelink
 
         /// Load DDS from memory, decompress/convert to B8G8R8A8_UNORM.
         /// Returns only the base mip level (mip 0, array index 0, slice 0).
-        DirectX::ScratchImage LoadAndDecompressDDS(const std::byte* data, size_t size)
+        DirectX::ScratchImage LoadAndDecompressDDS(const std::byte* data, const size_t size)
         {
 #ifdef _WIN32
             EnsureCOMInitialised();
@@ -139,14 +142,185 @@ namespace Firelink
         std::vector<std::byte> BlobToVector(const DirectX::Blob& blob)
         {
             const auto* p = reinterpret_cast<const std::byte*>(blob.GetBufferPointer());
-            return std::vector<std::byte>(p, p + blob.GetBufferSize());
+            return {p, p + blob.GetBufferSize()};
+        }
+
+        // -----------------------------------------------------------------------
+        // PS4 DDS header helpers
+        // -----------------------------------------------------------------------
+
+        // A standard DDS file is: 4-byte magic + 124-byte DDS_HEADER = 128 bytes,
+        // optionally followed by a 20-byte DDS_HEADER_DXT10 when the pixel-format
+        // fourCC is "DX10" (offset 84 from file start).
+
+        constexpr std::size_t DDS_FOURCC_OFFSET    = 84;   // absolute offset of ddspf.dwFourCC
+        constexpr uint32_t    DDS_FOURCC_DX10      = 0x30315844u; // "DX10"
+        constexpr std::size_t DDS_BASE_HEADER_SIZE = 128;  // magic + DDS_HEADER
+        constexpr std::size_t DDS_DXT10_SIZE       = 20;   // DDS_HEADER_DXT10
+
+        /// Return the byte offset at which pixel data begins.
+        std::size_t DDSPixelDataOffset(const std::byte* data, const std::size_t size)
+        {
+            if (size < DDS_FOURCC_OFFSET + 4)
+                return DDS_BASE_HEADER_SIZE;
+            uint32_t fourCC = 0;
+            std::memcpy(&fourCC, data + DDS_FOURCC_OFFSET, 4);
+            return (fourCC == DDS_FOURCC_DX10)
+                ? DDS_BASE_HEADER_SIZE + DDS_DXT10_SIZE
+                : DDS_BASE_HEADER_SIZE;
+        }
+
+        /// Parse DDS metadata (width, height, format, mip count, array/face count)
+        /// without decoding pixel data.
+        struct DDSMeta
+        {
+            int width;
+            int height;
+            int mipLevels;
+            int textureCount;   // array slices × faces (6 per cubemap entry)
+            DXGI_FORMAT format;
+        };
+
+        DDSMeta ParseDDSMeta(const std::byte* data, const std::size_t size, const char* callerName)
+        {
+            DirectX::TexMetadata tm{};
+            const HRESULT hr = DirectX::GetMetadataFromDDSMemory(
+                reinterpret_cast<const uint8_t*>(data), size,
+                DirectX::DDS_FLAGS_NONE, tm);
+            if (FAILED(hr))
+                throw std::runtime_error(
+                    std::string(callerName) + ": failed to parse DDS header ("
+                    + HResultToString(hr) + ")");
+
+            DDSMeta m{};
+            m.width        = static_cast<int>(tm.width);
+            m.height       = static_cast<int>(tm.height);
+            m.mipLevels    = static_cast<int>(tm.mipLevels);
+            // Cubemap: 6 faces per array element.
+            m.textureCount = static_cast<int>(
+                (tm.miscFlags & DirectX::TEX_MISC_TEXTURECUBE)
+                    ? tm.arraySize * 6
+                    : tm.arraySize);
+            m.format = static_cast<DXGI_FORMAT>(tm.format);
+            return m;
+        }
+
+        /// @brief Compute how many mip levels actually fit in @p pixelSize bytes.
+        ///
+        /// The DDS header's mipLevels field cannot always be trusted — PS4 game dumps
+        /// often claim a full mip chain while the pixel data only contains the base
+        /// level (or a subset of mips).  We determine the real count by summing mip
+        /// sizes until we exhaust the buffer.
+        ///
+        /// @param isSwizzledInput  true  → measure swizzled (tile-padded) mip sizes.
+        ///                         false → measure linear (row-major) mip sizes.
+        int EffectiveMipCount(
+            const DDSMeta& m, const int bpb, const int ppb,
+            const std::size_t pixelSize, const bool isSwizzledInput) noexcept
+        {
+            // All faces share the same mip structure; total = textureCount × oneFaceTotal.
+            // We accumulate one face's worth and multiply to check against pixelSize.
+            std::size_t oneFaceConsumed = 0;
+            int w = m.width, h = m.height;
+            for (int mip = 0; mip < m.mipLevels; ++mip)
+            {
+                const int wb = std::max(1, (w + ppb - 1) / ppb);
+                const int hb = std::max(1, (h + ppb - 1) / ppb);
+
+                const std::size_t mipBytes = isSwizzledInput
+                    ? static_cast<std::size_t>(((wb + 7) & ~7) * ((hb + 7) & ~7) * bpb)
+                    : static_cast<std::size_t>(wb * hb * bpb);
+
+                // Would adding this mip (for all faces) exceed the available data?
+                if ((oneFaceConsumed + mipBytes)
+                        * static_cast<std::size_t>(m.textureCount) > pixelSize)
+                    return mip;   // mip = number of complete mips seen so far
+
+                oneFaceConsumed += mipBytes;
+                w = std::max(1, w / 2);
+                h = std::max(1, h / 2);
+            }
+            return m.mipLevels;   // all mips fit
+        }
+
+        /// @brief Shared implementation for deswizzle / swizzle of a DDS pixel-data section.
+        /// @p swizzleOp is either DeswizzlePS4 or SwizzlePS4.
+        /// @p isSwizzledInput  true for DeswizzlePS4DDS (input is swizzled),
+        ///                     false for SwizzlePS4DDS  (input is linear).
+        template<typename Op>
+        std::vector<std::byte> PS4SwizzleOpDDS(
+            const std::byte* data, const std::size_t size,
+            const char* callerName, Op swizzleOp,
+            const bool isSwizzledInput)
+        {
+            if (!data || size < DDS_BASE_HEADER_SIZE)
+                throw std::runtime_error(
+                    std::string(callerName) + ": data too small to be a DDS");
+            if (std::memcmp(data, "DDS ", 4) != 0)
+                throw std::runtime_error(
+                    std::string(callerName) + ": missing DDS magic");
+
+            const DDSMeta m = ParseDDSMeta(data, size, callerName);
+
+            const int bpb = PS4BytesPerBlock(m.format);
+            const int ppb = PS4PixelsPerBlock(m.format);
+            if (bpb == 0)
+                throw std::invalid_argument(
+                    std::string(callerName) + ": unsupported DXGI_FORMAT "
+                    + std::to_string(static_cast<int>(m.format)));
+
+            const std::size_t pixelOffset = DDSPixelDataOffset(data, size);
+            if (size <= pixelOffset)
+                throw std::runtime_error(
+                    std::string(callerName) + ": no pixel data after DDS header");
+
+            const std::byte* pixels     = data + pixelOffset;
+            const std::size_t pixelSize = size - pixelOffset;
+
+            // Use the pixel data size to determine how many mips are actually present.
+            // The DDS header's mipLevels cannot be relied upon for PS4 game dumps.
+            const int effectiveMips = EffectiveMipCount(m, bpb, ppb, pixelSize, isSwizzledInput);
+            if (effectiveMips == 0)
+                throw std::runtime_error(
+                    std::string(callerName) + ": pixel data too small for one mip level");
+            if (effectiveMips != m.mipLevels)
+            {
+                Warning(
+                    std::string(callerName) + ": header claims " + std::to_string(m.mipLevels)
+                    + " mip levels, but only " + std::to_string(effectiveMips)
+                    + " fit in the pixel data — proceeding with " + std::to_string(effectiveMips));
+            }
+
+            auto converted = swizzleOp(pixels, pixelSize,
+                                       m.width, m.height,
+                                       effectiveMips, m.textureCount,
+                                       bpb, ppb);
+
+            // Output = original header bytes + converted pixel data.
+            std::vector<std::byte> result;
+            result.reserve(pixelOffset + converted.size());
+            result.insert(result.end(), data, data + pixelOffset);
+            result.insert(result.end(), converted.begin(), converted.end());
+
+            // Patch DDS_HEADER.dwMipMapCount (little-endian uint32 at file offset 28)
+            // if we processed fewer mips than the header originally advertised.
+            // Without this, LoadFromDDSMemory will attempt to read mips that aren't
+            // present and fail with ERROR_HANDLE_EOF (0x80070026).
+            if (effectiveMips != m.mipLevels)
+            {
+                constexpr std::size_t MIP_COUNT_OFFSET = 28;
+                const auto patched = static_cast<uint32_t>(effectiveMips);
+                std::memcpy(result.data() + MIP_COUNT_OFFSET, &patched, sizeof(patched));
+            }
+
+            return result;
         }
 
         /// Compress or convert an uncompressed image to the target format and
         /// save as an in-memory DDS blob.  Uses GPU-accelerated DirectCompute
         /// for BC6H/BC7 when available, falling back to CPU + OpenMP.
         std::vector<std::byte> CompressAndSaveDDS(
-            DirectX::ScratchImage& image, DXGI_FORMAT targetFormat)
+            const DirectX::ScratchImage& image, const DXGI_FORMAT targetFormat)
         {
             using namespace DirectX;
 
@@ -154,10 +328,10 @@ namespace Firelink
             if (!img)
                 throw std::runtime_error("CompressAndSaveDDS: failed to get source image");
 
+            // Declared outside the branch so it outlives the conversion step;
+            // `img` may be re-pointed at result.GetImage() below.
             ScratchImage result;
-            const DXGI_FORMAT srcFormat = image.GetMetadata().format;
-
-            if (srcFormat != targetFormat)
+            if (const DXGI_FORMAT srcFormat = image.GetMetadata().format; srcFormat != targetFormat)
             {
                 if (IsCompressed(targetFormat))
                 {
@@ -210,8 +384,7 @@ namespace Firelink
             }
 
             Blob blob;
-            const HRESULT hr = SaveToDDSMemory(*img, DDS_FLAGS_NONE, blob);
-            if (FAILED(hr))
+            if (const HRESULT hr = SaveToDDSMemory(*img, DDS_FLAGS_NONE, blob); FAILED(hr))
                 throw std::runtime_error(
                     "CompressAndSaveDDS: SaveToDDSMemory failed (" + HResultToString(hr) + ")");
 
@@ -219,30 +392,35 @@ namespace Firelink
         }
     } // anonymous namespace
 
-    std::vector<std::byte> ConvertDDSToTGA(const std::byte* data, size_t size)
+    DDS::DDS(const std::byte* data, const size_t size)
+    {
+        m_storage.resize(size);
+        memcpy(m_storage.data(), data, size);
+    }
+
+    std::vector<std::byte> DDS::ToTGA() const
     {
         using namespace DirectX;
 
-        ScratchImage image = LoadAndDecompressDDS(data, size);
+        const ScratchImage image = LoadAndDecompressDDS(m_storage.data(), m_storage.size());
 
         const Image* img = image.GetImage(0, 0, 0);
         if (!img)
             throw std::runtime_error("ConvertDDSToTGA: failed to get image for save");
 
         Blob blob;
-        const HRESULT hr = SaveToTGAMemory(*img, TGA_FLAGS_NONE, blob);
-        if (FAILED(hr))
+        if (const HRESULT hr = SaveToTGAMemory(*img, TGA_FLAGS_NONE, blob); FAILED(hr))
             throw std::runtime_error(
                 "ConvertDDSToTGA: SaveToTGAMemory failed (" + HResultToString(hr) + ")");
 
         return BlobToVector(blob);
     }
 
-    std::vector<std::byte> ConvertDDSToPNG(const std::byte* data, size_t size)
+    std::vector<std::byte> DDS::ToPNG() const
     {
         using namespace DirectX;
 
-        ScratchImage image = LoadAndDecompressDDS(data, size);
+        const ScratchImage image = LoadAndDecompressDDS(m_storage.data(), m_storage.size());
 
         const Image* img = image.GetImage(0, 0, 0);
         if (!img)
@@ -258,27 +436,23 @@ namespace Firelink
         return BlobToVector(blob);
     }
 
-    // --- Image -> DDS -----------------------------------------------------------
-
-    std::vector<std::byte> ConvertTGAToDDS(
-        const std::byte* data, size_t size, DXGI_FORMAT targetFormat)
+    DDS DDS::FromTGA(const std::byte* data, const size_t size, const DXGI_FORMAT targetFormat)
     {
         using namespace DirectX;
 
         TexMetadata metadata{};
         ScratchImage image;
-        HRESULT hr = LoadFromTGAMemory(
+        const HRESULT hr = LoadFromTGAMemory(
             reinterpret_cast<const uint8_t*>(data), size,
             TGA_FLAGS_NONE, &metadata, image);
         if (FAILED(hr))
             throw std::runtime_error(
                 "ConvertTGAToDDS: LoadFromTGAMemory failed (" + HResultToString(hr) + ")");
 
-        return CompressAndSaveDDS(image, targetFormat);
+        return DDS(CompressAndSaveDDS(image, targetFormat));
     }
 
-    std::vector<std::byte> ConvertPNGToDDS(
-        const std::byte* data, size_t size, DXGI_FORMAT targetFormat)
+    DDS DDS::FromPNG(const std::byte* data, const size_t size, const DXGI_FORMAT targetFormat)
     {
 #ifdef _WIN32
         EnsureCOMInitialised();
@@ -287,13 +461,41 @@ namespace Firelink
 
         TexMetadata metadata{};
         ScratchImage image;
-        HRESULT hr = LoadFromWICMemory(
+        const HRESULT hr = LoadFromWICMemory(
             reinterpret_cast<const uint8_t*>(data), size,
             WIC_FLAGS_NONE, &metadata, image);
         if (FAILED(hr))
             throw std::runtime_error(
                 "ConvertPNGToDDS: LoadFromWICMemory failed (" + HResultToString(hr) + ")");
 
-        return CompressAndSaveDDS(image, targetFormat);
+        return DDS(CompressAndSaveDDS(image, targetFormat));
+    }
+
+    // --- PS4 GNF swizzle --------------------------------------------------------
+
+    DDS DDS::DeswizzlePS4() const
+    {
+        auto deswizzledData = PS4SwizzleOpDDS(m_storage.data(), m_storage.size(), "DeswizzlePS4",
+            [](const std::byte* px, const std::size_t sz,
+               const int w, const int h, const int mips, const int tc, const int bpb, const int ppb)
+            {
+                return Firelink::DeswizzlePS4(px, sz, w, h, mips, tc, bpb, ppb);
+            },
+            /*isSwizzledInput=*/true);
+
+        return DDS(std::move(deswizzledData));
+    }
+
+    DDS DDS::SwizzlePS4() const
+    {
+        auto swizzledData = PS4SwizzleOpDDS(m_storage.data(), m_storage.size(), "SwizzlePS4DDS",
+            [](const std::byte* px, const std::size_t sz,
+               const int w, const int h, const int mips, const int tc, const int bpb, const int ppb)
+            {
+                return Firelink::SwizzlePS4(px, sz, w, h, mips, tc, bpb, ppb);
+            },
+            /*isSwizzledInput=*/false);
+
+        return DDS(std::move(swizzledData));
     }
 } // namespace Firelink

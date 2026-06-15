@@ -7,6 +7,7 @@ add_executable(FirelinkCore_tests
     DDSTest.cpp
     FirelinkCoreTestHelpers.h
     LoggingTest.cpp
+    SwizzleTest.cpp
     TPFTest.cpp
 )
 
