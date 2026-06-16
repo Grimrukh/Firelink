@@ -208,7 +208,7 @@ namespace Firelink
         return layout;
     }
 
-    std::vector<std::byte> VertexArray::Compress(const float uv_factor) const
+    std::vector<std::byte> VertexArray::Compress(const float uv_factor, const Endian endian) const
     {
         const auto compressed_stride = layout.GetCompressedVertexSize();
         const auto decompressed_stride = layout.decompressed_vertex_size;
@@ -262,7 +262,8 @@ namespace Firelink
                     vertex_count,
                     compressed_stride,
                     sub_comp_offset,
-                    uv_factor);
+                    uv_factor,
+                    endian);
 
                 sub_comp_offset += fspec.GetCompressedSize();
                 sub_decomp_offset += fspec.GetDecompressedSize();
@@ -279,7 +280,8 @@ namespace Firelink
         const std::byte* raw_data,
         const std::uint32_t vertex_count,
         const VertexArrayLayout& layout,
-        const float uv_factor)
+        const float uv_factor,
+        const Endian endian)
     {
         VertexArray va;
         va.layout = layout;
@@ -336,7 +338,8 @@ namespace Firelink
                     vertex_count,
                     compressed_stride,
                     sub_comp_offset,
-                    uv_factor);
+                    uv_factor,
+                    endian);
 
                 // Scatter into interleaved output.
                 for (std::uint32_t v = 0; v < vertex_count; ++v)
@@ -422,7 +425,8 @@ namespace Firelink
         const std::vector<FLVER0MaterialRead>& materials,
         const FLVERVersion version,
         const float uv_factor,
-        const std::int32_t mesh_index)
+        const std::int32_t mesh_index,
+        const Endian endian)
     {
         Mesh m;
         m.index = mesh_index;
@@ -431,7 +435,7 @@ namespace Firelink
         const bool use_backface_culling = r.Read<std::uint8_t>() != 0;
         const bool is_triangle_strip_raw = r.Read<std::uint8_t>() != 0;
         const auto vertex_index_count = r.Read<std::uint32_t>();
-        auto vertex_count = r.Read<std::uint32_t>();  // not required
+        r.Read<std::uint32_t>();  // vertex_count (not required)
         m.default_bone_index = r.Read<std::int16_t>();
 
         // 28 bone indices (shorts).
@@ -528,7 +532,7 @@ namespace Firelink
             const auto vc = array_length / layout.compressed_vertex_size;
             auto guard = r.TempOffset(vertex_data_offset + array_offset_val);
             const std::byte* raw = r.RawAt(vertex_data_offset + array_offset_val);
-            m.vertex_arrays.push_back(VertexArray::FromCompressedData(raw, vc, layout, uv_factor));
+            m.vertex_arrays.push_back(VertexArray::FromCompressedData(raw, vc, layout, uv_factor, endian));
         }
         else
         {

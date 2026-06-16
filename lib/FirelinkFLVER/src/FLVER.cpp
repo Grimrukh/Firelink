@@ -86,6 +86,7 @@ namespace Firelink
         r.AssertBytes(expected_magic, 5, "FLVER magic");
         r.Skip(1);
 
+        // Detect endianness of FLVER.
         char endian_tag[2];
         r.ReadRaw(endian_tag, 2);
         Endian file_endian;
@@ -293,8 +294,14 @@ namespace Firelink
         for (std::uint32_t i = 0; i < mesh_count; ++i)
         {
             m_meshes.push_back(Mesh::ReadFLVER0(
-                r, face_set_vertex_index_bit_size, vertex_data_offset,
-                mat_reads, m_version, uv_factor, static_cast<std::int32_t>(i)));
+                r,
+                face_set_vertex_index_bit_size,
+                vertex_data_offset,
+                mat_reads,
+                m_version,
+                uv_factor,
+                static_cast<std::int32_t>(i),
+                GetEndian()));
         }
     }
 
@@ -453,7 +460,7 @@ namespace Firelink
 
             auto guard = r.TempOffset(vertex_data_offset + hdr.array_offset);
             const std::byte* raw = r.RawAt(vertex_data_offset + hdr.array_offset);
-            vertex_arrays[i] = VertexArray::FromCompressedData(raw, hdr.vertex_count, layout, uv_factor);
+            vertex_arrays[i] = VertexArray::FromCompressedData(raw, hdr.vertex_count, layout, uv_factor, GetEndian());
         }
 
         // --- Read textures ---
@@ -815,7 +822,7 @@ namespace Firelink
             w.Fill<std::uint32_t>("mesh_va_data_offset", static_cast<std::uint32_t>(array_offset), scope);
             w.Fill<std::uint32_t>("va_array_offset", static_cast<std::uint32_t>(array_offset), scope);
 
-            auto compressed = mesh.vertex_arrays[0].Compress(uv_factor);
+            auto compressed = mesh.vertex_arrays[0].Compress(uv_factor, GetEndian());
             w.WriteRaw(compressed.data(), compressed.size());
             w.PadAlign(32);
         }
@@ -1329,7 +1336,7 @@ namespace Firelink
                 auto arr_offset = w.Position() - vertex_data_start;
                 w.Fill<std::uint32_t>("va2_offset", static_cast<std::uint32_t>(arr_offset), va_scope);
 
-                auto compressed = va.Compress(uvFactor);
+                auto compressed = va.Compress(uvFactor, GetEndian());
                 w.WriteRaw(compressed.data(), compressed.size());
             }
         }

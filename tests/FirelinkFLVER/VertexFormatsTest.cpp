@@ -61,7 +61,7 @@ TEST_CASE("DecompressField identity copies positions")
     std::vector<std::byte> out(vertex_count * spec.GetDecompressedSize());
     DecompressField(
         spec, compressed.data(), out.data(),
-        vertex_count, stride, position_offset, 2048.f);
+        vertex_count, stride, position_offset, 2048.f, BinaryReadWrite::Endian::Little);
 
     float positions[9];
     std::memcpy(positions, out.data(), sizeof(positions));
@@ -87,12 +87,13 @@ TEST_CASE("compress/decompress roundtrip for position floats")
     std::vector<std::byte> compressed(vertex_count * stride);
     CompressField(
         spec, reinterpret_cast<const std::byte*>(input),
-        compressed.data(), vertex_count, stride, 0, 2048.f);
+        compressed.data(), vertex_count, stride, 0, 2048.f,
+        BinaryReadWrite::Endian::Little);
 
     std::vector<std::byte> decompressed(vertex_count * spec.GetDecompressedSize());
     DecompressField(
         spec, compressed.data(), decompressed.data(),
-        vertex_count, stride, 0, 2048.f);
+        vertex_count, stride, 0, 2048.f, BinaryReadWrite::Endian::Little);
 
     float output[6];
     std::memcpy(output, decompressed.data(), sizeof(output));
@@ -115,7 +116,7 @@ TEST_CASE("SignedIntTo127Float decompress for normals")
     DecompressField(
         normal_spec,
         reinterpret_cast<const std::byte*>(raw), out.data(),
-        1, 4, 0, 0.f);
+        1, 4, 0, 0.f, BinaryReadWrite::Endian::Little);
 
     float normals[3];
     std::memcpy(normals, out.data(), sizeof(normals));
@@ -136,7 +137,7 @@ TEST_CASE("UvFactor decompress for UVs")
     DecompressField(
         uv_spec,
         reinterpret_cast<const std::byte*>(raw), out.data(),
-        1, 4, 0, 1024.f);
+        1, 4, 0, 1024.f, BinaryReadWrite::Endian::Little);
 
     float uvs[2];
     std::memcpy(uvs, out.data(), sizeof(uvs));
@@ -156,7 +157,7 @@ TEST_CASE("IdentityWiden for BoneIndices U8 -> S32")
     DecompressField(
         spec,
         reinterpret_cast<const std::byte*>(raw), out.data(),
-        1, 4, 0, 0.f);
+        1, 4, 0, 0.f, BinaryReadWrite::Endian::Little);
 
     std::int32_t indices[4];
     std::memcpy(indices, out.data(), sizeof(indices));

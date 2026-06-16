@@ -27,6 +27,8 @@
 #include <cstdint>
 #include <optional>
 
+#include "FirelinkCore/Endian.h"
+
 namespace Firelink
 {
     // --- VertexDataFormatEnum ---------------------------------------------------
@@ -223,7 +225,8 @@ namespace Firelink
         std::size_t vertex_count,
         std::size_t compressed_stride,
         std::size_t compressed_offset,
-        float uv_factor
+        float uv_factor,
+        BinaryReadWrite::Endian endian
     );
 
     // Inverse of decompress_field — used by the writer.
@@ -234,6 +237,7 @@ namespace Firelink
         std::size_t vertex_count,
         std::size_t compressed_stride,
         std::size_t compressed_offset,
-        float uv_factor
+        float uv_factor,
+        BinaryReadWrite::Endian endian
     );
 } // namespace Firelink

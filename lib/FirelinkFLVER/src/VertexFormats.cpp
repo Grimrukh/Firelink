@@ -258,18 +258,69 @@ namespace Firelink
 
     namespace
     {
-        // Read one scalar from compressed data.
+        // ---------------------------------------------------------------------------
+        // Byte-swap helpers
+        // ---------------------------------------------------------------------------
+
         template <typename T>
-        T read_scalar(const std::byte* p)
+        T byte_swap(T val) noexcept
+        {
+            static_assert(sizeof(T) == 1 || sizeof(T) == 2 || sizeof(T) == 4 || sizeof(T) == 8,
+                          "byte_swap: unsupported size");
+            if constexpr (sizeof(T) == 1)
+            {
+                return val;
+            }
+            else if constexpr (sizeof(T) == 2)
+            {
+                std::uint16_t u;
+                std::memcpy(&u, &val, 2);
+                u = static_cast<std::uint16_t>((u >> 8) | (u << 8));
+                T r;
+                std::memcpy(&r, &u, 2);
+                return r;
+            }
+            else if constexpr (sizeof(T) == 4)
+            {
+                std::uint32_t u;
+                std::memcpy(&u, &val, 4);
+                u = ((u & 0xFF000000u) >> 24) | ((u & 0x00FF0000u) >> 8)
+                  | ((u & 0x0000FF00u) << 8)  | ((u & 0x000000FFu) << 24);
+                T r;
+                std::memcpy(&r, &u, 4);
+                return r;
+            }
+            else // sizeof(T) == 8
+            {
+                std::uint64_t u;
+                std::memcpy(&u, &val, 8);
+                u = ((u & 0xFF00000000000000ull) >> 56) | ((u & 0x00FF000000000000ull) >> 40)
+                  | ((u & 0x0000FF0000000000ull) >> 24) | ((u & 0x000000FF00000000ull) >>  8)
+                  | ((u & 0x00000000FF000000ull) <<  8) | ((u & 0x0000000000FF0000ull) << 24)
+                  | ((u & 0x000000000000FF00ull) << 40) | ((u & 0x00000000000000FFull) << 56);
+                T r;
+                std::memcpy(&r, &u, 8);
+                return r;
+            }
+        }
+
+        // Read one scalar from compressed data, swapping bytes when big-endian.
+        template <typename T>
+        T read_scalar(const std::byte* p, const BinaryReadWrite::Endian endian)
         {
             T val;
             std::memcpy(&val, p, sizeof(T));
+            if (endian == BinaryReadWrite::Endian::Big)
+                val = byte_swap(val);
             return val;
         }
 
+        // Write one scalar to compressed data, swapping bytes when big-endian.
         template <typename T>
-        void write_scalar(std::byte* p, T val)
+        void write_scalar(std::byte* p, T val, const BinaryReadWrite::Endian endian)
         {
+            if (endian == BinaryReadWrite::Endian::Big)
+                val = byte_swap(val);
             std::memcpy(p, &val, sizeof(T));
         }
 
@@ -279,7 +330,8 @@ namespace Firelink
             const std::byte* src, std::byte* dst,
             const std::size_t vertex_count,
             const std::size_t compressed_stride, const std::size_t compressed_offset,
-            const std::uint8_t component_count, Func fn)
+            const std::uint8_t component_count, Func fn,
+            const BinaryReadWrite::Endian endian)
         {
             const std::size_t src_elem = sizeof(SrcT);
             const std::size_t dst_elem = sizeof(DstT);
@@ -289,9 +341,10 @@ namespace Firelink
                 std::byte* dp = dst + v * (component_count * dst_elem);
                 for (std::uint8_t c = 0; c < component_count; ++c)
                 {
-                    SrcT sv = read_scalar<SrcT>(sp + c * src_elem);
+                    SrcT sv = read_scalar<SrcT>(sp + c * src_elem, endian);
                     DstT dv = fn(sv);
-                    write_scalar<DstT>(dp + c * dst_elem, dv);
+                    // Decompressed output is always native (little-endian).
+                    write_scalar<DstT>(dp + c * dst_elem, dv, BinaryReadWrite::Endian::Little);
                 }
             }
         }
@@ -302,37 +355,55 @@ namespace Firelink
             const std::byte* src, std::byte* dst,
             const std::size_t vertex_count,
             const std::size_t compressed_stride, const std::size_t compressed_offset,
-            const std::uint8_t component_count, Func fn)
+            const std::uint8_t component_count, Func fn,
+            const BinaryReadWrite::Endian endian)
         {
             const std::size_t src_elem = sizeof(SrcT);
             const std::size_t dst_elem = sizeof(DstT);
             for (std::size_t v = 0; v < vertex_count; ++v)
             {
+                // Source (decompressed) data is always native (little-endian).
                 const std::byte* sp = src + v * (component_count * src_elem);
                 std::byte* dp = dst + v * compressed_stride + compressed_offset;
                 for (std::uint8_t c = 0; c < component_count; ++c)
                 {
-                    SrcT sv = read_scalar<SrcT>(sp + c * src_elem);
+                    SrcT sv = read_scalar<SrcT>(sp + c * src_elem, BinaryReadWrite::Endian::Little);
                     DstT dv = fn(sv);
-                    write_scalar<DstT>(dp + c * dst_elem, dv);
+                    write_scalar<DstT>(dp + c * dst_elem, dv, endian);
                 }
             }
         }
 
-        // Identity copy (same-size src/dst).
+        // Identity copy (same-size src/dst), with per-element byte-swap when big-endian.
         void identity_decompress(
             const VertexFieldSpec& spec,
             const std::byte* src, std::byte* dst,
             const std::size_t vertex_count,
-            const std::size_t compressed_stride, const std::size_t compressed_offset)
+            const std::size_t compressed_stride, const std::size_t compressed_offset,
+            const BinaryReadWrite::Endian endian)
         {
-            const std::size_t bytes = spec.GetCompressedSize();
+            const std::size_t total_bytes = spec.GetCompressedSize();
+            const std::size_t elem_size = (spec.compressed_count > 0)
+                                              ? total_bytes / spec.compressed_count
+                                              : total_bytes;
             for (std::size_t v = 0; v < vertex_count; ++v)
             {
-                std::memcpy(
-                    dst + v * bytes,
-                    src + v * compressed_stride + compressed_offset,
-                    bytes);
+                const std::byte* s = src + v * compressed_stride + compressed_offset;
+                std::byte* d = dst + v * total_bytes;
+                if (endian == BinaryReadWrite::Endian::Big && elem_size > 1)
+                {
+                    for (std::size_t i = 0; i < total_bytes; i += elem_size)
+                    {
+                        std::memcpy(d + i, s + i, elem_size);
+                        std::reverse(
+                            reinterpret_cast<std::uint8_t*>(d + i),
+                            reinterpret_cast<std::uint8_t*>(d + i) + elem_size);
+                    }
+                }
+                else
+                {
+                    std::memcpy(d, s, total_bytes);
+                }
             }
         }
 
@@ -340,15 +411,31 @@ namespace Firelink
             const VertexFieldSpec& spec,
             const std::byte* src, std::byte* dst,
             const std::size_t vertex_count,
-            const std::size_t compressed_stride, const std::size_t compressed_offset)
+            const std::size_t compressed_stride, const std::size_t compressed_offset,
+            const BinaryReadWrite::Endian endian)
         {
-            const std::size_t bytes = spec.GetCompressedSize();
+            const std::size_t total_bytes = spec.GetCompressedSize();
+            const std::size_t elem_size = (spec.compressed_count > 0)
+                                              ? total_bytes / spec.compressed_count
+                                              : total_bytes;
             for (std::size_t v = 0; v < vertex_count; ++v)
             {
-                std::memcpy(
-                    dst + v * compressed_stride + compressed_offset,
-                    src + v * bytes,
-                    bytes);
+                const std::byte* s = src + v * total_bytes;
+                std::byte* d = dst + v * compressed_stride + compressed_offset;
+                if (endian == BinaryReadWrite::Endian::Big && elem_size > 1)
+                {
+                    for (std::size_t i = 0; i < total_bytes; i += elem_size)
+                    {
+                        std::memcpy(d + i, s + i, elem_size);
+                        std::reverse(
+                            reinterpret_cast<std::uint8_t*>(d + i),
+                            reinterpret_cast<std::uint8_t*>(d + i) + elem_size);
+                    }
+                }
+                else
+                {
+                    std::memcpy(d, s, total_bytes);
+                }
             }
         }
     } // namespace
@@ -360,14 +447,15 @@ namespace Firelink
         const std::size_t vertex_count,
         const std::size_t compressed_stride,
         const std::size_t compressed_offset,
-        float uv_factor)
+        float uv_factor,
+        const BinaryReadWrite::Endian endian)
     {
         const auto cc = spec.compressed_count;
 
         switch (spec.codec)
         {
         case VertexCodec::Identity:
-            identity_decompress(spec, src, dst, vertex_count, compressed_stride, compressed_offset);
+            identity_decompress(spec, src, dst, vertex_count, compressed_stride, compressed_offset, endian);
             return;
 
         case VertexCodec::IdentityWiden:
@@ -376,13 +464,13 @@ namespace Firelink
             {
                 decompress_loop<std::uint8_t, std::int32_t>(
                     src, dst, vertex_count, compressed_stride, compressed_offset, cc,
-                    [](const std::uint8_t v) -> std::int32_t { return static_cast<std::int32_t>(v); });
+                    [](const std::uint8_t v) -> std::int32_t { return static_cast<std::int32_t>(v); }, endian);
             }
             else if (spec.compressed_scalar == S::S16 && spec.decompressed_scalar == S::S32)
             {
                 decompress_loop<std::int16_t, std::int32_t>(
                     src, dst, vertex_count, compressed_stride, compressed_offset, cc,
-                    [](const std::int16_t v) -> std::int32_t { return static_cast<std::int32_t>(v); });
+                    [](const std::int16_t v) -> std::int32_t { return static_cast<std::int32_t>(v); }, endian);
             }
             else
             {
@@ -395,13 +483,13 @@ namespace Firelink
             {
                 decompress_loop<std::int8_t, float>(
                     src, dst, vertex_count, compressed_stride, compressed_offset, cc,
-                    [](const std::int8_t v) -> float { return static_cast<float>(v) / 127.0f; });
+                    [](const std::int8_t v) -> float { return static_cast<float>(v) / 127.0f; }, endian);
             }
             else if (spec.compressed_scalar == S::U8)
             {
                 decompress_loop<std::uint8_t, float>(
                     src, dst, vertex_count, compressed_stride, compressed_offset, cc,
-                    [](const std::uint8_t v) -> float { return static_cast<float>(v) / 127.0f; });
+                    [](const std::uint8_t v) -> float { return static_cast<float>(v) / 127.0f; }, endian);
             }
             else
             {
@@ -414,7 +502,7 @@ namespace Firelink
             {
                 decompress_loop<std::uint8_t, float>(
                     src, dst, vertex_count, compressed_stride, compressed_offset, cc,
-                    [](const std::uint8_t v) -> float { return static_cast<float>(v) / 255.0f; });
+                    [](const std::uint8_t v) -> float { return static_cast<float>(v) / 255.0f; }, endian);
             }
             else
             {
@@ -427,7 +515,7 @@ namespace Firelink
             {
                 decompress_loop<std::int16_t, float>(
                     src, dst, vertex_count, compressed_stride, compressed_offset, cc,
-                    [](const std::int16_t v) -> float { return static_cast<float>(v) / 32767.0f; });
+                    [](const std::int16_t v) -> float { return static_cast<float>(v) / 32767.0f; }, endian);
             }
             else
             {
@@ -441,13 +529,13 @@ namespace Firelink
             {
                 decompress_loop<std::uint8_t, float>(
                     src, dst, vertex_count, compressed_stride, compressed_offset, cc,
-                    [](const std::uint8_t v) -> float { return (static_cast<float>(v) - 127.0f) / 127.0f; });
+                    [](const std::uint8_t v) -> float { return (static_cast<float>(v) - 127.0f) / 127.0f; }, endian);
             }
             else if (spec.compressed_scalar == S::S8)
             {
                 decompress_loop<std::int8_t, float>(
                     src, dst, vertex_count, compressed_stride, compressed_offset, cc,
-                    [](const std::int8_t v) -> float { return (static_cast<float>(v) - 127.0f) / 127.0f; });
+                    [](const std::int8_t v) -> float { return (static_cast<float>(v) - 127.0f) / 127.0f; }, endian);
             }
             else
             {
@@ -460,7 +548,7 @@ namespace Firelink
             {
                 decompress_loop<std::uint8_t, float>(
                     src, dst, vertex_count, compressed_stride, compressed_offset, cc,
-                    [](const std::uint8_t v) -> float { return (static_cast<float>(v) - 255.0f) / 255.0f; });
+                    [](const std::uint8_t v) -> float { return (static_cast<float>(v) - 255.0f) / 255.0f; }, endian);
             }
             else
             {
@@ -474,13 +562,13 @@ namespace Firelink
             {
                 decompress_loop<std::int16_t, float>(
                     src, dst, vertex_count, compressed_stride, compressed_offset, cc,
-                    [](const std::int16_t v) -> float { return (static_cast<float>(v) - 32767.0f) / 32767.0f; });
+                    [](const std::int16_t v) -> float { return (static_cast<float>(v) - 32767.0f) / 32767.0f; }, endian);
             }
             else if (spec.compressed_scalar == S::U16)
             {
                 decompress_loop<std::uint16_t, float>(
                     src, dst, vertex_count, compressed_stride, compressed_offset, cc,
-                    [](const std::uint16_t v) -> float { return (static_cast<float>(v) - 32767.0f) / 32767.0f; });
+                    [](const std::uint16_t v) -> float { return (static_cast<float>(v) - 32767.0f) / 32767.0f; }, endian);
             }
             else
             {
@@ -493,7 +581,7 @@ namespace Firelink
             {
                 decompress_loop<std::int16_t, float>(
                     src, dst, vertex_count, compressed_stride, compressed_offset, cc,
-                    [uv_factor](const std::int16_t v) -> float { return static_cast<float>(v) / uv_factor; });
+                    [uv_factor](const std::int16_t v) -> float { return static_cast<float>(v) / uv_factor; }, endian);
             }
             else
             {
@@ -511,14 +599,15 @@ namespace Firelink
         const std::size_t vertex_count,
         const std::size_t compressed_stride,
         const std::size_t compressed_offset,
-        float uv_factor)
+        float uv_factor,
+        const BinaryReadWrite::Endian endian)
     {
         const auto cc = spec.compressed_count;
 
         switch (spec.codec)
         {
         case VertexCodec::Identity:
-            identity_compress(spec, src, dst, vertex_count, compressed_stride, compressed_offset);
+            identity_compress(spec, src, dst, vertex_count, compressed_stride, compressed_offset, endian);
             return;
 
         case VertexCodec::IdentityWiden:
@@ -526,13 +615,13 @@ namespace Firelink
             {
                 compress_loop<std::int32_t, std::uint8_t>(
                     src, dst, vertex_count, compressed_stride, compressed_offset, cc,
-                    [](const std::int32_t v) -> std::uint8_t { return static_cast<std::uint8_t>(v); });
+                    [](const std::int32_t v) -> std::uint8_t { return static_cast<std::uint8_t>(v); }, endian);
             }
             else if (spec.compressed_scalar == S::S16 && spec.decompressed_scalar == S::S32)
             {
                 compress_loop<std::int32_t, std::int16_t>(
                     src, dst, vertex_count, compressed_stride, compressed_offset, cc,
-                    [](const std::int32_t v) -> std::int16_t { return static_cast<std::int16_t>(v); });
+                    [](const std::int32_t v) -> std::int16_t { return static_cast<std::int16_t>(v); }, endian);
             }
             else
             {
@@ -545,13 +634,13 @@ namespace Firelink
             {
                 compress_loop<float, std::int8_t>(
                     src, dst, vertex_count, compressed_stride, compressed_offset, cc,
-                    [](const float v) -> std::int8_t { return static_cast<std::int8_t>(std::round(v * 127.0f)); });
+                    [](const float v) -> std::int8_t { return static_cast<std::int8_t>(std::round(v * 127.0f)); }, endian);
             }
             else if (spec.compressed_scalar == S::U8)
             {
                 compress_loop<float, std::uint8_t>(
                     src, dst, vertex_count, compressed_stride, compressed_offset, cc,
-                    [](const float v) -> std::uint8_t { return static_cast<std::uint8_t>(std::round(v * 127.0f)); });
+                    [](const float v) -> std::uint8_t { return static_cast<std::uint8_t>(std::round(v * 127.0f)); }, endian);
             }
             else
             {
@@ -562,13 +651,13 @@ namespace Firelink
         case VertexCodec::IntTo255Float:
             compress_loop<float, std::uint8_t>(
                 src, dst, vertex_count, compressed_stride, compressed_offset, cc,
-                [](const float v) -> std::uint8_t { return static_cast<std::uint8_t>(std::round(v * 255.0f)); });
+                [](const float v) -> std::uint8_t { return static_cast<std::uint8_t>(std::round(v * 255.0f)); }, endian);
             return;
 
         case VertexCodec::IntTo32767Float:
             compress_loop<float, std::int16_t>(
                 src, dst, vertex_count, compressed_stride, compressed_offset, cc,
-                [](const float v) -> std::int16_t { return static_cast<std::int16_t>(std::round(v * 32767.0f)); });
+                [](const float v) -> std::int16_t { return static_cast<std::int16_t>(std::round(v * 32767.0f)); }, endian);
             return;
 
         case VertexCodec::SignedIntTo127Float:
@@ -576,13 +665,13 @@ namespace Firelink
             {
                 compress_loop<float, std::uint8_t>(
                     src, dst, vertex_count, compressed_stride, compressed_offset, cc,
-                    [](const float v) -> std::uint8_t { return static_cast<std::uint8_t>(std::round(v * 127.0f + 127.0f)); });
+                    [](const float v) -> std::uint8_t { return static_cast<std::uint8_t>(std::round(v * 127.0f + 127.0f)); }, endian);
             }
             else if (spec.compressed_scalar == S::S8)
             {
                 compress_loop<float, std::int8_t>(
                     src, dst, vertex_count, compressed_stride, compressed_offset, cc,
-                    [](const float v) -> std::int8_t { return static_cast<std::int8_t>(std::round(v * 127.0f + 127.0f)); });
+                    [](const float v) -> std::int8_t { return static_cast<std::int8_t>(std::round(v * 127.0f + 127.0f)); }, endian);
             }
             else
             {
@@ -593,7 +682,7 @@ namespace Firelink
         case VertexCodec::SignedIntTo255Float:
             compress_loop<float, std::uint8_t>(
                 src, dst, vertex_count, compressed_stride, compressed_offset, cc,
-                [](const float v) -> std::uint8_t { return static_cast<std::uint8_t>(std::round(v * 255.0f + 255.0f)); });
+                [](const float v) -> std::uint8_t { return static_cast<std::uint8_t>(std::round(v * 255.0f + 255.0f)); }, endian);
             return;
 
         case VertexCodec::SignedIntTo32767Float:
@@ -604,7 +693,7 @@ namespace Firelink
                     [](const float v) -> std::int16_t
                     {
                         return static_cast<std::int16_t>(std::round(v * 32767.0f + 32767.0f));
-                    });
+                    }, endian);
             }
             else if (spec.compressed_scalar == S::U16)
             {
@@ -613,7 +702,7 @@ namespace Firelink
                     [](const float v) -> std::uint16_t
                     {
                         return static_cast<std::uint16_t>(std::round(v * 32767.0f + 32767.0f));
-                    });
+                    }, endian);
             }
             else
             {
@@ -624,7 +713,7 @@ namespace Firelink
         case VertexCodec::UvFactor:
             compress_loop<float, std::int16_t>(
                 src, dst, vertex_count, compressed_stride, compressed_offset, cc,
-                [uv_factor](const float v) -> std::int16_t { return static_cast<std::int16_t>(std::round(v * uv_factor)); });
+                [uv_factor](const float v) -> std::int16_t { return static_cast<std::int16_t>(std::round(v * uv_factor)); }, endian);
             return;
         }
         throw FLVERError("compress_field: unknown codec");

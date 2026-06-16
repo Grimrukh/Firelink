@@ -14,7 +14,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - `DDS` class used instead of static namespace functions.
 
 ### Fixed
-- Big-endian files (e.g. Demon's Souls) have strings decoded correctly.
+- Big-endian files (e.g. Demon's Souls) have strings decoded/encoded correctly.
+- Big-endian FLVERs have vertex data decoded/encoded correctly.
 - Some `constexpr std::string` expressions fixed (can't compile in MSVC Debug).
 
 ---

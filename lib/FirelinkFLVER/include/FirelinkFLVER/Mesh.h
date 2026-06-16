@@ -79,14 +79,15 @@ namespace Firelink
 
         bool operator==(const VertexArray&) const = default;
 
-        [[nodiscard]] std::vector<std::byte> Compress(float uv_factor) const;
+        [[nodiscard]] std::vector<std::byte> Compress(float uv_factor, BinaryReadWrite::Endian endian) const;
 
         /// @brief Decompress a vertex array given its raw on-disk data and layout.
         static VertexArray FromCompressedData(
             const std::byte* raw_data,
             std::uint32_t vertex_count,
             const VertexArrayLayout& layout,
-            float uv_factor);
+            float uv_factor,
+            BinaryReadWrite::Endian endian);
     };
 
     // --- FaceSetFlags -----------------------------------------------------------
@@ -155,7 +156,8 @@ namespace Firelink
             const std::vector<FLVER0MaterialRead>& materials,
             FLVERVersion version,
             float uv_factor,
-            std::int32_t mesh_index);
+            std::int32_t mesh_index,
+            BinaryReadWrite::Endian endian);
     };
 
     // Read mesh header for FLVER2 — returns a partially-constructed Mesh
