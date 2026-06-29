@@ -243,7 +243,7 @@ TEST_CASE("Swizzle: unsupported DXGI_FORMAT throws")
 
 TEST_CASE("Swizzle: Bloodborne PS4 TPF deswizzle -> reswizzle round-trip")
 {
-    const auto tpf = TPF::FromPath(GetResourcePath("bloodborne/m21_00_ground_051_a.tpf.dcx"));
+    const auto tpf = TPF::FromPath(GetResourcePath("bloodborne/dds/m21_00_ground_051_a.tpf.dcx"));
     if (!tpf)
     {
         MESSAGE("Skipping — bloodborne TPF not available");
