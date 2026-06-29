@@ -140,6 +140,22 @@ TEST_CASE("TextureFinder: case-insensitive texture lookup")
 }
 
 // ---------------------------------------------------------------------------
+// Common 'parts' textures found in DS1R
+// ---------------------------------------------------------------------------
+
+TEST_CASE("TextureFinder: Common*.tpf 'parts' textures found for DS1R")
+{
+    TextureFinder mgr(GameType::DarkSoulsDSR, GetResourcePath("darksouls1r"));
+
+    // Search with true stem.
+    auto* tex = mgr.GetTexture("BD_M_Body_M_s");
+    CHECK(tex != nullptr);
+    // Search with lower-case stem.
+    tex = mgr.GetTexture("bd_m_body_m_s");
+    CHECK(tex != nullptr);
+}
+
+// ---------------------------------------------------------------------------
 // Texture not found returns nullptr
 // ---------------------------------------------------------------------------
 

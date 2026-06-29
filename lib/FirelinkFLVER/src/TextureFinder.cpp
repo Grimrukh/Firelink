@@ -381,7 +381,8 @@ namespace Firelink
                 m_loadedTpfStems.insert(stem);
                 try
                 {
-                    for (auto& tex : TPF::FromPath(dirEntry)->Textures())
+                    for (const TPF::Ptr tpf = TPF::FromPath(dirEntry);
+                        auto& tex : tpf->Textures())
                         m_textureCache.try_emplace(ToLower(tex.stem), std::move(tex));
                 }
                 catch (const std::exception& e)
@@ -512,10 +513,10 @@ namespace Firelink
             auto name = dirEntry.path().filename().string();
 
             bool matchesGlob;
-            if (UsesBinderDcx(m_game))
-                matchesGlob = MatchesGlob(name, "Common*.tpf.dcx") || MatchesGlob(name, "common*.tpf.dcx");
-            else
-                matchesGlob = MatchesGlob(name, "Common*.tpf") || MatchesGlob(name, "common*.tpf");
+            matchesGlob = MatchesGlob(name, "Common*.tpf.dcx")
+                || MatchesGlob(name, "common*.tpf.dcx")
+                || MatchesGlob(name, "Common*.tpf")
+                || MatchesGlob(name, "common*.tpf");
 
             if (matchesGlob)
             {
@@ -526,8 +527,11 @@ namespace Firelink
                 m_loadedTpfStems.insert(stem);
                 try
                 {
-                    for (auto& tex : TPF::FromPath(dirEntry.path())->Textures())
+                    for (const TPF::Ptr tpf = TPF::FromPath(dirEntry.path());
+                        auto& tex : tpf->Textures())
+                    {
                         m_textureCache.try_emplace(ToLower(tex.stem), std::move(tex));
+                    }
                 }
                 catch (const std::exception& e)
                 {
