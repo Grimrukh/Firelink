@@ -14,8 +14,10 @@
 #include <FirelinkTestHelpers.h>
 #include <FirelinkFLVER/FLVER.h>
 
+#include <climits>
 #include <cstring>
 #include <filesystem>
+#include <format>
 #include <vector>
 
 using namespace Firelink;
@@ -24,6 +26,7 @@ namespace
 {
     const char* FLVER2_FIXTURES[] = {
         "eldenring/c2010.flver",
+        "darksouls1r/m0100B2A10.flver",
         "darksouls1r/m5020B2A10.flver",
         "darksouls1r/m5030B2A10.flver",
         "darksouls1r/m8101B2A10.flver",
@@ -244,29 +247,6 @@ TEST_CASE("FLVER2 round-trip: write and re-read")
     }
 }
 
-TEST_CASE("FLVER2 round-trip: Dark Souls Remastered simple Map Piece FLVER")
-{
-    const auto path = GetResourcePath("darksouls1r/m0100B2A10.flver");
-    const auto raw = LoadFile(path);
-    if (raw.empty())
-    {
-        MESSAGE("Skipping — fixture darksouls1r/m0100B2A10.flver not found");
-        return;
-    }
-
-    // Read.
-    const FLVER::CPtr orig = FLVER::FromBytes(raw);
-
-    // Write (produces FLVER bytes).
-    const std::vector<std::byte> written = orig->ToBytes();
-    REQUIRE(written.size() > 128);
-
-    // Re-read the FLVER.
-    const FLVER::CPtr reread = FLVER::FromBytes(written);
-
-    CheckFLVEREqual(*orig, *reread);
-}
-
 TEST_CASE("FLVER2 round-trip: double write produces identical bytes")
 {
     // Write -> re-read -> write again. The two written byte buffers should be identical,
@@ -304,7 +284,6 @@ TEST_CASE("FLVER2 round-trip: double write produces identical bytes")
     }
 }
 
-
 TEST_CASE("FLVER2 reader: header and basic structure")
 {
     for (const auto* name : FLVER2_FIXTURES)
@@ -328,8 +307,8 @@ TEST_CASE("FLVER2 reader: header and basic structure")
             CHECK(flver->Meshes().size() > 0);
             CHECK(flver->Bones().size() > 0);
 
-            // c2010.flver — known exact values.
-            if (std::string(name) == "c2010.flver")
+            // ER c2010.flver — known exact values.
+            if (path.parent_path().stem() == "eldenring" && std::string(name) == "c2010.flver")
             {
                 CHECK(static_cast<std::uint32_t>(flver->GetVersion()) == 0x2001A);
                 CHECK(flver->GetIsUnicode() == true);
@@ -391,7 +370,7 @@ TEST_CASE("FLVER2 reader: materials have textures")
     }
 }
 
-TEST_CASE("MergedMesh: builds successfully for all fixtures")
+TEST_CASE("MergedMesh: builds and splits successfully for all fixtures")
 {
     for (const auto* name : FLVER2_FIXTURES)
     {
@@ -448,6 +427,110 @@ TEST_CASE("MergedMesh: builds successfully for all fixtures")
                 }
             }
             CHECK(all_valid);
+
+            // ----------------------------------------------------------------
+            // SplitMesh round-trip.
+            //
+            // The default merge assigns each source mesh its own material index
+            // (mm.faces[:, 3] == source mesh index), so we rebuild one
+            // SplitMeshDef per source mesh, in order, straight from the original
+            // Mesh objects.
+            // ----------------------------------------------------------------
+            const auto& srcMeshes = flver->Meshes();
+            REQUIRE(!srcMeshes.empty());
+
+            std::vector<SplitMeshDef> defs;
+            defs.reserve(srcMeshes.size());
+            for (const auto& src : srcMeshes)
+            {
+                SplitMeshDef def;
+                def.material = src.material;
+                if (!src.vertex_arrays.empty())
+                    def.layout = src.vertex_arrays[0].layout;
+                def.is_dynamic = src.is_dynamic;
+                def.default_bone_index = src.default_bone_index;
+                def.uses_bounding_boxes = src.uses_bounding_boxes;
+                def.face_set_count = 1;  // keep it simple; no LOD duplication
+                if (!src.face_sets.empty())
+                    def.use_backface_culling = src.face_sets[0].use_backface_culling;
+
+                // Map local uv_<i> -> merged UV layer names in order. Both merge
+                // and split default to "UVMap<i>"; pass explicitly to be safe.
+                for (const auto& uv : mm.loop_uvs)
+                    def.uv_layer_names.push_back(uv.name);
+
+                defs.push_back(std::move(def));
+            }
+
+            // Every material index referenced by the merged faces must be
+            // covered by a def.
+            std::uint32_t maxMaterial = 0;
+            for (std::uint32_t fi = 0; fi < mm.face_count; ++fi)
+                maxMaterial = std::max(maxMaterial, mm.faces[fi * 4 + 3]);
+            REQUIRE(defs.size() > maxMaterial);
+
+            // Set up game-specific configuration.
+            const std::string gameName = path.parent_path().stem().string();
+            SplitMeshParams params;
+            if (gameName == "eldenring")
+            {
+                params.useMeshBoneIndices = false;
+                params.maxBonesPerMesh = 255;
+                params.maxVerticesPerMesh = UINT_MAX;
+            }
+
+            std::vector<Mesh> split = mm.SplitMesh(defs, params);
+            CHECK(!split.empty());
+
+            std::uint32_t splitTriangleTotal = 0;
+            std::uint32_t splitVertexTotal = 0;
+            bool splitArraysConsistent = true;
+            bool splitIndicesInRange = true;
+            bool boneListsWithinCap = true;
+
+            for (const auto& sm : split)
+            {
+                REQUIRE(sm.vertex_arrays.size() == 1);
+                REQUIRE(!sm.face_sets.empty());
+
+                const VertexArray& va = sm.vertex_arrays[0];
+                CHECK(va.vertex_count > 0);
+                splitVertexTotal += va.vertex_count;
+
+                // Decompressed buffer size must match vertex_count * stride.
+                const std::uint32_t stride = va.layout.decompressed_vertex_size;
+                CHECK(stride > 0);
+                if (va.decompressed_data.size()
+                    != static_cast<std::size_t>(va.vertex_count) * stride)
+                {
+                    splitArraysConsistent = false;
+                }
+
+                // Base face set (flags == 0) holds the triangle list.
+                const FaceSet& fs = sm.face_sets[0];
+                CHECK(!fs.is_triangle_strip);
+                CHECK(fs.vertex_indices.size() % 3 == 0);
+                splitTriangleTotal +=
+                    static_cast<std::uint32_t>(fs.vertex_indices.size() / 3);
+
+                for (const std::uint32_t vi : fs.vertex_indices)
+                    if (vi >= va.vertex_count) splitIndicesInRange = false;
+
+                // Sub-splitting must respect the default 38-bone cap.
+                if (sm.bone_indices.size() > 38u) boneListsWithinCap = false;
+            }
+
+            CHECK(splitArraysConsistent);
+            CHECK(splitIndicesInRange);
+            CHECK(boneListsWithinCap);
+            CHECK(splitVertexTotal > 0);
+
+            // Every merged triangle lands in exactly one split submesh
+            // (face_set_count == 1, so no LOD duplication inflates the total).
+            CHECK(splitTriangleTotal == mm.face_count);
+
+            MESSAGE(std::format("Split {}/{}: {} submeshes, {} verts, {} tris",
+                gameName, path.stem().string(), split.size(), splitVertexTotal, splitTriangleTotal));
         }
     }
 }

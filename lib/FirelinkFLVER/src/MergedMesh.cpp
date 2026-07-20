@@ -484,10 +484,15 @@ namespace Firelink
         // Loop arrays.
         const bool has_normal = all_field_names.contains("normal");
         const bool has_normal_w = all_field_names.contains("normal_w");
+        const bool has_bone_indices = all_field_names.contains("bone_indices");
         const bool has_bitangent = all_field_names.contains("bitangent");
 
         loop_normals.resize(has_normal ? total_loops * 3 : 0, 0.f);
-        loop_normals_w.resize(has_normal_w ? total_loops : 0, 127);
+        // Allocate normal_w whenever either normal_w or bone_indices is present: for non-dynamic mesh layouts
+        // on modern games (BB+) that encode the single static bone index in normal_w rather than a dedicated
+        // bone_indices field, the value is derived from bone_indices[0] at population time so the split step
+        // never needs to special-case it.
+        loop_normals_w.resize((has_normal_w || has_bone_indices) ? total_loops : 0, 127);
         loop_bitangents.resize(has_bitangent ? total_loops * 4 : 0, 0.f);
 
         // Count tangent and color slots.
@@ -610,13 +615,22 @@ namespace Firelink
                     }
                 }
 
-                // Normal W
-                if (has_normal_w)
+                // Normal W — also derived from bone_indices when normal_w is absent.
+                if (has_normal_w || has_bone_indices)
                 {
                     if (nw_src)
                     {
                         auto [vdata, stride] = get_va_data(mesh, *nw_src);
                         read_uint8s(vdata, stride, v, nw_src->info, &loop_normals_w[li]);
+                    }
+                    else if (bi_src)
+                    {
+                        // Derive normal_w from the first already-remapped bone index. Non-dynamic mesh
+                        // layouts in modern games encode the single static-mesh bone index in normal_w
+                        // rather than a dedicated bone_indices field; pre-deriving it here means the
+                        // split step can use it without any special-casing.
+                        loop_normals_w[li] = static_cast<std::uint8_t>(
+                            std::clamp(all_bone_indices[li * 4], 0, 255));
                     }
                     else
                     {

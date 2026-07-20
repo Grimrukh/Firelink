@@ -9,6 +9,7 @@ target_sources(FirelinkFLVER
     src/LayoutRepair.cpp
     src/Material.cpp
     src/MergedMesh.cpp
+    src/MergedMeshSplit.cpp
     src/Mesh.cpp
     src/TextureFinder.cpp
     src/Version.cpp

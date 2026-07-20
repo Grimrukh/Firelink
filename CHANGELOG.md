@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Added
 - Bloodborne (PS4) DDS texture de/swizzling support.
 - `TPFTexture::ToDDS` method added to get new `DDS` instance.
+- `MergedMeshSplit` prototype.
 
 ### Changed
 - More convenient BufferReader/Writer methods for using decoded strings.
@@ -17,6 +18,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Big-endian files (e.g. Demon's Souls) have strings decoded/encoded correctly.
 - Big-endian FLVERs have vertex data decoded/encoded correctly.
 - Some `constexpr std::string` expressions fixed (can't compile in MSVC Debug).
+- `TextureFinder` correctly finds Common* TPFs in 'parts' folder
 
 ---
 
