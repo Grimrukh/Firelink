@@ -759,7 +759,7 @@ namespace Firelink
                     w.Write<std::uint32_t>(dt.unk_x00);
                     w.Write<std::uint32_t>(dt_offset);
                     w.Write<std::uint32_t>(static_cast<std::uint32_t>(dt.format));
-                    w.Write<std::uint32_t>(FromVertexUsage(dt.usage));
+                    w.Write<std::uint32_t>(static_cast<std::uint32_t>(dt.usage));
                     w.Write<std::uint32_t>(dt.instance_index);
                     dt_offset += FormatEnumSize(dt.format);
                 }
@@ -1157,7 +1157,7 @@ namespace Firelink
                 w.Write<std::uint32_t>(dt.unk_x00);
                 w.Write<std::uint32_t>(dt_offset);
                 w.Write<std::uint32_t>(static_cast<std::uint32_t>(dt.format));
-                w.Write<std::uint32_t>(FromVertexUsage(dt.usage));
+                w.Write<std::uint32_t>(static_cast<std::uint32_t>(dt.usage));
                 w.Write<std::uint32_t>(dt.instance_index);
                 dt_offset += FormatEnumSize(dt.format);
             }

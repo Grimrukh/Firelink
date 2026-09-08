@@ -21,8 +21,10 @@
 #include <pyrelink_helpers.h>
 
 #include <cstring>
+#include <algorithm>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace py = pybind11;
@@ -113,12 +115,13 @@ void bind_firelink_flver(py::module& m)
     // Exposed directly from C++ Bone; name is already decoded UTF-8.
 
     py::class_<Bone>(m, "Bone")
-        .def_readonly("name", &Bone::name)
-        .def_readonly("usage_flags", &Bone::usage_flags)
-        .def_readonly("parent_bone_index", &Bone::parent_bone_index)
-        .def_readonly("child_bone_index", &Bone::child_bone_index)
-        .def_readonly("next_sibling_bone_index", &Bone::next_sibling_bone_index)
-        .def_readonly("previous_sibling_bone_index", &Bone::previous_sibling_bone_index)
+        .def(py::init<>())
+        .def_readwrite("name", &Bone::name)
+        .def_readwrite("usage_flags", &Bone::usage_flags)
+        .def_readwrite("parent_bone_index", &Bone::parent_bone_index)
+        .def_readwrite("child_bone_index", &Bone::child_bone_index)
+        .def_readwrite("next_sibling_bone_index", &Bone::next_sibling_bone_index)
+        .def_readwrite("previous_sibling_bone_index", &Bone::previous_sibling_bone_index)
         .def_readwrite("translate", &Bone::translate)
         .def_readwrite("rotate", &Bone::rotate)
         .def_readwrite("scale", &Bone::scale)
@@ -144,6 +147,7 @@ void bind_firelink_flver(py::module& m)
     // Exposed directly; path and texture_type are decoded UTF-8 in-place.
 
     py::class_<Texture>(m, "Texture")
+        .def(py::init<>())
         .def_readwrite("path", &Texture::path)
         .def_readwrite("texture_type", &Texture::texture_type)
         .def_readwrite("scale", &Texture::scale)
@@ -156,41 +160,65 @@ void bind_firelink_flver(py::module& m)
     // --- GXItem -------------------------------------------------------------
 
     py::class_<GXItem>(m, "GXItem")
-        // TODO: editable category (but must have length 4)
-        .def_property_readonly(
-            "category", [](const GXItem& g)
+        .def(py::init<>())
+        .def_property(
+            "category",
+            [](const GXItem& g)
             {
                 return py::bytes(g.category.data(), 4);
-            })
+            },
+            [](GXItem& g, const py::bytes& value)
+            {
+                const std::string_view sv = value;
+                if (sv.size() != 4)
+                    throw std::runtime_error("GXItem.category must be exactly 4 bytes.");
+                std::ranges::copy(sv, g.category.begin());
+            },
+            "4-byte category identifier.")
         .def_readwrite("index", &GXItem::index)
-        // TODO: editable data
-        .def_property_readonly(
-            "data", [](const GXItem& g)
+        .def_property(
+            "data",
+            [](const GXItem& g)
             {
                 return py::bytes(reinterpret_cast<const char*>(g.data.data()), g.data.size());
-            })
+            },
+            [](GXItem& g, const py::bytes& value)
+            {
+                const std::string_view sv = value;
+                g.data.assign(
+                    reinterpret_cast<const std::byte*>(sv.data()),
+                    reinterpret_cast<const std::byte*>(sv.data() + sv.size()));
+            },
+            "Raw GX item payload.")
         .def_property_readonly("is_terminator", &GXItem::IsTerminator);
 
     // --- Material -----------------------------------------------------------
     // Exposed directly; name and mat_def_path are decoded UTF-8 in-place.
 
     py::class_<Material>(m, "Material")
+        .def(py::init<>())
         .def_readwrite("name", &Material::name)
         .def_readwrite("mat_def_path", &Material::mat_def_path)
         .def_readwrite("flags", &Material::flags)
         .def_readwrite("f2_unk_x18", &Material::f2_unk_x18)
-        .def_property_readonly("textures",
+        .def_property("textures",
             [](Material& mat) -> std::vector<Texture>& {
                 return mat.textures;
             },
+            [](Material& mat, std::vector<Texture> textures) {
+                mat.textures = std::move(textures);
+            },
             py::return_value_policy::reference_internal,
-            "List of textures (mutable).")
-        .def_property_readonly("gx_items",
+            "List of textures (mutable in place; can also be reassigned wholesale).")
+        .def_property("gx_items",
             [](Material& mat) -> std::vector<GXItem>& {
                 return mat.gx_items;
             },
+            [](Material& mat, std::vector<GXItem> gx_items) {
+                mat.gx_items = std::move(gx_items);
+            },
             py::return_value_policy::reference_internal,
-            "List of GX items (mutable).");
+            "List of GX items (mutable in place; can also be reassigned wholesale).");
 
     // --- VertexUsage / VertexDataFormat / VertexDataType / VertexArrayLayout ---
     // Needed to build `SplitMeshDef.layout` for `MergedMesh.split_mesh()`.
@@ -200,10 +228,10 @@ void bind_firelink_flver(py::module& m)
         .value("BoneWeights", VertexUsage::BoneWeights)
         .value("BoneIndices", VertexUsage::BoneIndices)
         .value("Normal", VertexUsage::Normal)
+        .value("UV", VertexUsage::UV)
         .value("Tangent", VertexUsage::Tangent)
         .value("Bitangent", VertexUsage::Bitangent)
         .value("Color", VertexUsage::Color)
-        .value("UV", VertexUsage::UV)
         .value("Ignore", VertexUsage::Ignore);
 
     py::enum_<VertexDataFormatEnum>(m, "VertexDataFormat")
@@ -269,13 +297,14 @@ void bind_firelink_flver(py::module& m)
     // --- FaceSet ------------------------------------------------------------
 
     py::class_<FaceSet>(m, "FaceSet")
+        .def(py::init<>())
         .def_readwrite("flags", &FaceSet::flags)
         .def_readwrite("is_triangle_strip", &FaceSet::is_triangle_strip)
         .def_readwrite("use_backface_culling", &FaceSet::use_backface_culling)
         .def_readwrite("unk_x06", &FaceSet::unk_x06)
-        // TODO: editable vertex indices
-        .def_property_readonly(
-            "vertex_indices", [](const py::object& self)
+        .def_property(
+            "vertex_indices",
+            [](const py::object& self)
             {
                 const auto& fs = py::cast<FaceSet&>(self);
                 return py::array_t<std::uint32_t>(
@@ -284,23 +313,35 @@ void bind_firelink_flver(py::module& m)
                     fs.vertex_indices.data(),
                     self // parent: numpy array keeps FaceSet alive
                 );
+            },
+            [](FaceSet& fs, const py::array& arr)
+            {
+                py::ssize_t count = 0;
+                fs.vertex_indices = FlattenFlat<std::uint32_t>(arr, count);
             });
 
     // --- Mesh ---------------------------------------------------------------
     // Exposed directly from C++ Mesh.
 
     py::class_<Mesh>(m, "Mesh")
+        .def(py::init<>())
         .def_readwrite("is_dynamic", &Mesh::is_dynamic)
         .def_readwrite("default_bone_index", &Mesh::default_bone_index)
         .def_readwrite("bone_indices", &Mesh::bone_indices)
-        .def_property_readonly(
-            "material", [](const py::object& self)
+        .def_property(
+            "material",
+            [](const py::object& self)
             {
                 auto& mesh = py::cast<Mesh&>(self);
                 return py::cast(mesh.material, py::return_value_policy::reference_internal, self);
+            },
+            [](Mesh& mesh, Material material)
+            {
+                mesh.material = std::move(material);
             })
-        .def_property_readonly(
-            "face_sets", [](const py::object& self)
+        .def_property(
+            "face_sets",
+            [](const py::object& self)
             {
                 auto& mesh = py::cast<Mesh&>(self);
                 py::list result;
@@ -309,6 +350,10 @@ void bind_firelink_flver(py::module& m)
                     result.append(py::cast(fs, py::return_value_policy::reference_internal, self));
                 }
                 return result;
+            },
+            [](Mesh& mesh, std::vector<FaceSet> face_sets)
+            {
+                mesh.face_sets = std::move(face_sets);
             })
         .def_readwrite("uses_bounding_boxes", &Mesh::uses_bounding_boxes)
         .def_readwrite("invalid_layout", &Mesh::invalid_layout)
@@ -452,7 +497,7 @@ void bind_firelink_flver(py::module& m)
             py::arg("dim") = 2,
             py::arg("data") = std::vector<float>{},
             "One named UV layer. `data` is a flat (loop_count * dim) float array.")
-        .def_readwrite("name", &MergedMesh::UVLayer::name, "e.g. \"UVMap0\", \"UVMap1\".")
+        .def_readwrite("name", &MergedMesh::UVLayer::name, R"(e.g. "UVMap0", "UVMap1".)")
         .def_readwrite("dim", &MergedMesh::UVLayer::dim, "Columns per UV (usually 2, up to 4).")
         .def_readwrite("data", &MergedMesh::UVLayer::data, "Flat (loop_count * dim) float array.");
 
@@ -469,7 +514,7 @@ void bind_firelink_flver(py::module& m)
             {
                 const auto& mm = py::cast<MergedMesh&>(self);
                 return py::array_t<float>(
-                    {static_cast<py::ssize_t>(mm.vertex_count), py::ssize_t(3)},
+                    {static_cast<py::ssize_t>(mm.vertex_count), static_cast<py::ssize_t>(3)},
                     {3 * sizeof(float), sizeof(float)},
                     mm.positions.data(), self
                 );
@@ -487,7 +532,7 @@ void bind_firelink_flver(py::module& m)
             {
                 const auto& mm = py::cast<MergedMesh&>(self);
                 return py::array_t<float>(
-                    {static_cast<py::ssize_t>(mm.vertex_count), py::ssize_t(4)},
+                    {static_cast<py::ssize_t>(mm.vertex_count), static_cast<py::ssize_t>(4)},
                     {4 * sizeof(float), sizeof(float)},
                     mm.bone_weights.data(), self
                 );
@@ -505,7 +550,7 @@ void bind_firelink_flver(py::module& m)
             {
                 const auto& mm = py::cast<MergedMesh&>(self);
                 return py::array_t<std::int32_t>(
-                    {static_cast<py::ssize_t>(mm.vertex_count), py::ssize_t(4)},
+                    {static_cast<py::ssize_t>(mm.vertex_count), static_cast<py::ssize_t>(4)},
                     {4 * sizeof(std::int32_t), sizeof(std::int32_t)},
                     mm.bone_indices.data(), self
                 );
@@ -542,7 +587,7 @@ void bind_firelink_flver(py::module& m)
                 const auto& mm = py::cast<MergedMesh&>(self);
                 if (mm.loop_normals.empty()) return py::none();
                 return py::array_t<float>(
-                    {static_cast<py::ssize_t>(mm.total_loop_count), py::ssize_t(3)},
+                    {static_cast<py::ssize_t>(mm.total_loop_count), static_cast<py::ssize_t>(3)},
                     {3 * sizeof(float), sizeof(float)},
                     mm.loop_normals.data(), self
                 );
@@ -562,7 +607,7 @@ void bind_firelink_flver(py::module& m)
                 const auto& mm = py::cast<MergedMesh&>(self);
                 if (mm.loop_normals_w.empty()) return py::none();
                 return py::array_t<std::uint8_t>(
-                    {static_cast<py::ssize_t>(mm.total_loop_count), py::ssize_t(1)},
+                    {static_cast<py::ssize_t>(mm.total_loop_count), static_cast<py::ssize_t>(1)},
                     {sizeof(std::uint8_t), sizeof(std::uint8_t)},
                     mm.loop_normals_w.data(), self
                 );
@@ -595,7 +640,7 @@ void bind_firelink_flver(py::module& m)
                 {
                     result.append(
                         py::array_t<float>(
-                            {static_cast<py::ssize_t>(mm.total_loop_count), py::ssize_t(4)},
+                            {static_cast<py::ssize_t>(mm.total_loop_count), static_cast<py::ssize_t>(4)},
                             {4 * sizeof(float), sizeof(float)},
                             t.data(), self
                         ));
@@ -622,7 +667,7 @@ void bind_firelink_flver(py::module& m)
                 const auto& mm = py::cast<MergedMesh&>(self);
                 if (mm.loop_bitangents.empty()) return py::none();
                 return py::array_t<float>(
-                    {static_cast<py::ssize_t>(mm.total_loop_count), py::ssize_t(4)},
+                    {static_cast<py::ssize_t>(mm.total_loop_count), static_cast<py::ssize_t>(4)},
                     {4 * sizeof(float), sizeof(float)},
                     mm.loop_bitangents.data(), self
                 );
@@ -645,7 +690,7 @@ void bind_firelink_flver(py::module& m)
                 {
                     result.append(
                         py::array_t<float>(
-                            {static_cast<py::ssize_t>(mm.total_loop_count), py::ssize_t(4)},
+                            {static_cast<py::ssize_t>(mm.total_loop_count), static_cast<py::ssize_t>(4)},
                             {4 * sizeof(float), sizeof(float)},
                             c.data(), self
                         ));
@@ -731,7 +776,7 @@ void bind_firelink_flver(py::module& m)
             {
                 const auto& mm = py::cast<MergedMesh&>(self);
                 return py::array_t<std::uint32_t>(
-                    {static_cast<py::ssize_t>(mm.face_count), py::ssize_t(4)},
+                    {static_cast<py::ssize_t>(mm.face_count), static_cast<py::ssize_t>(4)},
                     {4 * sizeof(std::uint32_t), sizeof(std::uint32_t)},
                     mm.faces.data(), self
                 );
@@ -779,24 +824,33 @@ void bind_firelink_flver(py::module& m)
         .def_property("f2_unk_x5d", &FLVER::GetF2Unk5d, &FLVER::SetF2Unk5d)
         .def_property("f2_unk_x68", &FLVER::GetF2Unk68, &FLVER::SetF2Unk68)
 
-        .def_property_readonly("bones",
+        .def_property("bones",
             [](FLVER& f) -> std::vector<Bone>& {
                 return f.Bones();
             },
+            [](FLVER& f, std::vector<Bone> bones) {
+                f.Bones() = std::move(bones);
+            },
             py::return_value_policy::reference_internal,
-            "List of bones (mutable).")
-        .def_property_readonly("dummies",
+            "List of bones (mutable in place; can also be reassigned wholesale).")
+        .def_property("dummies",
             [](FLVER& f) -> std::vector<Dummy>& {
                 return f.Dummies();
             },
+            [](FLVER& f, std::vector<Dummy> dummies) {
+                f.Dummies() = std::move(dummies);
+            },
             py::return_value_policy::reference_internal,
-            "List of dummies (mutable).")
-        .def_property_readonly("meshes",
+            "List of dummies (mutable in place; can also be reassigned wholesale).")
+        .def_property("meshes",
             [](FLVER& f) -> std::vector<Mesh>& {
                 return f.Meshes();
             },
+            [](FLVER& f, std::vector<Mesh> meshes) {
+                f.Meshes() = std::move(meshes);
+            },
             py::return_value_policy::reference_internal,
-            "List of meshes (mutable).")
+            "List of meshes (mutable in place; can also be reassigned wholesale).")
 
         .def("has_cached_merged_mesh", &FLVER::HasCachedMergedMesh)
         .def("get_cached_merged_mesh", &FLVER::GetCachedMergedMesh)

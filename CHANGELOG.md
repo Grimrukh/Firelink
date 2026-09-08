@@ -5,6 +5,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## Unreleased
 
+### Changed
+- `VertexUsage` enum values correspond directly to FLVER vertex buffer usage flags.
+- Changed more read-only FLVER bindings to read/write for Python construction.
+
+### Removed
+- `ToVertexUsage`/`FromVertexUsage` functions removed, as static casts can now be used.
+
 ---
 
 ## [0.3.0] - 2026-09-08

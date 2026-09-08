@@ -78,53 +78,20 @@ namespace Firelink
         return f != VertexDataFormatEnum::EdgeCompressed;
     }
 
-    // What role a vertex-layout field plays.
-    enum class VertexUsage : std::uint8_t
+    // What role a vertex-layout field plays. Values match internal FLVER usage.
+    enum class VertexUsage : std::uint32_t
     {
-        Position,
-        BoneWeights,
-        BoneIndices,
-        Normal,
-        Tangent,
-        Bitangent,
-        Color,
-        UV,
-        Ignore,
+        Position = 0,
+        BoneWeights = 1,
+        BoneIndices = 2,
+        Normal = 3,
+        // 4 is unused.
+        UV = 5,
+        Tangent = 6,
+        Bitangent = 7,
+        Color = 10,
+        Ignore = 0xFFFFFFFF, // internal usage, not in real FLVERs
     };
-
-    // Maps Python's type_int values to C++ VertexUsage.
-    constexpr VertexUsage ToVertexUsage(const std::uint32_t type_int)
-    {
-        switch (type_int)
-        {
-        case 0: return VertexUsage::Position;
-        case 1: return VertexUsage::BoneWeights;
-        case 2: return VertexUsage::BoneIndices;
-        case 3: return VertexUsage::Normal;
-        case 5: return VertexUsage::UV;
-        case 6: return VertexUsage::Tangent;
-        case 7: return VertexUsage::Bitangent;
-        case 10: return VertexUsage::Color;
-        default: return VertexUsage::Ignore;
-        }
-    }
-
-    // Reverse of ToVertexUsage — maps C++ VertexUsage back to Python's type_int for writing.
-    constexpr std::uint32_t FromVertexUsage(const VertexUsage u)
-    {
-        switch (u)
-        {
-        case VertexUsage::Position:    return 0;
-        case VertexUsage::BoneWeights: return 1;
-        case VertexUsage::BoneIndices: return 2;
-        case VertexUsage::Normal:      return 3;
-        case VertexUsage::UV:          return 5;
-        case VertexUsage::Tangent:     return 6;
-        case VertexUsage::Bitangent:   return 7;
-        case VertexUsage::Color:       return 10;
-        default:                       return 0xFFFFFFFF;
-        }
-    }
 
     // Primitive scalar types for vertex fields.
     enum class VertexScalarType : std::uint8_t

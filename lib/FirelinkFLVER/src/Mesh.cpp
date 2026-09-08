@@ -14,7 +14,7 @@ namespace Firelink
         w.Write<std::uint32_t>(unk_x00);
         w.Write<std::uint32_t>(data_offset);
         w.Write<std::uint32_t>(static_cast<std::uint32_t>(format));
-        w.Write<std::uint32_t>(FromVertexUsage(usage));
+        w.Write<std::uint32_t>(static_cast<std::uint32_t>(usage));
         w.Write<std::uint32_t>(instance_index);
     }
 
@@ -143,8 +143,7 @@ namespace Firelink
             dt.unk_x00 = r.Read<std::uint32_t>();
             dt.data_offset = r.Read<std::uint32_t>();
             dt.format = static_cast<VertexDataFormatEnum>(r.Read<std::uint32_t>());
-            const auto type_int = r.Read<std::uint32_t>();
-            dt.usage = ToVertexUsage(type_int);
+            dt.usage = static_cast<VertexUsage>(r.Read<std::uint32_t>());
             dt.instance_index = r.Read<std::uint32_t>();
             layout.types.push_back(dt);
             tight_offset += FormatEnumSize(dt.format);
@@ -180,8 +179,7 @@ namespace Firelink
             dt.unk_x00 = r.Read<std::uint32_t>();
             dt.data_offset = r.Read<std::uint32_t>();
             dt.format = static_cast<VertexDataFormatEnum>(r.Read<std::uint32_t>());
-            const auto type_int = r.Read<std::uint32_t>();
-            dt.usage = ToVertexUsage(type_int);
+            dt.usage = static_cast<VertexUsage>(r.Read<std::uint32_t>());
             dt.instance_index = r.Read<std::uint32_t>();
 
             layout.types.push_back(dt);

@@ -49,6 +49,8 @@ class Bone:
     scale: Vector3
     bounding_box: AABB
 
+    def __init__(self) -> None: ...
+
 # --- Dummy -------------------------------------------------------------------
 
 class Dummy:
@@ -66,6 +68,8 @@ class Dummy:
     color: Color4b
     """RGBA color as bytes (0-255)."""
 
+    def __init__(self) -> None: ...
+
 # --- Texture -----------------------------------------------------------------
 
 class Texture:
@@ -81,6 +85,8 @@ class Texture:
     f2_unk_x18: float
     f2_unk_x1c: float
 
+    def __init__(self) -> None: ...
+
 # --- GXItem ------------------------------------------------------------------
 
 class GXItem:
@@ -88,14 +94,22 @@ class GXItem:
 
     index: int
 
+    def __init__(self) -> None: ...
+
     @property
     def category(self) -> bytes:
         """4-byte category identifier."""
+        ...
+    @category.setter
+    def category(self, value: bytes) -> None:
+        """Must be exactly 4 bytes."""
         ...
     @property
     def data(self) -> bytes:
         """Raw GX item payload."""
         ...
+    @data.setter
+    def data(self, value: bytes) -> None: ...
     @property
     def is_terminator(self) -> bool: ...
 
@@ -109,13 +123,23 @@ class Material:
     flags: int
     f2_unk_x18: int
 
+    def __init__(self) -> None: ...
+
     @property
     def textures(self) -> list[Texture]:
-        """Live reference to texture list (mutable)."""
+        """Live reference to texture list (mutable in place)."""
+        ...
+    @textures.setter
+    def textures(self, value: Sequence[Texture]) -> None:
+        """Reassigns the whole texture list."""
         ...
     @property
     def gx_items(self) -> list[GXItem]:
-        """Live reference to GX item list (mutable)."""
+        """Live reference to GX item list (mutable in place)."""
+        ...
+    @gx_items.setter
+    def gx_items(self, value: Sequence[GXItem]) -> None:
+        """Reassigns the whole GX item list."""
         ...
 
 # --- FaceSet -----------------------------------------------------------------
@@ -127,10 +151,14 @@ class FaceSet:
     use_backface_culling: bool
     unk_x06: int
 
+    def __init__(self) -> None: ...
+
     @property
     def vertex_indices(self) -> NDArray[np.uint32]:
-        """1-D array of vertex indices (zero-copy view)."""
+        """1-D array of vertex indices (zero-copy view when read)."""
         ...
+    @vertex_indices.setter
+    def vertex_indices(self, value: ArrayLike) -> None: ...
 
 # --- Mesh --------------------------------------------------------------------
 
@@ -143,12 +171,20 @@ class Mesh:
     invalid_layout: bool
     index: int
 
+    def __init__(self) -> None: ...
+
     @property
     def bounding_box(self) -> AABB: ...
     @property
     def material(self) -> Material: ...
+    @material.setter
+    def material(self, value: Material) -> None: ...
     @property
     def face_sets(self) -> list[FaceSet]: ...
+    @face_sets.setter
+    def face_sets(self, value: Sequence[FaceSet]) -> None:
+        """Reassigns the whole face set list."""
+        ...
     @property
     def vertex_color_count(self) -> int: ...
     @property
@@ -165,17 +201,18 @@ class Mesh:
 # --- Vertex layout types -------------------------------------------------
 
 class VertexUsage(IntEnum):
-    """What role a vertex-layout field plays."""
+    """What role a vertex-layout field plays. Values match internal FLVER enum."""
 
     Position = 0
     BoneWeights = 1
     BoneIndices = 2
-    Normal = 3
-    Tangent = 4
-    Bitangent = 5
-    Color = 6
-    UV = 7
-    Ignore = 8
+    Normal = 3,
+    # 4 is unused.
+    UV = 5
+    Tangent = 6
+    Bitangent = 7
+    Color = 10
+    Ignore = 0xFFFFFFFF # internal usage, not in real FLVERs
 
 
 class VertexDataFormat(IntEnum):
@@ -472,15 +509,27 @@ class FLVER(GameFile):
 
     @property
     def bones(self) -> list[Bone]:
-        """Live reference to bone list (mutable)."""
+        """Live reference to bone list (mutable in place)."""
+        ...
+    @bones.setter
+    def bones(self, value: Sequence[Bone]) -> None:
+        """Reassigns the whole bone list."""
         ...
     @property
     def dummies(self) -> list[Dummy]:
-        """Live reference to dummy list (mutable)."""
+        """Live reference to dummy list (mutable in place)."""
+        ...
+    @dummies.setter
+    def dummies(self, value: Sequence[Dummy]) -> None:
+        """Reassigns the whole dummy list."""
         ...
     @property
     def meshes(self) -> list[Mesh]:
-        """Live reference to mesh list (mutable)."""
+        """Live reference to mesh list (mutable in place)."""
+        ...
+    @meshes.setter
+    def meshes(self, value: Sequence[Mesh]) -> None:
+        """Reassigns the whole mesh list."""
         ...
 
     @property
