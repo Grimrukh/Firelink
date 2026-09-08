@@ -28,7 +28,7 @@ from pathlib import Path
 from typing import Sequence
 
 import numpy as np
-from numpy.typing import NDArray
+from numpy.typing import ArrayLike, NDArray
 
 from pyrelink.core import (
     GameFile, GameType, Binder, TPFTexture, Vector2, Vector3, EulerRad, Color4b, AABB
@@ -318,9 +318,37 @@ class SplitMeshParams:
 class MergedMesh:
     """Merged mesh built from all FLVER meshes, with deduplicated vertices.
 
-    Array properties are zero-copy numpy views into C++ memory; they remain
-    valid as long as this ``MergedMesh`` object is alive.
+    Can also be default-constructed and populated manually from Python (e.g.
+    to call `split_mesh()` without first building one from a `FLVER`).
+
+    Array properties are zero-copy numpy views into C++ memory when read;
+    they remain valid as long as this ``MergedMesh`` object is alive. Setters
+    accept any array-like and copy their data into the underlying C++
+    vectors, keeping `vertex_count` / `total_loop_count` / `face_count` in
+    sync with whichever array is assigned (raising if row counts conflict
+    with a previously assigned array).
     """
+
+    class UVLayer:
+        """One named UV layer. `data` is a flat ``(loop_count * dim)`` float array."""
+
+        name: str
+        """e.g. ``"UVMap0"``, ``"UVMap1"``."""
+        dim: int
+        """Columns per UV (usually 2, up to 4)."""
+        data: list[float]
+        """Flat ``(loop_count * dim)`` float array."""
+
+        def __init__(
+            self,
+            name: str = "",
+            dim: int = 2,
+            data: Sequence[float] = (),
+        ) -> None: ...
+
+    def __init__(self) -> None:
+        """Construct an empty MergedMesh to populate manually from Python."""
+        ...
 
     vertex_count: int
     total_loop_count: int
@@ -331,46 +359,73 @@ class MergedMesh:
     def positions(self) -> NDArray[np.float32]:
         """Shape ``(vertex_count, 3)``."""
         ...
+    @positions.setter
+    def positions(self, value: ArrayLike) -> None: ...
     @property
     def bone_weights(self) -> NDArray[np.float32]:
         """Shape ``(vertex_count, 4)``."""
         ...
+    @bone_weights.setter
+    def bone_weights(self, value: ArrayLike) -> None: ...
     @property
     def bone_indices(self) -> NDArray[np.int32]:
         """Shape ``(vertex_count, 4)``."""
         ...
+    @bone_indices.setter
+    def bone_indices(self, value: ArrayLike) -> None: ...
     @property
     def loop_vertex_indices(self) -> NDArray[np.uint32]:
         """Shape ``(total_loop_count,)``."""
         ...
+    @loop_vertex_indices.setter
+    def loop_vertex_indices(self, value: ArrayLike) -> None: ...
     @property
     def loop_normals(self) -> NDArray[np.float32] | None:
         """Shape ``(total_loop_count, 3)`` or ``None``."""
         ...
+    @loop_normals.setter
+    def loop_normals(self, value: ArrayLike | None) -> None: ...
     @property
     def loop_normals_w(self) -> NDArray[np.uint8] | None:
         """Shape ``(total_loop_count, 1)`` or ``None``."""
         ...
+    @loop_normals_w.setter
+    def loop_normals_w(self, value: ArrayLike | None) -> None: ...
     @property
     def loop_tangents(self) -> list[NDArray[np.float32]]:
         """List of tangent slot arrays, each shape ``(total_loop_count, 4)``."""
         ...
+    @loop_tangents.setter
+    def loop_tangents(self, value: Sequence[ArrayLike]) -> None: ...
     @property
     def loop_bitangents(self) -> NDArray[np.float32] | None:
         """Shape ``(total_loop_count, 4)`` or ``None``."""
         ...
+    @loop_bitangents.setter
+    def loop_bitangents(self, value: ArrayLike | None) -> None: ...
     @property
     def loop_vertex_colors(self) -> list[NDArray[np.float32]]:
         """List of vertex color slot arrays, each shape ``(total_loop_count, 4)``."""
         ...
+    @loop_vertex_colors.setter
+    def loop_vertex_colors(self, value: Sequence[ArrayLike]) -> None: ...
     @property
     def loop_uvs(self) -> dict[str, NDArray[np.float32]]:
         """UV layers keyed by name."""
+        ...
+    @loop_uvs.setter
+    def loop_uvs(self, value: Sequence[MergedMesh.UVLayer] | dict[str, ArrayLike]) -> None:
+        """Settable from a list of `MergedMesh.UVLayer` (preserves order and
+        each layer's exact `dim`), or a dict of name -> (N, dim) array-like
+        (dim inferred per-entry) for convenience.
+        """
         ...
     @property
     def faces(self) -> NDArray[np.uint32]:
         """Shape ``(face_count, 4)``."""
         ...
+    @faces.setter
+    def faces(self, value: ArrayLike) -> None: ...
 
     def split_mesh(
         self,

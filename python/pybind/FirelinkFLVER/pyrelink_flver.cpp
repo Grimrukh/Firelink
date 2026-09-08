@@ -30,6 +30,62 @@ using namespace Firelink;
 
 void bind_firelink_flver_texture_finder(py::module& m);
 
+namespace
+{
+    // --- Helpers for settable MergedMesh array properties -----------------
+    // These convert incoming Python array-likes (numpy arrays, lists, etc.)
+    // into flat C++ vectors, validating/deriving row counts along the way.
+
+    // Flattens a 2-D array-like of shape (rows, cols) into a row-major
+    // std::vector<T>, coercing the dtype via `forcecast`. Writes the row
+    // count to `rows_out`.
+    template <typename T>
+    std::vector<T> FlattenRows(const py::array& arr, py::ssize_t cols, py::ssize_t& rows_out)
+    {
+        const auto buf = py::array_t<T, py::array::c_style | py::array::forcecast>::ensure(arr);
+        if (!buf) throw std::runtime_error("Could not convert array to the expected dtype.");
+        if (buf.ndim() != 2 || buf.shape(1) != cols)
+        {
+            throw std::runtime_error(
+                "Expected an array of shape (N, " + std::to_string(cols) + "), got ndim=" +
+                std::to_string(buf.ndim()) + (buf.ndim() == 2
+                    ? (", cols=" + std::to_string(buf.shape(1))) : "") + ".");
+        }
+        rows_out = buf.shape(0);
+        const T* data = buf.data();
+        return std::vector<T>(data, data + buf.size());
+    }
+
+    // Flattens a 1-D array-like into a std::vector<T>, coercing the dtype.
+    // Writes the element count to `count_out`.
+    template <typename T>
+    std::vector<T> FlattenFlat(const py::array& arr, py::ssize_t& count_out)
+    {
+        const auto buf = py::array_t<T, py::array::c_style | py::array::forcecast>::ensure(arr);
+        if (!buf) throw std::runtime_error("Could not convert array to the expected dtype.");
+        if (buf.ndim() != 1)
+            throw std::runtime_error("Expected a 1-D array.");
+        count_out = buf.shape(0);
+        const T* data = buf.data();
+        return std::vector<T>(data, data + buf.size());
+    }
+
+    // Validates that `count` is consistent with `field`'s current value (if
+    // already set), or otherwise adopts `count` as the new value. Used to
+    // keep `vertex_count` / `total_loop_count` / `face_count` in sync with
+    // whichever array is assigned.
+    void SyncCount(std::uint32_t& field, const py::ssize_t count, const char* propertyName)
+    {
+        if (field != 0 && static_cast<py::ssize_t>(field) != count)
+        {
+            throw std::runtime_error(
+                std::string("Length mismatch setting '") + propertyName + "': expected " +
+                std::to_string(field) + " rows but got " + std::to_string(count) + ".");
+        }
+        field = static_cast<std::uint32_t>(count);
+    }
+} // namespace
+
 void bind_firelink_flver(py::module& m)
 {
     m.doc() = "C++ FLVER reader with pybind11 bindings";
@@ -374,18 +430,42 @@ void bind_firelink_flver(py::module& m)
         .def_readwrite("is_flver0", &SplitMeshParams::isFlver0);
 
     // --- MergedMesh ---------------------------------------------------------
-    // Exposes flat arrays as zero-copy numpy views into the C++ vectors.
-    // All numpy arrays use `self` as the base object so the MergedMesh (and
-    // its data) stays alive as long as any array view exists.
+    // Exposes flat arrays as zero-copy numpy views into the C++ vectors for
+    // reading. Setters accept array-likes (numpy arrays, lists, etc.), copy
+    // their data into the underlying vectors, and keep `vertex_count` /
+    // `total_loop_count` / `face_count` in sync so that a `MergedMesh` can be
+    // constructed and populated entirely from Python (e.g. to call
+    // `split_mesh()` without first building one from a `FLVER`).
 
-    py::class_<MergedMesh>(m, "MergedMesh")
-        .def_readonly("vertex_count", &MergedMesh::vertex_count)
-        .def_readonly("total_loop_count", &MergedMesh::total_loop_count)
-        .def_readonly("face_count", &MergedMesh::face_count)
-        .def_readonly("vertices_merged", &MergedMesh::vertices_merged)
+    auto merged_mesh = py::class_<MergedMesh>(m, "MergedMesh");
 
-        .def_property_readonly(
-            "positions", [](const py::object& self)
+    py::class_<MergedMesh::UVLayer>(merged_mesh, "UVLayer")
+        .def(py::init([](std::string name, const std::uint32_t dim, std::vector<float> data)
+            {
+                MergedMesh::UVLayer layer;
+                layer.name = std::move(name);
+                layer.dim = dim;
+                layer.data = std::move(data);
+                return layer;
+            }),
+            py::arg("name") = std::string(),
+            py::arg("dim") = 2,
+            py::arg("data") = std::vector<float>{},
+            "One named UV layer. `data` is a flat (loop_count * dim) float array.")
+        .def_readwrite("name", &MergedMesh::UVLayer::name, "e.g. \"UVMap0\", \"UVMap1\".")
+        .def_readwrite("dim", &MergedMesh::UVLayer::dim, "Columns per UV (usually 2, up to 4).")
+        .def_readwrite("data", &MergedMesh::UVLayer::data, "Flat (loop_count * dim) float array.");
+
+    merged_mesh
+        .def(py::init<>(), "Construct an empty MergedMesh to populate manually from Python.")
+        .def_readwrite("vertex_count", &MergedMesh::vertex_count)
+        .def_readwrite("total_loop_count", &MergedMesh::total_loop_count)
+        .def_readwrite("face_count", &MergedMesh::face_count)
+        .def_readwrite("vertices_merged", &MergedMesh::vertices_merged)
+
+        .def_property(
+            "positions",
+            [](const py::object& self)
             {
                 const auto& mm = py::cast<MergedMesh&>(self);
                 return py::array_t<float>(
@@ -393,9 +473,17 @@ void bind_firelink_flver(py::module& m)
                     {3 * sizeof(float), sizeof(float)},
                     mm.positions.data(), self
                 );
-            })
-        .def_property_readonly(
-            "bone_weights", [](const py::object& self)
+            },
+            [](MergedMesh& mm, const py::array& arr)
+            {
+                py::ssize_t rows = 0;
+                mm.positions = FlattenRows<float>(arr, 3, rows);
+                SyncCount(mm.vertex_count, rows, "positions");
+            },
+            "Shape (vertex_count, 3).")
+        .def_property(
+            "bone_weights",
+            [](const py::object& self)
             {
                 const auto& mm = py::cast<MergedMesh&>(self);
                 return py::array_t<float>(
@@ -403,9 +491,17 @@ void bind_firelink_flver(py::module& m)
                     {4 * sizeof(float), sizeof(float)},
                     mm.bone_weights.data(), self
                 );
-            })
-        .def_property_readonly(
-            "bone_indices", [](const py::object& self)
+            },
+            [](MergedMesh& mm, const py::array& arr)
+            {
+                py::ssize_t rows = 0;
+                mm.bone_weights = FlattenRows<float>(arr, 4, rows);
+                SyncCount(mm.vertex_count, rows, "bone_weights");
+            },
+            "Shape (vertex_count, 4).")
+        .def_property(
+            "bone_indices",
+            [](const py::object& self)
             {
                 const auto& mm = py::cast<MergedMesh&>(self);
                 return py::array_t<std::int32_t>(
@@ -413,9 +509,17 @@ void bind_firelink_flver(py::module& m)
                     {4 * sizeof(std::int32_t), sizeof(std::int32_t)},
                     mm.bone_indices.data(), self
                 );
-            })
-        .def_property_readonly(
-            "loop_vertex_indices", [](const py::object& self)
+            },
+            [](MergedMesh& mm, const py::array& arr)
+            {
+                py::ssize_t rows = 0;
+                mm.bone_indices = FlattenRows<std::int32_t>(arr, 4, rows);
+                SyncCount(mm.vertex_count, rows, "bone_indices");
+            },
+            "Shape (vertex_count, 4).")
+        .def_property(
+            "loop_vertex_indices",
+            [](const py::object& self)
             {
                 const auto& mm = py::cast<MergedMesh&>(self);
                 return py::array_t<std::uint32_t>(
@@ -423,9 +527,17 @@ void bind_firelink_flver(py::module& m)
                     {sizeof(std::uint32_t)},
                     mm.loop_vertex_indices.data(), self
                 );
-            })
-        .def_property_readonly(
-            "loop_normals", [](const py::object& self) -> py::object
+            },
+            [](MergedMesh& mm, const py::array& arr)
+            {
+                py::ssize_t count = 0;
+                mm.loop_vertex_indices = FlattenFlat<std::uint32_t>(arr, count);
+                SyncCount(mm.total_loop_count, count, "loop_vertex_indices");
+            },
+            "Shape (total_loop_count,).")
+        .def_property(
+            "loop_normals",
+            [](const py::object& self) -> py::object
             {
                 const auto& mm = py::cast<MergedMesh&>(self);
                 if (mm.loop_normals.empty()) return py::none();
@@ -434,9 +546,18 @@ void bind_firelink_flver(py::module& m)
                     {3 * sizeof(float), sizeof(float)},
                     mm.loop_normals.data(), self
                 );
-            })
-        .def_property_readonly(
-            "loop_normals_w", [](const py::object& self) -> py::object
+            },
+            [](MergedMesh& mm, const py::object& value)
+            {
+                if (value.is_none()) { mm.loop_normals.clear(); return; }
+                py::ssize_t rows = 0;
+                mm.loop_normals = FlattenRows<float>(py::cast<py::array>(value), 3, rows);
+                SyncCount(mm.total_loop_count, rows, "loop_normals");
+            },
+            "Shape (total_loop_count, 3) or None.")
+        .def_property(
+            "loop_normals_w",
+            [](const py::object& self) -> py::object
             {
                 const auto& mm = py::cast<MergedMesh&>(self);
                 if (mm.loop_normals_w.empty()) return py::none();
@@ -445,9 +566,28 @@ void bind_firelink_flver(py::module& m)
                     {sizeof(std::uint8_t), sizeof(std::uint8_t)},
                     mm.loop_normals_w.data(), self
                 );
-            })
-        .def_property_readonly(
-            "loop_tangents", [](const py::object& self)
+            },
+            [](MergedMesh& mm, const py::object& value)
+            {
+                if (value.is_none()) { mm.loop_normals_w.clear(); return; }
+                py::ssize_t count = 0;
+                const auto arr = py::cast<py::array>(value);
+                if (arr.ndim() == 2)
+                {
+                    py::ssize_t rows = 0;
+                    mm.loop_normals_w = FlattenRows<std::uint8_t>(arr, 1, rows);
+                    count = rows;
+                }
+                else
+                {
+                    mm.loop_normals_w = FlattenFlat<std::uint8_t>(arr, count);
+                }
+                SyncCount(mm.total_loop_count, count, "loop_normals_w");
+            },
+            "Shape (total_loop_count, 1) or None.")
+        .def_property(
+            "loop_tangents",
+            [](const py::object& self)
             {
                 const auto& mm = py::cast<MergedMesh&>(self);
                 py::list result;
@@ -461,9 +601,23 @@ void bind_firelink_flver(py::module& m)
                         ));
                 }
                 return result;
-            })
-        .def_property_readonly(
-            "loop_bitangents", [](const py::object& self) -> py::object
+            },
+            [](MergedMesh& mm, const std::vector<py::array>& slots)
+            {
+                std::vector<std::vector<float>> tangents;
+                tangents.reserve(slots.size());
+                for (const auto& slot : slots)
+                {
+                    py::ssize_t rows = 0;
+                    tangents.push_back(FlattenRows<float>(slot, 4, rows));
+                    SyncCount(mm.total_loop_count, rows, "loop_tangents");
+                }
+                mm.loop_tangents = std::move(tangents);
+            },
+            "List of tangent slot arrays, each shape (total_loop_count, 4).")
+        .def_property(
+            "loop_bitangents",
+            [](const py::object& self) -> py::object
             {
                 const auto& mm = py::cast<MergedMesh&>(self);
                 if (mm.loop_bitangents.empty()) return py::none();
@@ -472,9 +626,18 @@ void bind_firelink_flver(py::module& m)
                     {4 * sizeof(float), sizeof(float)},
                     mm.loop_bitangents.data(), self
                 );
-            })
-        .def_property_readonly(
-            "loop_vertex_colors", [](const py::object& self)
+            },
+            [](MergedMesh& mm, const py::object& value)
+            {
+                if (value.is_none()) { mm.loop_bitangents.clear(); return; }
+                py::ssize_t rows = 0;
+                mm.loop_bitangents = FlattenRows<float>(py::cast<py::array>(value), 4, rows);
+                SyncCount(mm.total_loop_count, rows, "loop_bitangents");
+            },
+            "Shape (total_loop_count, 4) or None.")
+        .def_property(
+            "loop_vertex_colors",
+            [](const py::object& self)
             {
                 const auto& mm = py::cast<MergedMesh&>(self);
                 py::list result;
@@ -488,9 +651,23 @@ void bind_firelink_flver(py::module& m)
                         ));
                 }
                 return result;
-            })
-        .def_property_readonly(
-            "loop_uvs", [](const py::object& self)
+            },
+            [](MergedMesh& mm, const std::vector<py::array>& slots)
+            {
+                std::vector<std::vector<float>> colors;
+                colors.reserve(slots.size());
+                for (const auto& slot : slots)
+                {
+                    py::ssize_t rows = 0;
+                    colors.push_back(FlattenRows<float>(slot, 4, rows));
+                    SyncCount(mm.total_loop_count, rows, "loop_vertex_colors");
+                }
+                mm.loop_vertex_colors = std::move(colors);
+            },
+            "List of vertex color slot arrays, each shape (total_loop_count, 4).")
+        .def_property(
+            "loop_uvs",
+            [](const py::object& self)
             {
                 const auto& mm = py::cast<MergedMesh&>(self);
                 py::dict result;
@@ -509,9 +686,48 @@ void bind_firelink_flver(py::module& m)
                     );
                 }
                 return result;
-            })
-        .def_property_readonly(
-            "faces", [](const py::object& self)
+            },
+            [](MergedMesh& mm, const py::object& value)
+            {
+                // Accepts either a list of `MergedMesh.UVLayer` (preserves order
+                // and per-layer `dim` exactly), or a dict of name -> (N, dim)
+                // array-like (dim inferred per-entry) for convenience.
+                std::vector<MergedMesh::UVLayer> layers;
+                if (py::isinstance<py::dict>(value))
+                {
+                    for (auto item : py::cast<py::dict>(value))
+                    {
+                        const auto arr = py::cast<py::array>(item.second);
+                        if (arr.ndim() != 2)
+                            throw std::runtime_error("UV layer array must be 2-D (N, dim).");
+                        MergedMesh::UVLayer layer;
+                        layer.name = py::cast<std::string>(item.first);
+                        layer.dim = static_cast<std::uint32_t>(arr.shape(1));
+                        py::ssize_t rows = 0;
+                        layer.data = FlattenRows<float>(arr, arr.shape(1), rows);
+                        SyncCount(mm.total_loop_count, rows, "loop_uvs");
+                        layers.push_back(std::move(layer));
+                    }
+                }
+                else
+                {
+                    layers = py::cast<std::vector<MergedMesh::UVLayer>>(value);
+                    for (const auto& layer : layers)
+                    {
+                        if (layer.dim == 0) continue;
+                        SyncCount(
+                            mm.total_loop_count,
+                            static_cast<py::ssize_t>(layer.data.size() / layer.dim),
+                            "loop_uvs");
+                    }
+                }
+                mm.loop_uvs = std::move(layers);
+            },
+            "UV layers keyed by name (dict getter). Settable from a dict of "
+            "name -> (N, dim) arrays, or a list of `MergedMesh.UVLayer`.")
+        .def_property(
+            "faces",
+            [](const py::object& self)
             {
                 const auto& mm = py::cast<MergedMesh&>(self);
                 return py::array_t<std::uint32_t>(
@@ -519,7 +735,14 @@ void bind_firelink_flver(py::module& m)
                     {4 * sizeof(std::uint32_t), sizeof(std::uint32_t)},
                     mm.faces.data(), self
                 );
-            })
+            },
+            [](MergedMesh& mm, const py::array& arr)
+            {
+                py::ssize_t rows = 0;
+                mm.faces = FlattenRows<std::uint32_t>(arr, 4, rows);
+                SyncCount(mm.face_count, rows, "faces");
+            },
+            "Shape (face_count, 4).")
         .def(
             "split_mesh", &MergedMesh::SplitMesh,
             py::arg("split_mesh_defs"),

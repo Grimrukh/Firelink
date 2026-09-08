@@ -141,6 +141,11 @@ namespace Firelink
         // Whether vertices were merged (vs simply stacked).
         bool vertices_merged = false;
 
+        // Default-constructs an empty MergedMesh, e.g. for callers (such as Python
+        // bindings) that want to populate the arrays manually before calling
+        // `SplitMesh()`, rather than building from a parsed FLVER.
+        MergedMesh() = default;
+
         /*! @brief Build a MergedMesh from a parsed FLVER.
          *
          *  @details This is the main entry point.
