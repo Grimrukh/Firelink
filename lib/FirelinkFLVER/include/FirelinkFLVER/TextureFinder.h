@@ -1,4 +1,4 @@
-// ImageImportManager — lazy texture discovery and caching for FromSoftware games.
+// TextureFinder — lazy texture discovery and caching for FromSoftware games.
 //
 // Given a game type and data root, registers known texture source locations
 // (Binders, TPFs, loose files) for a given FLVER file, then lazily loads
@@ -40,7 +40,8 @@ namespace Firelink
         /// @brief Construct a manager for the given game.
         /// @param game       Which FromSoftware game.
         /// @param dataRoot  Root of unpacked game data (e.g. "DARK SOULS REMASTERED", "ELDEN RING/Game").
-        TextureFinder(GameType game, std::filesystem::path dataRoot);
+        /// @param generosity  Generosity level: search in other locations that may be used lazily by assets.
+        TextureFinder(GameType game, std::filesystem::path dataRoot, unsigned int generosity = 0);
 
         /// @brief Register texture source locations for a FLVER loaded from `flver_source_path`.
         ///
@@ -86,6 +87,9 @@ namespace Firelink
         // Game data root, required to find arbitrary textures (not bundled in/adjacent to FLVERs/BNDs).
         std::filesystem::path m_dataRoot;
 
+        // Generosity level: search in other locations that may be used lazily by assets.
+        unsigned int m_generosity = 0;
+
         // Pending binder file paths (lowercase stem -> full path). Not yet opened.
         std::unordered_map<std::string, std::filesystem::path> m_pendingBinderPaths;
 
@@ -100,6 +104,9 @@ namespace Firelink
         std::unordered_set<std::string> m_loadedTpfStems;
         std::unordered_set<std::string> m_loadedBinderPaths;
 
+        // Directories that have already been fully scanned for TPFs (e.g. 'map/tx' in PTDE).
+        std::unordered_set<std::string> m_scannedDirs;
+
         // Textures that could not be found and need not be searched for again (global process).
         std::unordered_set<std::string> m_missingStems;
 
@@ -107,14 +114,35 @@ namespace Firelink
 
         // --- Registration helpers (no locking — caller must hold unique lock) ---
 
-        void RegisterMapTextures(const std::filesystem::path& sourceDir);
+        //! @brief Register sources for all Map Piece models that may be in specific `mapBlockDir`.
+        //! @param mapBlockDir  Directory containing Map Piece FLVER models (e.g. "{root}/map/m10_00_00_00").
+        void RegisterSpecificMapTextures(const std::filesystem::path& mapBlockDir);
+
+        //! @brief Register sources for all Map Piece models that may use shared textures in `mapAreaDir`.
+        //! @details Looks for TPFBHD/BDT split binders and multi-texture TPF files (e.g. 'm10_9999.tpf').
+        //! @param mapAreaDir  Directory containing shared map area textures (e.g. "{root}/map/m10").
         void RegisterMapAreaTextures(const std::filesystem::path& mapAreaDir);
-        void RegisterTPFsInDir(const std::filesystem::path& dir, const std::string& glob = "*.tpf");
-        void RegisterChrLooseTPFs(const std::filesystem::path& dir);
-        void RegisterChrTPFBDTs(const std::filesystem::path& source_dir, const Binder& chrbnd);
-        void RegisterChrTexbnd(const std::filesystem::path& source_dir, const std::string& model_stem, const std::string& res);
-        void RegisterPartsCommonTPFs(const std::filesystem::path& partsDir);
-        void ScanBinderForTPFs(const Binder& binder);
+
+        //! @brief Register all TPFs in a directory matching the given glob pattern.
+        //! @details Used in PTDE ('map/tx' and 'chr/cXXXX' subfolders) and DeS ('chr') only.
+        //! @returns List of lower-case file stems found in directory.
+        std::vector<std::string> RegisterTPFsInDir(const std::filesystem::path& dir, const std::string& glob = "*.tpf");
+
+        //! @brief Register all TPFs in split BND (TPFBHD/TPFBDT) for a given character model.
+        //! @details Used in DSR only.
+        void RegisterChrTPFBDTs(const std::filesystem::path& chrDir, const Binder& chrbnd);
+
+        //! @brief Register all TPFs in TEXBND for a given character model (e.g. 'chr/c1234.texbnd').
+        //! @details Used since Dark Souls 3 (so Sekiro, Elden Ring).
+        void RegisterChrTexbnd(const std::filesystem::path& chrDir, const std::string& modelStem, const std::string& res);
+
+        //! @brief Find and immediately load all textures in 'parts/Common*.tpf'.
+        //! @details Always called on TextureFinder construction, since these textures can appear anywhere.
+        void LoadPartsCommonTPFs(const std::filesystem::path& partsDir);
+
+        //! @brief Scan a Binder for TPFs and register them as pending TPF sources, awaiting
+        //! texture match later. Does not load TPFs immediately.
+        void RegisterAllTPFsInBinder(const Binder& binder);
 
         // --- Registration helpers for specific texture stems that can be found from the data root ---
 
@@ -126,15 +154,22 @@ namespace Firelink
         //! @returns True if texture source is found and registered, false otherwise.
         bool RegisterSpecificObjectTexture(const std::string& textureStem);
 
-        //! @brief Find a 'mXX_*' texture in {data}/map/mXX.
-        //! @details Also searches in 'map/tx' for loose TPFs in PTDE.
-        //! @returns True if texture source is found and registered, false otherwise.
-        bool RegisterSpecificMapTexture(const std::string& textureStem);
-
         // --- First-time stem registration for Binders/TPFs ---
 
+        //! @brief Add given Binder to pending Binder list.
+        //! @details Pending bindings are only ever loaded as a last resort when a texture cannot
+        //! be found in any loaded TPFs. This requires generosity level 1 or higher.
+        //! @todo Not currently used anywhere, as all known relevant Binders are immediately loaded.
         void RegisterBinder(const std::filesystem::path& binderPath);
+
+        //! @brief Add given TPF to pending TPF list (from path).
+        //! @details Pending TPFs are loaded when their names are detected to be a good match
+        //! for a requested texture (either an exact match or a prefix match). No generosity required.
         void RegisterTPF(const std::filesystem::path& tpfPath);
+
+        //! @brief Add given TPF to pending TPF list (from Binder entry).
+        //! @details Pending TPFs are loaded when their names are detected to be a good match
+        //! for a requested texture (either an exact match or a prefix match). No generosity required.
         void RegisterTPF(const std::shared_ptr<BinderEntry>& tpfBinderEntry);
 
         // --- Lazy loading helpers (no locking — caller must hold unique lock) ---

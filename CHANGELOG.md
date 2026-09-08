@@ -19,6 +19,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Big-endian FLVERs have vertex data decoded/encoded correctly.
 - Some `constexpr std::string` expressions fixed (can't compile in MSVC Debug).
 - `TextureFinder` correctly finds Common* TPFs in 'parts' folder
+- `TextureFinder` correctly loads loose map TPFs
 
 ---
 
