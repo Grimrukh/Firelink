@@ -10,6 +10,12 @@ __all__ = [
     "Material",
     "FaceSet",
     "Mesh",
+    "VertexUsage",
+    "VertexDataFormat",
+    "VertexDataType",
+    "VertexArrayLayout",
+    "SplitMeshDef",
+    "SplitMeshParams",
     "MergedMesh",
     "FLVER",
     # TextureFinder
@@ -156,6 +162,157 @@ class Mesh:
         """Value of first FaceSet; raises if FaceSets disagree."""
         ...
 
+# --- Vertex layout types -------------------------------------------------
+
+class VertexUsage(IntEnum):
+    """What role a vertex-layout field plays."""
+
+    Position = 0
+    BoneWeights = 1
+    BoneIndices = 2
+    Normal = 3
+    Tangent = 4
+    Bitangent = 5
+    Color = 6
+    UV = 7
+    Ignore = 8
+
+
+class VertexDataFormat(IntEnum):
+    """Raw on-disk vertex field format code."""
+
+    TwoFloats = 0x01
+    ThreeFloats = 0x02
+    FourFloats = 0x03
+    FourBytesA = 0x10
+    FourBytesB = 0x11
+    FourBytesC = 0x13
+    FourBytesD_NormalW = 0x12
+    TwoShorts = 0x15
+    FourShorts = 0x16
+    FourShortsBones = 0x18
+    FourShortsToFloats = 0x1A
+    FourShortsToFloatsB = 0x2E
+    FourBytesE = 0x2F
+    EdgeCompressed = 0xF0
+    Ignored = 0xFF
+
+
+class VertexDataType:
+    """A single field in a vertex layout."""
+
+    usage: VertexUsage
+    format: VertexDataFormat
+    instance_index: int
+    """For multi-instance usages (uv_0, uv_1, color_0, ...)."""
+    unk_x00: int
+    data_offset: int
+    """Byte offset of this field within the compressed vertex."""
+
+    def __init__(
+        self,
+        usage: VertexUsage = VertexUsage.Ignore,
+        format: VertexDataFormat = VertexDataFormat.Ignored,
+        instance_index: int = 0,
+        unk_x00: int = 0,
+        data_offset: int = 0,
+    ) -> None: ...
+    @property
+    def compressed_size(self) -> int:
+        """Size on disk."""
+        ...
+
+
+class VertexArrayLayout:
+    """Ordered list of `VertexDataType` fields describing a decompressed vertex."""
+
+    types: list[VertexDataType]
+
+    def __init__(self, types: Sequence[VertexDataType] = ()) -> None: ...
+    @property
+    def compressed_vertex_size(self) -> int:
+        """Cached total; filled in on read/build."""
+        ...
+    @property
+    def decompressed_vertex_size(self) -> int:
+        """Stride of the decompressed interleaved buffer."""
+        ...
+    def get_compressed_vertex_size(self) -> int:
+        """Compute compressed vertex size for writing."""
+        ...
+    def get_hash(self) -> int: ...
+
+# --- SplitMeshDef / SplitMeshParams -------------------------------------------
+
+class SplitMeshDef:
+    """One output FLVER submesh definition, supplied per distinct value of
+    ``MergedMesh.faces[:, 3]``.
+    """
+
+    material: Material
+    layout: VertexArrayLayout
+    """Target (decompressed) layout for this submesh."""
+    is_dynamic: bool
+    """Skinned (always `bone_indices`) vs rigid (`normal_w` bone in newer games)."""
+    use_backface_culling: bool
+    default_bone_index: int
+    uses_bounding_boxes: bool
+    face_set_count: int
+    """1..3; >1 duplicates the base face set as LOD copies."""
+    uv_layer_names: list[str]
+    """Global UV layer names (keys in `MergedMesh.loop_uvs`) feeding each local
+    ``uv_<i>`` field of `layout`, indexed by local UV slot. If empty, each local
+    slot defaults to "UVMap<i>".
+    """
+
+    def __init__(
+        self,
+        material: Material,
+        layout: VertexArrayLayout,
+        is_dynamic: bool = False,
+        use_backface_culling: bool = True,
+        default_bone_index: int = 0,
+        uses_bounding_boxes: bool = True,
+        face_set_count: int = 1,
+        uv_layer_names: Sequence[str] = (),
+    ) -> None: ...
+
+
+class SplitMeshParams:
+    """Settings for `MergedMesh.split_mesh()`.
+
+    Defaults are geared towards Dark Souls 1 (PTDE/DSR).
+    """
+
+    use_mesh_bone_indices: bool
+    """Whether vertex bone indices index into local mesh bone indices array
+    (True, older games) or into the global FLVER bones (False, newer games).
+    """
+    max_bones_per_mesh: int
+    """Maximum number of bones per FLVER mesh. Additional meshes are created
+    automatically as required if this capacity is reached.
+    """
+    unused_bone_indices_are_minus_one: bool
+    """If True, unused bone indices (zero weight) are marked -1 instead of 0."""
+    normal_tangent_dot_threshold: float
+    """Minimum dot product for merging FLVER vertices based on normal/tangent
+    similarity. 1.0 (default) requires an exact match.
+    """
+    max_vertices_per_mesh: int
+    """Maximum number of vertices per mesh (0 means unconstrained)."""
+    is_flver0: bool
+    """Whether this is an old `FLVER0` (e.g., Demon's Souls)."""
+
+    def __init__(
+        self,
+        use_mesh_bone_indices: bool = True,
+        max_bones_per_mesh: int = 38,
+        unused_bone_indices_are_minus_one: bool = False,
+        normal_tangent_dot_threshold: float = 1.0,
+        max_vertices_per_mesh: int = 0,
+        is_flver0: bool = False,
+    ) -> None: ...
+
 # --- MergedMesh --------------------------------------------------------------
 
 class MergedMesh:
@@ -213,6 +370,17 @@ class MergedMesh:
     @property
     def faces(self) -> NDArray[np.uint32]:
         """Shape ``(face_count, 4)``."""
+        ...
+
+    def split_mesh(
+        self,
+        split_mesh_defs: Sequence[SplitMeshDef],
+        params: SplitMeshParams,
+    ) -> list[Mesh]:
+        """Split this merged mesh into FLVER submeshes, one per entry of
+        `split_mesh_defs` (and possibly several per entry, when bone-count
+        sub-splitting is required).
+        """
         ...
 
 # --- FLVER -------------------------------------------------------------------

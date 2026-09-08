@@ -8,7 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Added
 - Bloodborne (PS4) DDS texture de/swizzling support.
 - `TPFTexture::ToDDS` method added to get new `DDS` instance.
-- `MergedMeshSplit` prototype.
+- `MergedMeshSplit` prototype with Python bindings.
 
 ### Changed
 - More convenient BufferReader/Writer methods for using decoded strings.

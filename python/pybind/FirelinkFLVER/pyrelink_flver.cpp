@@ -136,6 +136,80 @@ void bind_firelink_flver(py::module& m)
             py::return_value_policy::reference_internal,
             "List of GX items (mutable).");
 
+    // --- VertexUsage / VertexDataFormat / VertexDataType / VertexArrayLayout ---
+    // Needed to build `SplitMeshDef.layout` for `MergedMesh.split_mesh()`.
+
+    py::enum_<VertexUsage>(m, "VertexUsage")
+        .value("Position", VertexUsage::Position)
+        .value("BoneWeights", VertexUsage::BoneWeights)
+        .value("BoneIndices", VertexUsage::BoneIndices)
+        .value("Normal", VertexUsage::Normal)
+        .value("Tangent", VertexUsage::Tangent)
+        .value("Bitangent", VertexUsage::Bitangent)
+        .value("Color", VertexUsage::Color)
+        .value("UV", VertexUsage::UV)
+        .value("Ignore", VertexUsage::Ignore);
+
+    py::enum_<VertexDataFormatEnum>(m, "VertexDataFormat")
+        .value("TwoFloats", VertexDataFormatEnum::TwoFloats)
+        .value("ThreeFloats", VertexDataFormatEnum::ThreeFloats)
+        .value("FourFloats", VertexDataFormatEnum::FourFloats)
+        .value("FourBytesA", VertexDataFormatEnum::FourBytesA)
+        .value("FourBytesB", VertexDataFormatEnum::FourBytesB)
+        .value("FourBytesC", VertexDataFormatEnum::FourBytesC)
+        .value("FourBytesD_NormalW", VertexDataFormatEnum::FourBytesD_NormalW)
+        .value("TwoShorts", VertexDataFormatEnum::TwoShorts)
+        .value("FourShorts", VertexDataFormatEnum::FourShorts)
+        .value("FourShortsBones", VertexDataFormatEnum::FourShortsBones)
+        .value("FourShortsToFloats", VertexDataFormatEnum::FourShortsToFloats)
+        .value("FourShortsToFloatsB", VertexDataFormatEnum::FourShortsToFloatsB)
+        .value("FourBytesE", VertexDataFormatEnum::FourBytesE)
+        .value("EdgeCompressed", VertexDataFormatEnum::EdgeCompressed)
+        .value("Ignored", VertexDataFormatEnum::Ignored);
+
+    py::class_<VertexDataType>(m, "VertexDataType")
+        .def(py::init([](
+            const VertexUsage usage,
+            const VertexDataFormatEnum format,
+            const std::uint32_t instance_index,
+            const std::uint32_t unk_x00,
+            const std::uint32_t data_offset)
+            {
+                VertexDataType vdt;
+                vdt.usage = usage;
+                vdt.format = format;
+                vdt.instance_index = instance_index;
+                vdt.unk_x00 = unk_x00;
+                vdt.data_offset = data_offset;
+                return vdt;
+            }),
+            py::arg("usage") = VertexUsage::Ignore,
+            py::arg("format") = VertexDataFormatEnum::Ignored,
+            py::arg("instance_index") = 0,
+            py::arg("unk_x00") = 0,
+            py::arg("data_offset") = 0)
+        .def_readwrite("usage", &VertexDataType::usage)
+        .def_readwrite("format", &VertexDataType::format)
+        .def_readwrite("instance_index", &VertexDataType::instance_index)
+        .def_readwrite("unk_x00", &VertexDataType::unk_x00)
+        .def_readwrite("data_offset", &VertexDataType::data_offset)
+        .def_property_readonly("compressed_size", &VertexDataType::CompressedSize);
+
+    py::class_<VertexArrayLayout>(m, "VertexArrayLayout")
+        .def(py::init([](std::vector<VertexDataType> types)
+            {
+                VertexArrayLayout layout;
+                layout.types = std::move(types);
+                return layout;
+            }),
+            py::arg("types") = std::vector<VertexDataType>{})
+        .def_readwrite("types", &VertexArrayLayout::types)
+        .def_readonly("compressed_vertex_size", &VertexArrayLayout::compressed_vertex_size)
+        .def_readonly("decompressed_vertex_size", &VertexArrayLayout::decompressed_vertex_size)
+        .def("get_compressed_vertex_size", &VertexArrayLayout::GetCompressedVertexSize,
+            "Compute compressed vertex size for writing.")
+        .def("get_hash", &VertexArrayLayout::GetHash);
+
     // --- FaceSet ------------------------------------------------------------
 
     py::class_<FaceSet>(m, "FaceSet")
@@ -222,6 +296,82 @@ void bind_firelink_flver(py::module& m)
                 }
                 return cull;
             });
+
+    // --- SplitMeshDef / SplitMeshParams -------------------------------------
+    // Inputs to `MergedMesh.split_mesh()`.
+
+    py::class_<SplitMeshDef>(m, "SplitMeshDef")
+        .def(py::init([](
+            Material material,
+            VertexArrayLayout layout,
+            const bool is_dynamic,
+            const bool use_backface_culling,
+            const std::int32_t default_bone_index,
+            const bool uses_bounding_boxes,
+            const int face_set_count,
+            std::vector<std::string> uv_layer_names)
+            {
+                SplitMeshDef def;
+                def.material = std::move(material);
+                def.layout = std::move(layout);
+                def.is_dynamic = is_dynamic;
+                def.use_backface_culling = use_backface_culling;
+                def.default_bone_index = default_bone_index;
+                def.uses_bounding_boxes = uses_bounding_boxes;
+                def.face_set_count = face_set_count;
+                def.uv_layer_names = std::move(uv_layer_names);
+                return def;
+            }),
+            py::arg("material"),
+            py::arg("layout"),
+            py::arg("is_dynamic") = false,
+            py::arg("use_backface_culling") = true,
+            py::arg("default_bone_index") = 0,
+            py::arg("uses_bounding_boxes") = true,
+            py::arg("face_set_count") = 1,
+            py::arg("uv_layer_names") = std::vector<std::string>{},
+            "One output FLVER submesh definition, supplied per distinct value of "
+            "`MergedMesh.faces[:, 3]`.")
+        .def_readwrite("material", &SplitMeshDef::material)
+        .def_readwrite("layout", &SplitMeshDef::layout)
+        .def_readwrite("is_dynamic", &SplitMeshDef::is_dynamic)
+        .def_readwrite("use_backface_culling", &SplitMeshDef::use_backface_culling)
+        .def_readwrite("default_bone_index", &SplitMeshDef::default_bone_index)
+        .def_readwrite("uses_bounding_boxes", &SplitMeshDef::uses_bounding_boxes)
+        .def_readwrite("face_set_count", &SplitMeshDef::face_set_count)
+        .def_readwrite("uv_layer_names", &SplitMeshDef::uv_layer_names);
+
+    py::class_<SplitMeshParams>(m, "SplitMeshParams")
+        .def(py::init([](
+            const bool use_mesh_bone_indices,
+            const int max_bones_per_mesh,
+            const bool unused_bone_indices_are_minus_one,
+            const float normal_tangent_dot_threshold,
+            const std::uint32_t max_vertices_per_mesh,
+            const bool is_flver0)
+            {
+                SplitMeshParams params;
+                params.useMeshBoneIndices = use_mesh_bone_indices;
+                params.maxBonesPerMesh = max_bones_per_mesh;
+                params.unusedBoneIndicesAreMinusOne = unused_bone_indices_are_minus_one;
+                params.normalTangentDotThreshold = normal_tangent_dot_threshold;
+                params.maxVerticesPerMesh = max_vertices_per_mesh;
+                params.isFlver0 = is_flver0;
+                return params;
+            }),
+            py::arg("use_mesh_bone_indices") = true,
+            py::arg("max_bones_per_mesh") = 38,
+            py::arg("unused_bone_indices_are_minus_one") = false,
+            py::arg("normal_tangent_dot_threshold") = 1.0f,
+            py::arg("max_vertices_per_mesh") = 0,
+            py::arg("is_flver0") = false,
+            "Settings for `MergedMesh.split_mesh()`. Defaults are geared towards Dark Souls 1 (PTDE/DSR).")
+        .def_readwrite("use_mesh_bone_indices", &SplitMeshParams::useMeshBoneIndices)
+        .def_readwrite("max_bones_per_mesh", &SplitMeshParams::maxBonesPerMesh)
+        .def_readwrite("unused_bone_indices_are_minus_one", &SplitMeshParams::unusedBoneIndicesAreMinusOne)
+        .def_readwrite("normal_tangent_dot_threshold", &SplitMeshParams::normalTangentDotThreshold)
+        .def_readwrite("max_vertices_per_mesh", &SplitMeshParams::maxVerticesPerMesh)
+        .def_readwrite("is_flver0", &SplitMeshParams::isFlver0);
 
     // --- MergedMesh ---------------------------------------------------------
     // Exposes flat arrays as zero-copy numpy views into the C++ vectors.
@@ -369,7 +519,14 @@ void bind_firelink_flver(py::module& m)
                     {4 * sizeof(std::uint32_t), sizeof(std::uint32_t)},
                     mm.faces.data(), self
                 );
-            });
+            })
+        .def(
+            "split_mesh", &MergedMesh::SplitMesh,
+            py::arg("split_mesh_defs"),
+            py::arg("params"),
+            "Split this merged mesh into FLVER submeshes, one per entry of "
+            "`split_mesh_defs` (and possibly several per entry, when bone-count "
+            "sub-splitting is required).");
 
     // --- FLVER ---
 
