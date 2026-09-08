@@ -5,6 +5,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## Unreleased
 
+---
+
+## [0.3.1] - 2026-09-08
+
 ### Added
 - `GameFile.__bytes__` binding for easy `bytes()` conversion in Python.
 
@@ -17,8 +21,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Removed
 - `ToVertexUsage`/`FromVertexUsage` functions removed, as static casts can now be used.
-
----
 
 ## [0.3.0] - 2026-09-08
 
