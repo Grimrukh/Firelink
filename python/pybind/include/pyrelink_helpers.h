@@ -87,6 +87,17 @@ void bind_game_file(py::class_<T>& cls)
                 }
                 return vector_to_bytes(result);
             })
+        .def(
+            "__bytes__",  // allows `data = bytes(game_file)` in Python
+            [](const T& obj)
+            {
+                std::vector<std::byte> result;
+                {
+                    py::gil_scoped_release release;
+                    result = obj.ToBytes();
+                }
+                return vector_to_bytes(result);
+            })
         .def("write_to_path", &T::WriteToPath)
         .def_property("dcx_type", &T::GetDCXType, &T::SetDCXType)
         .def_property("path", &T::GetPath, &T::SetPath)

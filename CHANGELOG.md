@@ -5,6 +5,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## Unreleased
 
+### Added
+- `GameFile.__bytes__` binding for easy `bytes()` conversion in Python.
+
+### Fixed
+- Added missing `FLVERVersion` Python stubs and fixed `FLVER.version` type hint.
+
 ### Changed
 - `VertexUsage` enum values correspond directly to FLVER vertex buffer usage flags.
 - Changed more read-only FLVER bindings to read/write for Python construction.

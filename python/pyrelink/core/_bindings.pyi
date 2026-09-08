@@ -216,6 +216,13 @@ class GameFile:
         """Serialize to bytes, compressing with DCX if dcx_type is set."""
         ...
 
+    def __bytes__(self) -> bytes:
+        """Serialize to bytes, compressing with DCX if dcx_type is set.
+
+        Enables use of `data = bytes(game_file)`.
+        """
+        ...
+
     def write_to_path(self, path: Union[str, Path, None] = None) -> Path:
         """Write to path (or stored path if None).
 
