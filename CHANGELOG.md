@@ -5,6 +5,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## Unreleased
 
+### Changed
+- Added DarkSouls2 and DarkSouls2SOTFS to GameType enum for completion.
+
 ---
 
 ## [0.3.1] - 2026-09-08

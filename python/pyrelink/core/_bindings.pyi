@@ -258,10 +258,12 @@ class GameType(IntEnum):
     DemonsSouls = 0
     DarkSoulsPTDE = 1
     DarkSoulsDSR = 2
-    Bloodborne = 3
-    DarkSouls3 = 4
-    Sekiro = 5
-    EldenRing = 6
+    DarkSouls2 = 3
+    DarkSouls2SOTFS = 4
+    Bloodborne = 5
+    DarkSouls3 = 6
+    Sekiro = 7
+    EldenRing = 8
 
 # ---------------------------------------------------------------------------
 # Binder
