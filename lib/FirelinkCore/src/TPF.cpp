@@ -4,6 +4,7 @@
 
 #include <FirelinkCore/BinaryReadWrite.h>
 #include <FirelinkCore/DCX.h>
+#include <FirelinkCore/Encodings.h>
 #include <FirelinkCore/Paths.h>
 
 #include <algorithm>
@@ -16,10 +17,10 @@ namespace Firelink
 
     namespace
     {
-        void WriteString(BufferWriter& w, const std::string& s, bool unicode)
+        //! @brief Texture stems are stored as UTF-16 or Shift-JIS, but held in memory as UTF-8.
+        FSEncoding StemEncoding(const bool unicode)
         {
-            w.WriteRaw(s.data(), s.size());
-            w.WritePad(unicode ? 2 : 1);
+            return unicode ? FSEncoding::UTF_16 : FSEncoding::SHIFT_JIS;
         }
 
         bool IsBigEndianPlatform(TPFPlatform p)
@@ -144,7 +145,7 @@ namespace Firelink
             tex.float_struct = std::move(th.float_struct);
 
             // Read stem.
-            tex.stem = r.ReadNullTerminatedStringAt(th.stem_offset, unicode_encoding);
+            tex.stem = r.ReadDecodedStringAt(th.stem_offset, StemEncoding(unicode_encoding));
 
             // Read data.
             const std::byte* tex_data = r.RawAt(th.data_offset);
@@ -235,7 +236,7 @@ namespace Firelink
         {
             const void* scope = &m_textures[i];
             w.Fill<std::uint32_t>("tex_stem_offset", static_cast<std::uint32_t>(w.Position()), scope);
-            WriteString(w, m_textures[i].stem, unicode);
+            w.WriteDecodedString(m_textures[i].stem, StemEncoding(unicode));
         }
 
         // Data.

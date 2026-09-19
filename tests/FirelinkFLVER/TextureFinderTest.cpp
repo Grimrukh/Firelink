@@ -11,6 +11,7 @@
 #include <FirelinkCore/Paths.h>
 
 #include <filesystem>
+#include <string>
 #include <vector>
 
 using namespace Firelink;
@@ -153,6 +154,87 @@ TEST_CASE("TextureFinder: Common*.tpf 'parts' textures found for DS1R")
     // Search with lower-case stem.
     tex = mgr.GetTexture("bd_m_body_m_s");
     CHECK(tex != nullptr);
+}
+
+// ---------------------------------------------------------------------------
+// Elden Ring character textures via CHRBND + adjacent TEXBND
+// ---------------------------------------------------------------------------
+
+namespace
+{
+    // All four texture stems inside 'c6070_h.texbnd.dcx'. The low-res TEXBND holds
+    // the same four stems with an '_l' suffix.
+    const std::vector<std::string> C6070_HI_RES_STEMS = {
+        "c6070_a", "c6070_n", "c6070_v", "c6070_1m",
+    };
+} // namespace
+
+TEST_CASE("TextureFinder: Elden Ring character textures found in adjacent TEXBND")
+{
+    if (!IsOodleAvailable())
+    {
+        MESSAGE("Oodle not available; skipping Elden Ring TEXBND test");
+        return;
+    }
+
+    // The test resources directory acts as a fake game data root: 'c6070.chrbnd.dcx'
+    // and its 'c6070_h/_l.texbnd.dcx' siblings all sit in 'eldenring'.
+    const auto res = GetResourcePath("eldenring");
+    const auto chrbndPath = GetResourcePath("eldenring/c6070.chrbnd.dcx");
+    REQUIRE(fs::is_regular_file(chrbndPath));
+
+    const auto chrbnd = Binder::FromPath(chrbndPath);
+
+    TextureFinder mgr(GameType::EldenRing, res);
+    mgr.RegisterFLVERSources(chrbndPath, chrbnd.get(), /*preferHiRes*/ true);
+
+    // TEXBND TPFs are multi-texture, so they are loaded (not left pending) on registration.
+    CHECK(mgr.CachedTextureCount() == C6070_HI_RES_STEMS.size());
+
+    for (const auto& stem : C6070_HI_RES_STEMS)
+    {
+        const auto* tex = mgr.GetTexture(stem, "c6070");
+        CHECK_MESSAGE(tex != nullptr, "Texture not found: " << stem);
+        if (tex)
+        {
+            CHECK(tex->stem == stem);
+            CHECK(!tex->data.empty());
+        }
+    }
+
+    // Stems are matched case-insensitively.
+    CHECK(mgr.GetTexture("C6070_A", "c6070") != nullptr);
+
+    // Low-res stems are not in the hi-res TEXBND.
+    CHECK(mgr.GetTexture("c6070_a_l", "c6070") == nullptr);
+}
+
+TEST_CASE("TextureFinder: Elden Ring low-res TEXBND used when hi-res not preferred")
+{
+    if (!IsOodleAvailable())
+    {
+        MESSAGE("Oodle not available; skipping Elden Ring TEXBND test");
+        return;
+    }
+
+    const auto res = GetResourcePath("eldenring");
+    const auto chrbndPath = GetResourcePath("eldenring/c6070.chrbnd.dcx");
+    REQUIRE(fs::is_regular_file(chrbndPath));
+
+    const auto chrbnd = Binder::FromPath(chrbndPath);
+
+    TextureFinder mgr(GameType::EldenRing, res);
+    mgr.RegisterFLVERSources(chrbndPath, chrbnd.get(), /*preferHiRes*/ false);
+
+    for (const auto& stem : C6070_HI_RES_STEMS)
+    {
+        const auto lowResStem = stem + "_l";
+        const auto* tex = mgr.GetTexture(lowResStem, "c6070");
+        CHECK_MESSAGE(tex != nullptr, "Texture not found: " << lowResStem);
+    }
+
+    // Hi-res stems are not in the low-res TEXBND.
+    CHECK(mgr.GetTexture("c6070_a", "c6070") == nullptr);
 }
 
 // ---------------------------------------------------------------------------

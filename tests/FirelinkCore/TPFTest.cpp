@@ -184,3 +184,72 @@ TEST_CASE("TPF: FromBytes throws on invalid data")
     CHECK_THROWS((void)TPF::FromBytes(tiny, sizeof(tiny)));
 }
 
+// ---------------------------------------------------------------------------
+// UTF-16 texture stems (Elden Ring TEXBND TPFs)
+// ---------------------------------------------------------------------------
+
+TEST_CASE("TPF: UTF-16 texture stems are decoded, not left as raw wide bytes")
+{
+    if (!IsOodleAvailable())
+    {
+        MESSAGE("Oodle not available; skipping Elden Ring TEXBND TPF test");
+        return;
+    }
+
+    const auto texbnd = Binder::FromPath(GetResourcePath("eldenring/c6070_h.texbnd.dcx"));
+    const auto tpfEntries = texbnd->FindEntriesByNameRegex(R"(.*\.tpf)", /*fullMatch*/ true);
+    REQUIRE(tpfEntries.size() == 1);
+
+    const auto tpf = TPF::FromBytes(tpfEntries[0]->GetData());
+    // Encoding type 1 means stems are stored as UTF-16 in the file.
+    REQUIRE(tpf->GetEncodingType() == 1);
+    REQUIRE(tpf->Textures().size() == 4);
+
+    for (const auto& tex : tpf->Textures())
+    {
+        // The decoding bug left every stem as raw UTF-16 bytes, i.e. twice as long
+        // as it should be, with a null byte after each ASCII character.
+        CHECK(tex.stem.find('\0') == std::string::npos);
+        CHECK(tex.stem.starts_with("c6070_"));
+    }
+
+    CHECK(tpf->FindTexture("c6070_a") != nullptr);
+    CHECK(tpf->FindTexture("c6070_n") != nullptr);
+    CHECK(tpf->FindTexture("c6070_v") != nullptr);
+    CHECK(tpf->FindTexture("c6070_1m") != nullptr);
+}
+
+TEST_CASE("TPF: UTF-16 texture stems survive a write round-trip")
+{
+    if (!IsOodleAvailable())
+    {
+        MESSAGE("Oodle not available; skipping Elden Ring TEXBND TPF round-trip test");
+        return;
+    }
+
+    const auto texbnd = Binder::FromPath(GetResourcePath("eldenring/c6070_h.texbnd.dcx"));
+    const auto tpfEntries = texbnd->FindEntriesByNameRegex(R"(.*\.tpf)", /*fullMatch*/ true);
+    REQUIRE(tpfEntries.size() == 1);
+
+    const auto tpf = TPF::FromBytes(tpfEntries[0]->GetData());
+
+    const auto written = tpf->ToBytes();
+    const TPF::CPtr reread = TPF::FromBytes(written);
+
+    CHECK(reread->GetEncodingType() == tpf->GetEncodingType());
+    REQUIRE(reread->Textures().size() == tpf->Textures().size());
+    for (std::size_t i = 0; i < tpf->Textures().size(); ++i)
+    {
+        const auto& a = tpf->Textures()[i];
+        const auto& b = reread->Textures()[i];
+        CHECK(b.stem == a.stem);
+        CHECK(b.stem.find('\0') == std::string::npos);
+        REQUIRE(b.data.size() == a.data.size());
+        CHECK(std::memcmp(b.data.data(), a.data.data(), a.data.size()) == 0);
+    }
+
+    // Writing the re-read TPF again must be byte-identical (stems are re-encoded the same way).
+    const auto written2 = reread->ToBytes();
+    REQUIRE(written2.size() == written.size());
+    CHECK(std::memcmp(written2.data(), written.data(), written.size()) == 0);
+}
