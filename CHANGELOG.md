@@ -5,14 +5,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## Unreleased
 
+### Added
+- Support for PS3 headerless DDS files with unit test (DeS `c1030.tpf`).
+- Python bindings for `TPFTexture::ConsoleInfo` for headerless textures.
+
+---
+
+## [0.3.3] - 2026-09-20
+
 ### Fixed
 - TPF texture stems stored with UTF-16 encoding (`encoding_type == 1`) are now decoded to UTF-8
   instead of being kept as raw wide bytes (Elden Ring fix).
 
+## [0.3.2] - 2026-09-12
+
 ### Changed
 - Added DarkSouls2 and DarkSouls2SOTFS to GameType enum for completion.
-
----
 
 ## [0.3.1] - 2026-09-08
 

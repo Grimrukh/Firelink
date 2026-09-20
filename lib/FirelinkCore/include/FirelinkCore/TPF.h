@@ -74,11 +74,26 @@ namespace Firelink
         };
         std::optional<FloatStruct> float_struct;
 
+        /// @brief Platform of the owning TPF, copied in on read.
+        /// @note Needed to interpret `format` and to know whether `data` is headerless.
+        TPFPlatform platform = TPFPlatform::PC;
+
+        /// @brief True if `data` already begins with the "DDS " magic.
+        /// @note Console TPFs (PS3, Xbox 360, and some PS4/XboxOne) store the mip chain
+        ///       alone, with no DDS header; such data cannot be loaded by DirectXTex
+        ///       until `ToDDS()` rebuilds a header for it.
+        [[nodiscard]] FIRELINK_CORE_API bool HasDDSHeader() const noexcept;
+
         /// @brief Construct a DDS from copied texture data.
-        [[nodiscard]] DDS ToDDS() const
-        {
-            return DDS(data.data(), data.size());
-        }
+        /// @note If the stored data is headerless, a DDS header is synthesized from this
+        ///       texture's metadata (dimensions, `format`, `mipmap_count`, `texture_type`).
+        /// @note Pixel data is *not* deswizzled; call `DDS::DeswizzlePS4()` on the result
+        ///       for PS4 dumps. (PS3 TPF textures are not swizzled.)
+        [[nodiscard]] FIRELINK_CORE_API DDS ToDDS() const;
+
+        /// @brief Map the internal TPF `format` enum to a DXGI format.
+        /// @return `DXGI_FORMAT_UNKNOWN` for unrecognized values.
+        [[nodiscard]] FIRELINK_CORE_API static DXGI_FORMAT FormatToDXGI(std::uint8_t format) noexcept;
     };
 
     /// @brief Simple texture container file. May contain one or more DDS textures.

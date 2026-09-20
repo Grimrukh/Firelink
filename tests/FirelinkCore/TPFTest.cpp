@@ -7,10 +7,12 @@
 
 #include <FirelinkTestHelpers.h>
 #include <FirelinkCore/Binder.h>
+#include <FirelinkCore/DDS.h>
 #include <FirelinkCore/Paths.h>
 #include <FirelinkCore/TPF.h>
 #include "FirelinkCoreTestHelpers.h"
 
+#include <cstdint>
 #include <cstring>
 #include <filesystem>
 #include <vector>
@@ -150,6 +152,215 @@ TEST_CASE("TPF: read TPF from c2300 split binder")
     }
 
     MESSAGE("WARNING: No TPF entries found in c2300 split binder");
+}
+
+// ---------------------------------------------------------------------------
+// Headerless console TPF: Demon's Souls (PS3) c1030.tpf
+//
+// PS3/Xbox 360 TPFs store the bare mip chain with no DDS header at all; the
+// dimensions and format live in the TPF entry instead. `TPFTexture::ToDDS()`
+// has to rebuild the header, or DirectXTex rejects the data outright with
+// E_FAIL from LoadFromDDSMemory.
+// ---------------------------------------------------------------------------
+
+TEST_CASE("TPF: read headerless PS3 c1030.tpf (Demon's Souls)")
+{
+    auto tpf = LoadTPF("demonssouls/c1030.tpf");
+    if (!tpf)
+    {
+        MESSAGE("Skipping — demonssouls/c1030.tpf not available");
+        return;
+    }
+
+    CHECK(tpf->GetPlatform() == TPFPlatform::PS3);
+    CHECK(tpf->GetFlags() == 1);
+    CHECK(tpf->GetEncodingType() == 0);  // Shift-JIS stems
+    REQUIRE(tpf->Textures().size() == 6);
+
+    for (const auto& tex : tpf->Textures())
+    {
+        CAPTURE(tex.stem);
+        CHECK(tex.stem.starts_with("c1030_"));
+        CHECK(!tex.data.empty());
+        CHECK(tex.platform == TPFPlatform::PS3);
+        // Every PS3 texture here is headerless DXT1.
+        CHECK(!tex.HasDDSHeader());
+        CHECK(tex.format == 0);
+        REQUIRE(tex.console_info.has_value());
+        CHECK(tex.console_info->dxgi_format == DXGI_FORMAT_BC1_UNORM);
+    }
+
+    CHECK(tpf->FindTexture("c1030_demon") != nullptr);
+    CHECK(tpf->FindTexture("c1030_demon_n") != nullptr);
+    CHECK(tpf->FindTexture("c1030_demon_s") != nullptr);
+    CHECK(tpf->FindTexture("c1030_ax") != nullptr);
+    CHECK(tpf->FindTexture("c1030_ax_n") != nullptr);
+    CHECK(tpf->FindTexture("c1030_ax_s") != nullptr);
+
+    const auto* demon = tpf->FindTexture("c1030_demon");
+    REQUIRE(demon != nullptr);
+    CHECK(demon->console_info->width == 1024);
+    CHECK(demon->console_info->height == 1024);
+    CHECK(demon->mipmap_count == 11);
+
+    // c1030_demon_n stores a full mip chain but reports a mipmap count of 0,
+    // which means "derive the full chain from the dimensions".
+    const auto* demonN = tpf->FindTexture("c1030_demon_n");
+    REQUIRE(demonN != nullptr);
+    CHECK(demonN->mipmap_count == 0);
+}
+
+TEST_CASE("TPF: headerless PS3 textures get a rebuilt DDS header and convert")
+{
+    auto tpf = LoadTPF("demonssouls/c1030.tpf");
+    if (!tpf)
+    {
+        MESSAGE("Skipping — demonssouls/c1030.tpf not available");
+        return;
+    }
+
+    for (const auto& tex : tpf->Textures())
+    {
+        CAPTURE(tex.stem);
+
+        DDS dds;
+        REQUIRE_NOTHROW(dds = tex.ToDDS());
+
+        // Header is prepended: 128 bytes of magic + DDS_HEADER, no DX10 chunk for DXT1.
+        REQUIRE(dds.GetSize() == tex.data.size() + 128);
+        const auto& bytes = dds.GetBytes();
+        CHECK(std::memcmp(bytes.data(), "DDS ", 4) == 0);
+        CHECK(std::memcmp(bytes.data() + 84, "DXT1", 4) == 0);
+
+        // The point of the exercise: DirectXTex can now decode it.
+        auto png = dds.ToPNG();
+        CHECK(!png.empty());
+
+        auto tga = dds.ToTGA();
+        CHECK(!tga.empty());
+    }
+}
+
+TEST_CASE("TPF: rebuilt DDS header reports the real dimensions and mip count")
+{
+    auto tpf = LoadTPF("demonssouls/c1030.tpf");
+    if (!tpf)
+    {
+        MESSAGE("Skipping — demonssouls/c1030.tpf not available");
+        return;
+    }
+
+    const auto ReadU32 = [](const std::vector<std::byte>& b, const std::size_t offset)
+    {
+        std::uint32_t value = 0;
+        std::memcpy(&value, b.data() + offset, sizeof(value));
+        return value;
+    };
+
+    struct Expected { const char* stem; std::uint32_t size; std::uint32_t mips; };
+    for (const auto& [stem, size, mips] : {
+             Expected{"c1030_demon",   1024, 11},
+             Expected{"c1030_demon_n", 1024, 11},  // mipmap_count 0 -> full chain
+             Expected{"c1030_ax",       512, 10},
+         })
+    {
+        CAPTURE(stem);
+        const auto* tex = tpf->FindTexture(stem);
+        REQUIRE(tex != nullptr);
+
+        const DDS dds = tex->ToDDS();
+        const auto& b = dds.GetBytes();
+        CHECK(ReadU32(b, 12) == size);   // dwHeight
+        CHECK(ReadU32(b, 16) == size);   // dwWidth
+        CHECK(ReadU32(b, 28) == mips);   // dwMipMapCount
+    }
+}
+
+TEST_CASE("TPF: ToDDS passes through textures that already have a header")
+{
+    auto tpf = LoadTPF("darksouls1r/c1200.tpf");
+    if (!tpf || tpf->Textures().empty())
+    {
+        MESSAGE("Skipping — c1200.tpf not available");
+        return;
+    }
+
+    for (const auto& tex : tpf->Textures())
+    {
+        CAPTURE(tex.stem);
+        CHECK(tex.HasDDSHeader());
+        const DDS dds = tex.ToDDS();
+        REQUIRE(dds.GetSize() == tex.data.size());
+        CHECK(std::memcmp(dds.GetBytes().data(), tex.data.data(), tex.data.size()) == 0);
+    }
+}
+
+TEST_CASE("TPF: round-trip c1030.tpf (headerless PS3, big-endian)")
+{
+    auto tpf = LoadTPF("demonssouls/c1030.tpf");
+    if (!tpf)
+    {
+        MESSAGE("Skipping — demonssouls/c1030.tpf not available");
+        return;
+    }
+
+    const auto written = tpf->ToBytes();
+    REQUIRE(written.size() >= 4);
+    CHECK(std::memcmp(written.data(), "TPF\0", 4) == 0);
+
+    const TPF::CPtr reread = TPF::FromBytes(written);
+    CHECK(reread->GetPlatform() == tpf->GetPlatform());
+    CHECK(reread->GetFlags() == tpf->GetFlags());
+    REQUIRE(reread->Textures().size() == tpf->Textures().size());
+
+    for (std::size_t i = 0; i < tpf->Textures().size(); ++i)
+    {
+        const auto& a = tpf->Textures()[i];
+        const auto& b = reread->Textures()[i];
+        CAPTURE(a.stem);
+        CHECK(b.stem == a.stem);
+        CHECK(b.format == a.format);
+        CHECK(b.mipmap_count == a.mipmap_count);
+        REQUIRE(b.console_info.has_value());
+        CHECK(b.console_info->width == a.console_info->width);
+        CHECK(b.console_info->height == a.console_info->height);
+        CHECK(b.console_info->unk1 == a.console_info->unk1);
+        CHECK(b.console_info->unk2 == a.console_info->unk2);
+        REQUIRE(b.data.size() == a.data.size());
+        CHECK(std::memcmp(b.data.data(), a.data.data(), a.data.size()) == 0);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Every texture in every loose TPF fixture must reach a decodable DDS
+// ---------------------------------------------------------------------------
+
+TEST_CASE("TPF: every texture in every loose TPF fixture converts to PNG")
+{
+    for (const char* name : {
+             "darksouls1r/c1200.tpf",
+             "darksouls1r/parts/Common_Body.tpf",
+             "demonssouls/c1030.tpf",
+         })
+    {
+        CAPTURE(name);
+        auto tpf = LoadTPF(name);
+        if (!tpf)
+        {
+            MESSAGE("Skipping — " << name << " not available");
+            continue;
+        }
+
+        CHECK(tpf->Textures().size() > 0);
+        for (const auto& tex : tpf->Textures())
+        {
+            CAPTURE(tex.stem);
+            DDS dds;
+            REQUIRE_NOTHROW(dds = tex.ToDDS());
+            CHECK(std::memcmp(dds.GetBytes().data(), "DDS ", 4) == 0);
+            CHECK(!dds.ToPNG().empty());
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------

@@ -1,7 +1,10 @@
 #include <FirelinkCore/DDS.h>
+#include <FirelinkCore/BinaryReadWrite.h>
 #include <FirelinkCore/Logging.h>
 #include <FirelinkCore/Swizzle.h>
 
+#include <algorithm>
+#include <cstring>
 #include <mutex>
 #include <sstream>
 #include <stdexcept>
@@ -390,12 +393,207 @@ namespace Firelink
 
             return BlobToVector(blob);
         }
+        // -----------------------------------------------------------------------
+        // Headerless (console) DDS helpers
+        // -----------------------------------------------------------------------
+
+        /// @brief Size in bytes of one mip level of the given dimensions.
+        std::size_t MipByteSize(
+            const int width, const int height, const int bytesPerBlock, const bool isCompressed) noexcept
+        {
+            if (isCompressed)
+            {
+                const auto blocksW = static_cast<std::size_t>(std::max(1, (width + 3) / 4));
+                const auto blocksH = static_cast<std::size_t>(std::max(1, (height + 3) / 4));
+                return blocksW * blocksH * static_cast<std::size_t>(bytesPerBlock);
+            }
+            return static_cast<std::size_t>(std::max(1, width))
+                 * static_cast<std::size_t>(std::max(1, height))
+                 * static_cast<std::size_t>(bytesPerBlock);
+        }
+
+        /// @brief Number of mip levels in a complete chain down to 1x1.
+        int FullMipChainLength(const int width, const int height) noexcept
+        {
+            int levels = 1;
+            int w = width, h = height;
+            while (w > 1 || h > 1)
+            {
+                w = std::max(1, w / 2);
+                h = std::max(1, h / 2);
+                ++levels;
+            }
+            return levels;
+        }
+
+        /// @brief How many of @p requestedMips actually fit in @p pixelSize bytes.
+        /// @note All faces share the same mip structure, so one face's chain is
+        ///       accumulated and multiplied by @p faceCount.
+        int MipsThatFit(
+            const DDSHeaderParams& p, const int requestedMips,
+            const int faceCount, const std::size_t pixelSize) noexcept
+        {
+            std::size_t oneFaceConsumed = 0;
+            int w = p.width, h = p.height;
+            for (int mip = 0; mip < requestedMips; ++mip)
+            {
+                const std::size_t mipBytes = MipByteSize(w, h, p.bytesPerBlock, p.isCompressed);
+                if ((oneFaceConsumed + mipBytes) * static_cast<std::size_t>(faceCount) > pixelSize)
+                    return mip;
+                oneFaceConsumed += mipBytes;
+                w = std::max(1, w / 2);
+                h = std::max(1, h / 2);
+            }
+            return requestedMips;
+        }
+
+        // DDS_HEADER.dwFlags (DDSD_*) bits.
+        constexpr uint32_t DDSD_CAPS        = 0x1;
+        constexpr uint32_t DDSD_HEIGHT      = 0x2;
+        constexpr uint32_t DDSD_WIDTH       = 0x4;
+        constexpr uint32_t DDSD_PITCH       = 0x8;
+        constexpr uint32_t DDSD_PIXELFORMAT = 0x1000;
+        constexpr uint32_t DDSD_MIPMAPCOUNT = 0x20000;
+        constexpr uint32_t DDSD_LINEARSIZE  = 0x80000;
+
+        // DDS_HEADER.dwCaps (DDSCAPS_*) bits.
+        constexpr uint32_t DDSCAPS_COMPLEX = 0x8;
+        constexpr uint32_t DDSCAPS_TEXTURE = 0x1000;
+        constexpr uint32_t DDSCAPS_MIPMAP  = 0x400000;
+
+        // DDS_HEADER.dwCaps2 (DDSCAPS2_*) bits.
+        constexpr uint32_t DDSCAPS2_CUBEMAP           = 0x200;
+        constexpr uint32_t DDSCAPS2_CUBEMAP_ALL_FACES = 0xFC00;  // +X -X +Y -Y +Z -Z
+        constexpr uint32_t DDSCAPS2_VOLUME            = 0x200000;
+
+        // DDS_HEADER_DXT10.resourceDimension / .miscFlag.
+        constexpr uint32_t D3D10_RESOURCE_DIMENSION_TEXTURE2D = 3;
+        constexpr uint32_t D3D10_RESOURCE_DIMENSION_TEXTURE3D = 4;
+        constexpr uint32_t D3D10_RESOURCE_MISC_TEXTURECUBE    = 0x4;
     } // anonymous namespace
 
     DDS::DDS(const std::byte* data, const size_t size)
     {
         m_storage.resize(size);
         memcpy(m_storage.data(), data, size);
+    }
+
+    DDS DDS::FromHeaderlessData(
+        const std::byte* data, const size_t size, const DDSHeaderParams& params)
+    {
+        using BinaryReadWrite::BufferWriter;
+        using BinaryReadWrite::Endian;
+
+        if (!data || size == 0)
+            throw std::invalid_argument("DDS::FromHeaderlessData: no pixel data");
+        if (params.width <= 0 || params.height <= 0)
+            throw std::invalid_argument("DDS::FromHeaderlessData: width and height must be positive");
+        if (params.bytesPerBlock <= 0)
+            throw std::invalid_argument("DDS::FromHeaderlessData: bytesPerBlock must be positive");
+
+        const bool isDX10 = std::memcmp(params.fourCC.data(), "DX10", 4) == 0;
+        if (isDX10 && params.dxgiFormat == DXGI_FORMAT_UNKNOWN)
+            throw std::invalid_argument(
+                "DDS::FromHeaderlessData: a \"DX10\" fourCC requires a known dxgiFormat");
+
+        const int faceCount = params.isCubemap ? 6 : 1;
+
+        // A headerless console texture often advertises a full mip chain that it does not
+        // actually store (and `mipCount == 0` means "derive the full chain"). Trust the
+        // pixel data over the metadata: a header claiming absent mips makes DirectXTex
+        // fail the entire load with ERROR_HANDLE_EOF.
+        const int requestedMips = params.mipCount > 0
+            ? params.mipCount
+            : FullMipChainLength(params.width, params.height);
+        const int mipCount = MipsThatFit(params, requestedMips, faceCount, size);
+        if (mipCount < 1)
+            throw std::runtime_error(
+                "DDS::FromHeaderlessData: pixel data (" + std::to_string(size)
+                + " bytes) is too small for even the base mip level of a "
+                + std::to_string(params.width) + "x" + std::to_string(params.height)
+                + " texture");
+        if (mipCount != requestedMips)
+        {
+            Warning(
+                "DDS::FromHeaderlessData: metadata implies " + std::to_string(requestedMips)
+                + " mip levels, but only " + std::to_string(mipCount)
+                + " fit in the pixel data — proceeding with " + std::to_string(mipCount));
+        }
+
+        uint32_t flags = DDSD_CAPS | DDSD_HEIGHT | DDSD_WIDTH | DDSD_PIXELFORMAT | DDSD_MIPMAPCOUNT;
+        uint32_t pitchOrLinearSize;
+        if (params.isCompressed)
+        {
+            flags |= DDSD_LINEARSIZE;
+            pitchOrLinearSize = static_cast<uint32_t>(
+                MipByteSize(params.width, params.height, params.bytesPerBlock, true));
+        }
+        else
+        {
+            flags |= DDSD_PITCH;
+            pitchOrLinearSize =
+                static_cast<uint32_t>(params.width) * static_cast<uint32_t>(params.bytesPerBlock);
+        }
+
+        uint32_t caps1 = DDSCAPS_TEXTURE;
+        if (mipCount > 1)
+            caps1 |= DDSCAPS_COMPLEX | DDSCAPS_MIPMAP;
+        if (params.isCubemap)
+            caps1 |= DDSCAPS_COMPLEX;
+
+        uint32_t caps2 = 0;
+        if (params.isCubemap)
+            caps2 = DDSCAPS2_CUBEMAP | DDSCAPS2_CUBEMAP_ALL_FACES;
+        else if (params.isVolume)
+            caps2 = DDSCAPS2_VOLUME;
+
+        uint32_t pixelFormatFlags = params.pixelFormatFlags;
+        if (params.fourCC != std::array<char, 4>{})
+            pixelFormatFlags |= DDPF_FOURCC;
+
+        // DDS files are always little-endian, whatever console the pixels came from.
+        BufferWriter w(Endian::Little);
+        w.ReserveCapacity(DDS_BASE_HEADER_SIZE + DDS_DXT10_SIZE + size);
+
+        w.WriteRaw("DDS ", 4);
+        w.Write<uint32_t>(124);                                   // DDS_HEADER.dwSize
+        w.Write<uint32_t>(flags);
+        w.Write<uint32_t>(static_cast<uint32_t>(params.height));
+        w.Write<uint32_t>(static_cast<uint32_t>(params.width));
+        w.Write<uint32_t>(pitchOrLinearSize);
+        w.Write<uint32_t>(0);                                     // dwDepth (unused here)
+        w.Write<uint32_t>(static_cast<uint32_t>(mipCount));
+        w.WritePad(11 * 4);                                       // dwReserved1[11]
+
+        // DDS_PIXELFORMAT (32 bytes).
+        w.Write<uint32_t>(32);                                    // dwSize
+        w.Write<uint32_t>(pixelFormatFlags);
+        w.WriteRaw(params.fourCC.data(), 4);
+        w.Write<uint32_t>(static_cast<uint32_t>(params.rgbBitCount));
+        w.Write<uint32_t>(params.rBitMask);
+        w.Write<uint32_t>(params.gBitMask);
+        w.Write<uint32_t>(params.bBitMask);
+        w.Write<uint32_t>(params.aBitMask);
+
+        w.Write<uint32_t>(caps1);
+        w.Write<uint32_t>(caps2);
+        w.Write<uint32_t>(0);                                     // dwCaps3
+        w.Write<uint32_t>(0);                                     // dwCaps4
+        w.Write<uint32_t>(0);                                     // dwReserved2
+
+        if (isDX10)
+        {
+            w.Write<uint32_t>(static_cast<uint32_t>(params.dxgiFormat));
+            w.Write<uint32_t>(params.isVolume
+                ? D3D10_RESOURCE_DIMENSION_TEXTURE3D
+                : D3D10_RESOURCE_DIMENSION_TEXTURE2D);
+            w.Write<uint32_t>(params.isCubemap ? D3D10_RESOURCE_MISC_TEXTURECUBE : 0u);
+            w.Write<uint32_t>(1);                                 // arraySize (cube faces are implicit)
+            w.Write<uint32_t>(0);                                 // miscFlags2 (ALPHA_MODE_UNKNOWN)
+        }
+
+        w.WriteRaw(data, size);
+        return DDS(w.Finalize());
     }
 
     std::vector<std::byte> DDS::ToTGA() const

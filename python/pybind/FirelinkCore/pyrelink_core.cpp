@@ -9,6 +9,7 @@
 namespace py = pybind11;
 using namespace Firelink;
 
+// Binding functions defined in adjacent source files.
 void bind_firelink_core_binder(py::module& m);
 void bind_firelink_core_dcx(py::module& m);
 void bind_firelink_core_dds(py::module& m);

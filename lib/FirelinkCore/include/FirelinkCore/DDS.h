@@ -2,7 +2,9 @@
 
 #include <FirelinkCore/Export.h>
 
+#include <array>
 #include <cstddef>
+#include <cstdint>
 #include <vector>
 
 #ifdef _WIN32
@@ -11,6 +13,51 @@
 
 namespace Firelink
 {
+    /// @brief DDS_PIXELFORMAT.dwFlags bits (DDPF_*).
+    enum DDSPixelFormatFlags : std::uint32_t
+    {
+        DDPF_ALPHAPIXELS = 0x1,
+        DDPF_ALPHA       = 0x2,
+        DDPF_FOURCC      = 0x4,
+        DDPF_RGB         = 0x40,
+        DDPF_YUV         = 0x200,
+        DDPF_LUMINANCE   = 0x20000,
+    };
+
+    /// @brief Everything needed to synthesize a DDS header around raw pixel data.
+    ///
+    /// Console TPFs (PS3, Xbox 360, PS4, Xbox One) store their textures *headerless*:
+    /// the TPF entry carries the dimensions and an internal format enum, and the stored
+    /// bytes are the mip chain alone. DirectXTex cannot read such data, so a header has
+    /// to be rebuilt from that metadata before conversion. See `DDS::FromHeaderlessData`.
+    struct DDSHeaderParams
+    {
+        int width = 0;
+        int height = 0;
+        /// @brief Mip level count. Pass 0 to derive the full chain from the dimensions.
+        /// @note Clamped down to the number of mips that actually fit in the pixel data.
+        int mipCount = 0;
+        bool isCubemap = false;
+        bool isVolume = false;
+
+        /// @brief FourCC code, e.g. "DXT1" or "DX10". All-null means "described by bit masks".
+        std::array<char, 4> fourCC{};
+        /// @brief DDPF_* bits. DDPF_FOURCC is added automatically when `fourCC` is set.
+        std::uint32_t pixelFormatFlags = 0;
+        int rgbBitCount = 0;
+        std::uint32_t rBitMask = 0;
+        std::uint32_t gBitMask = 0;
+        std::uint32_t bBitMask = 0;
+        std::uint32_t aBitMask = 0;
+
+        /// @brief Bytes per BC block (compressed) or bytes per pixel (uncompressed).
+        int bytesPerBlock = 0;
+        /// @brief True for the BCn/DXTn family, whose mips are measured in 4x4 blocks.
+        bool isCompressed = false;
+        /// @brief Written into the DX10 header; required when `fourCC` is "DX10".
+        DXGI_FORMAT dxgiFormat = DXGI_FORMAT_UNKNOWN;
+    };
+
     /// @brief DDS container class with conversion methods and de/swizzling.
     /// @note It is up to the user to track whether the DDS data is swizzled or not,
     ///       based on the source of the data (e.g. dumped PS4 files are swizzled).
@@ -41,6 +88,14 @@ namespace Firelink
         /// @note Block-compressed formats (BC1–BC7) are supported; the source pixels are
         /// automatically compressed. Uses TEX_COMPRESS_PARALLEL internally for speed.
         [[nodiscard]] static DDS FromPNG(const std::byte* data, size_t size, DXGI_FORMAT targetFormat);
+
+        /// @brief Build a DDS by prepending a synthesized header to headerless pixel data.
+        /// @note Used for console TPF textures, which store the mip chain with no DDS header.
+        ///       The header's mip count is clamped to the number of mips that actually fit in
+        ///       @p size, since console TPF entries routinely advertise a full chain they do
+        ///       not contain (DirectXTex fails with ERROR_HANDLE_EOF otherwise).
+        [[nodiscard]] static DDS FromHeaderlessData(
+            const std::byte* data, size_t size, const DDSHeaderParams& params);
 
         /// @brief Get a view of the DDS bytes.
         [[nodiscard]] const std::vector<std::byte>& GetBytes() const noexcept { return m_storage; }

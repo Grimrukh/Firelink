@@ -554,6 +554,16 @@ class TextureType(IntEnum):
     Cubemap = 1
     Volume = 2
 
+class ConsoleInfo:
+    """Extra info for console-targeted TPFs."""
+    width: int
+    height: int
+    texture_count: int
+    unk1: int
+    unk2: int
+    dxgi_format: int
+    def __repr__(self) -> str: ...
+
 class TPFTexture:
     """A single texture in a TPF archive."""
     stem: str
@@ -561,8 +571,21 @@ class TPFTexture:
     texture_type: TextureType
     mipmap_count: int
     texture_flags: int
+    platform: TPFPlatform
+    console_info: Optional[ConsoleInfo]
     data: bytes
-    def __repr__(self) -> str: ...
+
+    @property
+    def has_dds_header(self) -> bool:
+        """True if the texture data starts with a DDS header."""
+        ...
+
+    def to_dds(self) -> DDS:
+        """Create a DDS object (with header added if required) from the data."""
+        ...
+
+    def __repr__(self) -> str:
+        ...
 
 class TPFError(RuntimeError): ...
 

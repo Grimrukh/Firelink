@@ -21,6 +21,7 @@ and reading/writing their binary file formats. It produces:
 
 Each library lives in `lib/<Name>/` with `include/<Name>/` headers and `src/` sources.
 Pybind11 modules for Core, FLVER, and ERMaps live under `python/pybind/<Name>/`.
+Matching stubs live under `python/pyrelink` and should be kept in sync with the pybind source files.
 
 ## Key Design Patterns
 

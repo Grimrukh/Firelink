@@ -8,6 +8,8 @@
 #include <FirelinkCore/Paths.h>
 
 #include <algorithm>
+#include <array>
+#include <cstring>
 
 namespace Firelink
 {
@@ -27,7 +29,177 @@ namespace Firelink
         {
             return p == TPFPlatform::Xbox360 || p == TPFPlatform::PS3;
         }
+
+        //! @brief FourCC code, bytes per block/pixel, and compression flag for a TPF format enum.
+        //!
+        //! The `TPFTexture::format` byte is a FromSoft-internal enum, not a DXGI format. Console
+        //! TPFs need it to rebuild the DDS header they don't store. A null fourCC means the
+        //! format is described by channel bit masks instead (see `PixelFormatMasks` below).
+        struct FormatInfo
+        {
+            std::array<char, 4> fourCC{};
+            int bytesPerBlock = 0;
+            bool isCompressed = false;
+        };
+
+        FormatInfo GetFormatInfo(const std::uint8_t format)
+        {
+            constexpr auto FourCC = [](const char (&s)[5])
+            {
+                return std::array{s[0], s[1], s[2], s[3]};
+            };
+
+            switch (format)
+            {
+                case 0: case 1: case 24: case 25: case 108: case 109:
+                    return {FourCC("DXT1"), 8, true};
+                case 3:
+                    return {FourCC("DXT3"), 16, true};
+                case 5: case 23: case 33: case 110:
+                    return {FourCC("DXT5"), 16, true};
+                case 6:
+                    return {FourCC("DX10"), 2, false};   // B5G5R5A1_UNORM
+                case 9: case 10: case 105:
+                    return {{}, 4, false};               // 32-bit RGBA variants
+                case 16:
+                    return {{}, 1, false};               // A8_UNORM
+                case 22:
+                    return {std::array{'\x71', '\0', '\0', '\0'}, 8, false};  // fourCC 0x71: R16G16B16A16_UNORM
+                case 100: case 113:
+                    return {FourCC("DX10"), 16, true};   // BC6H_UF16
+                case 102: case 106: case 107: case 112:
+                    return {FourCC("DX10"), 16, true};   // BC7_UNORM(_SRGB)
+                case 103:
+                    return {FourCC("ATI1"), 8, true};    // BC4
+                case 104:
+                    return {FourCC("ATI2"), 16, true};   // BC5
+                default:
+                    throw TPFError(
+                        "Cannot rebuild a DDS header for TPF texture format "
+                        + std::to_string(format) + " (inferred DXGI format "
+                        + std::to_string(static_cast<int>(TPFTexture::FormatToDXGI(format)))
+                        + "); this format has not been seen in a headerless texture yet.");
+            }
+        }
+
+        //! @brief Fill in the DDPF flags / channel bit masks for mask-described TPF formats.
+        void SetPixelFormatMasks(DDSHeaderParams& params, const std::uint8_t format)
+        {
+            switch (format)
+            {
+                case 6:  // B5G5R5A1_UNORM
+                    params.pixelFormatFlags |= DDPF_ALPHAPIXELS | DDPF_RGB;
+                    params.rgbBitCount = 16;
+                    params.rBitMask = 0x7C00;
+                    params.gBitMask = 0x03E0;
+                    params.bBitMask = 0x001F;
+                    params.aBitMask = 0x8000;
+                    break;
+                case 9:  // B8G8R8A8
+                    params.pixelFormatFlags |= DDPF_ALPHAPIXELS | DDPF_RGB;
+                    params.rgbBitCount = 32;
+                    params.rBitMask = 0x00FF0000;
+                    params.gBitMask = 0x0000FF00;
+                    params.bBitMask = 0x000000FF;
+                    params.aBitMask = 0xFF000000;
+                    break;
+                case 10:  // B8G8R8X8 (no alpha)
+                    params.pixelFormatFlags |= DDPF_RGB;
+                    params.rgbBitCount = 32;
+                    params.rBitMask = 0x00FF0000;
+                    params.gBitMask = 0x0000FF00;
+                    params.bBitMask = 0x000000FF;
+                    break;
+                case 16:  // A8
+                    params.pixelFormatFlags |= DDPF_ALPHA;
+                    params.rgbBitCount = 8;
+                    params.aBitMask = 0x000000FF;
+                    break;
+                case 105:  // R8G8B8A8
+                    params.pixelFormatFlags |= DDPF_ALPHAPIXELS | DDPF_RGB;
+                    params.rgbBitCount = 32;
+                    params.rBitMask = 0x000000FF;
+                    params.gBitMask = 0x0000FF00;
+                    params.bBitMask = 0x00FF0000;
+                    params.aBitMask = 0xFF000000;
+                    break;
+                default:
+                    break;  // fourCC-described; no masks needed
+            }
+        }
     } // anonymous namespace
+
+    // ========================================================================
+    // TPFTexture
+    // ========================================================================
+
+    DXGI_FORMAT TPFTexture::FormatToDXGI(const std::uint8_t format) noexcept
+    {
+        switch (format)
+        {
+            // 24 is BC1 here to agree with `GetFormatInfo`, which writes it a "DXT1" fourCC.
+            // (Soulstruct's equivalent table calls 24 BC4; the two contradict each other there.)
+            case 0: case 1: case 24: case 25: case 29: case 108: case 109:
+                                                                  return DXGI_FORMAT_BC1_UNORM;
+            case 3:                                               return DXGI_FORMAT_BC2_UNORM;
+            case 5: case 23: case 33: case 110:                   return DXGI_FORMAT_BC3_UNORM;
+            case 6:                                               return DXGI_FORMAT_B5G5R5A1_UNORM;
+            case 8: case 10: case 105:                            return DXGI_FORMAT_R8G8B8A8_UNORM;
+            case 9:                                               return DXGI_FORMAT_B8G8R8A8_UNORM;
+            case 16:                                              return DXGI_FORMAT_A8_UNORM;
+            case 22:                                              return DXGI_FORMAT_R16G16B16A16_UNORM;
+            case 103:                                             return DXGI_FORMAT_BC4_UNORM;
+            case 104:                                             return DXGI_FORMAT_BC5_UNORM;
+            case 100: case 113: case 115:                         return DXGI_FORMAT_BC6H_UF16;
+            case 102: case 106: case 107:                         return DXGI_FORMAT_BC7_UNORM;
+            case 112:                                             return DXGI_FORMAT_BC7_UNORM_SRGB;
+            default:                                              return DXGI_FORMAT_UNKNOWN;
+        }
+    }
+
+    bool TPFTexture::HasDDSHeader() const noexcept
+    {
+        return data.size() >= 4 && std::memcmp(data.data(), "DDS ", 4) == 0;
+    }
+
+    DDS TPFTexture::ToDDS() const
+    {
+        if (HasDDSHeader())
+            return DDS(data.data(), data.size());
+
+        if (data.empty())
+            throw TPFError("TPF texture '" + stem + "' has no data.");
+        if (!console_info.has_value())
+            throw TPFError(
+                "TPF texture '" + stem + "' is headerless but has no console info, so a DDS "
+                "header cannot be rebuilt for it.");
+
+        const auto& ci = *console_info;
+        if (ci.width <= 0 || ci.height <= 0)
+            throw TPFError(
+                "TPF texture '" + stem + "' is headerless but its console info gives invalid "
+                "dimensions (" + std::to_string(ci.width) + "x" + std::to_string(ci.height) + ").");
+
+        const FormatInfo info = GetFormatInfo(format);
+
+        DDSHeaderParams params;
+        params.width = ci.width;
+        params.height = ci.height;
+        params.mipCount = mipmap_count;  // 0 means "derive the full chain"
+        params.isCubemap = texture_type == TextureType::Cubemap;
+        params.isVolume = texture_type == TextureType::Volume;
+        params.fourCC = info.fourCC;
+        params.bytesPerBlock = info.bytesPerBlock;
+        params.isCompressed = info.isCompressed;
+        SetPixelFormatMasks(params, format);
+
+        // PS4/XboxOne store the DXGI format directly; everything else is mapped from `format`.
+        params.dxgiFormat = ci.dxgi_format != 0
+            ? static_cast<DXGI_FORMAT>(ci.dxgi_format)
+            : FormatToDXGI(format);
+
+        return DDS::FromHeaderlessData(data.data(), data.size(), params);
+    }
 
     // ========================================================================
     // TPF::FromBytes
@@ -91,6 +263,10 @@ namespace Firelink
                 ci.width = r.Read<std::int16_t>();
                 ci.height = r.Read<std::int16_t>();
 
+                // Only PS4/XboxOne store a DXGI format of their own (read further below);
+                // for the older consoles it has to be derived from the internal format enum.
+                ci.dxgi_format = TPFTexture::FormatToDXGI(th.format);
+
                 if (m_platform == TPFPlatform::Xbox360)
                 {
                     r.Skip(4);
@@ -142,6 +318,7 @@ namespace Firelink
             tex.mipmap_count = th.mipmap_count;
             tex.texture_flags = th.texture_flags;
             tex.console_info = th.console_info;
+            tex.platform = m_platform;
             tex.float_struct = std::move(th.float_struct);
 
             // Read stem.
