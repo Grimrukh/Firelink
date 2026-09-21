@@ -21,20 +21,30 @@ jobs:
       - name: Verify CMake version
         run: cmake --version
 
-      # Configure with CMake (Release) to `build` subdirectory.
-      # The GHA Windows 2022 runner has Visual Studio 17 2022 installed.
-      # (It also has MinGW installed, but the GCC version is too old for C++20.)
-      - name: Configure CMake with MSVC
-        run: >
-          cmake -S . -B cmake-build-release-vs
-          -G "Visual Studio 17 2022"
-          -A x64
-          -DCMAKE_BUILD_TYPE=Release
+      # The "Visual Studio 17 2022" CMake generator relies on locating a full
+      # VS IDE install, which isn't reliably present on GitHub's Windows
+      # runners. Instead, activate the MSVC compiler toolset directly (still
+      # required for DirectXTex/COM/WRL code, which MinGW GCC can't build
+      # reliably) and drive the build with Ninja, which just needs cl.exe on
+      # PATH.
+      - name: Set up MSVC dev environment
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
 
-      # Build the project (Release) from `build` subdirectory.
+      # Configure with CMake (Release) using Ninja + MSVC.
+      - name: Configure CMake with MSVC (Ninja)
+        run: >
+          cmake -S . -B cmake-build-release
+          -G "Ninja"
+          -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_C_COMPILER=cl
+          -DCMAKE_CXX_COMPILER=cl
+
+      # Build the project (Release).
       - name: Build the DLLs
-        run: cmake --build cmake-build-release-vs --config Release
+        run: cmake --build cmake-build-release
 
       # Run tests.
       - name: Run Tests
-        run: ctest --test-dir cmake-build-release-vs --output-on-failure -C Release --verbose
+        run: ctest --test-dir cmake-build-release --output-on-failure --verbose

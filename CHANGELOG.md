@@ -9,6 +9,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Support for PS3 headerless DDS files with unit test (DeS `c1030.tpf`).
 - Python bindings for `TPFTexture::ConsoleInfo` for headerless textures.
 
+### Fixed
+- GitHub workflows build fixed.
+
 ---
 
 ## [0.3.3] - 2026-09-20
